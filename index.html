@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Job Tracker</title>
+  <meta name="description" content="Sales and install tracker for a window covering business: leads, consults, proposals, products, install phases, and follow-ups.">
+  <meta name="theme-color" content="#1e3a5f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Job Tracker">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/home" class="brand"><img src="icons/icon.svg" alt="" width="26" height="26"> Job Tracker</a>
+    <a href="#/settings" class="icon-btn" aria-label="Settings">⚙︎</a>
+  </header>
+
+  <main id="main" class="container"></main>
+
+  <nav class="tabbar" aria-label="Main">
+    <a href="#/home" data-tab="home"><span>🏠</span>Home</a>
+    <a href="#/sales" data-tab="sales"><span>💼</span>Sales</a>
+    <a href="#/installs" data-tab="installs"><span>🛠️</span>Installs</a>
+    <a href="#/calendar" data-tab="calendar"><span>📅</span>Calendar</a>
+    <a href="#/contacts" data-tab="contacts"><span>👥</span>Contacts</a>
+  </nav>
+
+  <dialog id="modal"></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/constants.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+// Small UI helpers: escaping, dates, forms, modal dialog, toasts.
+(function () {
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ---- Dates (stored as local 'YYYY-MM-DD' strings and 'HH:MM' times) ----
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = (s) => { const [y, m, d] = s.slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
+  const today = () => ymd(new Date());
+  const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
+  const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+  const weekStart = (s) => { const d = parse(s); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return ymd(d); };
+
+  function fmtDate(s, opts) {
+    if (!s) return '';
+    return parse(s).toLocaleDateString(undefined, opts || { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  function relDate(s) {
+    if (!s) return '';
+    const n = daysBetween(today(), s);
+    if (n === 0) return 'Today';
+    if (n === 1) return 'Tomorrow';
+    if (n === -1) return 'Yesterday';
+    if (n < 0 && n > -7) return `${-n} days ago`;
+    if (n > 0 && n < 7) return fmtDate(s, { weekday: 'long' });
+    return fmtDate(s);
+  }
+  function fmtTime(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    const ap = h >= 12 ? 'pm' : 'am';
+    return `${((h + 11) % 12) + 1}${m ? ':' + pad(m) : ''}${ap}`;
+  }
+  const money = (n) => (n || n === 0) && n !== '' ? Number(n).toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }) : '';
+
+  // ---- Links that work on a phone ----
+  const telLink = (p) => p ? `<a href="tel:${esc(p.replace(/[^\d+]/g, ''))}">${esc(p)}</a>` : '';
+  const mapLink = (addr) => addr ? `<a href="https://maps.google.com/?q=${encodeURIComponent(addr)}" target="_blank" rel="noopener">${esc(addr)}</a>` : '';
+
+  // ---- Form builder ----
+  // field: { name, label, type: text|textarea|select|date|time|number|checkbox|tel|email, options, list, half, required, placeholder }
+  function fieldHtml(f, values) {
+    const v = values[f.name] ?? f.default ?? '';
+    const id = 'f_' + f.name;
+    const req = f.required ? 'required' : '';
+    const ph = f.placeholder ? `placeholder="${esc(f.placeholder)}"` : '';
+    let input;
+    if (f.type === 'textarea') {
+      input = `<textarea id="${id}" name="${f.name}" rows="${f.rows || 3}" ${req} ${ph}>${esc(v)}</textarea>`;
+    } else if (f.type === 'select') {
+      const opts = (f.options || []).map((o) => {
+        const val = typeof o === 'object' ? o.value : o;
+        const lab = typeof o === 'object' ? o.label : o;
+        return `<option value="${esc(val)}" ${String(val) === String(v) ? 'selected' : ''}>${esc(lab)}</option>`;
+      }).join('');
+      input = `<select id="${id}" name="${f.name}" ${req}>${opts}</select>`;
+    } else if (f.type === 'checkbox') {
+      return `<label class="field check ${f.half ? 'half' : ''}"><input type="checkbox" name="${f.name}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
+    } else {
+      const list = f.list ? `list="dl_${f.name}"` : '';
+      const dl = f.list ? `<datalist id="dl_${f.name}">${f.list.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>` : '';
+      const step = f.type === 'number' ? `step="${f.step || 'any'}" inputmode="decimal"` : '';
+      input = `<input id="${id}" name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}" ${req} ${ph} ${list} ${step}>${dl}`;
+    }
+    return `<label class="field ${f.half ? 'half' : ''}" for="${id}"><span>${esc(f.label)}</span>${input}</label>`;
+  }
+
+  function readForm(form, fields) {
+    const out = {};
+    for (const f of fields) {
+      const el = form.elements[f.name];
+      if (!el) continue;
+      if (f.type === 'checkbox') out[f.name] = el.checked;
+      else if (f.type === 'number') out[f.name] = el.value === '' ? '' : Number(el.value);
+      else out[f.name] = el.value.trim();
+    }
+    return out;
+  }
+
+  // ---- Modal ----
+  const dlg = () => document.getElementById('modal');
+
+  // openForm({ title, fields, values, submitLabel, onSubmit(data, form) -> false keeps it open, onDelete, intro, after(form) })
+  function openForm(o) {
+    const d = dlg();
+    const values = o.values || {};
+    d.innerHTML = `
+      <form method="dialog" class="modal-form">
+        <header class="modal-head"><h2>${esc(o.title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></header>
+        <div class="modal-body">
+          ${o.intro || ''}
+          <div class="form-grid">${o.fields.map((f) => f.html || fieldHtml(f, values)).join('')}</div>
+        </div>
+        <footer class="modal-foot">
+          ${o.onDelete ? '<button type="button" class="btn danger ghost" data-delete>Delete</button>' : ''}
+          <span class="spacer"></span>
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">${esc(o.submitLabel || 'Save')}</button>
+        </footer>
+      </form>`;
+    const form = d.querySelector('form');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = readForm(form, o.fields.filter((f) => f.name));
+      if (o.onSubmit(data, form) !== false) close();
+    });
+    d.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
+    const del = d.querySelector('[data-delete]');
+    if (del) del.addEventListener('click', () => { if (confirm('Delete this? This cannot be undone.')) { o.onDelete(); close(); } });
+    if (o.after) o.after(form);
+    d.showModal();
+    const first = form.querySelector('input:not([type=checkbox]),select,textarea');
+    if (first && !matchMedia('(pointer: coarse)').matches) first.focus();
+  }
+
+  function openInfo(title, html) {
+    const d = dlg();
+    d.innerHTML = `<div class="modal-form"><header class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></header><div class="modal-body">${html}</div></div>`;
+    d.querySelector('[data-close]').addEventListener('click', close);
+    d.showModal();
+  }
+
+  function close() { const d = dlg(); if (d.open) d.close(); }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  function download(filename, text, type) {
+    const blob = new Blob([text], { type: type || 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
+  WC.ui = {
+    esc, ymd, parse, today, addDays, daysBetween, weekStart, fmtDate, relDate, fmtTime, money,
+    telLink, mapLink, fieldHtml, readForm, openForm, openInfo, close, toast, download,
+  };
+})();
