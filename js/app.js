@@ -66,6 +66,10 @@
     const tasks = openTasks((t) => t.projectId === p.id);
     const bits = [];
     if (ne) bits.push(`${WC.icon('calendar')} ${esc(U.relDate(ne.date))}${ne.start ? ' ' + U.fmtTime(ne.start) : ''} · ${esc(C.eventType(ne.type).label)}`);
+    if (p.files.length) {
+      const prop = p.files.some((f) => f.label === 'Proposal');
+      bits.push(`${WC.icon('paperclip')} ${p.files.length} document${p.files.length > 1 ? 's' : ''}${prop ? ' · proposal attached' : ''}`);
+    }
     if (tasks[0]) bits.push(`<span class="${tasks[0].due < U.today() ? 'overdue' : ''}">${WC.icon('square')} ${esc(tasks[0].title)} (${esc(U.relDate(tasks[0].due))})</span>`);
     const val = projectValue(p);
     return `<a class="card proj" href="#/project/${p.id}">
@@ -121,6 +125,34 @@
       </div>
       <button class="btn tiny ghost" data-action="editLog" data-project="${p.id}" data-id="${l.id}">Edit</button>
     </div>`;
+  }
+
+  const fmtSize = (n) => (!n ? '' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`);
+
+  function fileRow(p, f, opts = {}) {
+    const isImg = (f.type || '').startsWith('image/');
+    const meta = [esc(f.label), esc(U.fmtDate(f.addedAt.slice(0, 10))), fmtSize(f.size), opts.showProject ? `<a href="#/project/${p.id}">${esc(p.name)}</a>` : ''].filter(Boolean).join(' · ');
+    return `<div class="item file">
+      <button class="file-ic" data-action="viewFile" data-project="${p.id}" data-id="${f.id}" aria-label="Open ${esc(f.name)}">${WC.icon(isImg ? 'image' : 'file')}</button>
+      <div class="grow">
+        <a href="#" data-action="viewFile" data-project="${p.id}" data-id="${f.id}"><strong>${esc(f.name)}</strong></a>
+        <div class="small muted">${meta}</div>
+        ${f.note ? `<div class="small muted pre">${esc(f.note)}</div>` : ''}
+      </div>
+      <button class="btn tiny ghost" data-action="editFile" data-project="${p.id}" data-id="${f.id}">Edit</button>
+    </div>`;
+  }
+
+  function filesPanel(p) {
+    const files = p.files.slice().sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+    const wantsProposal = ['consult', 'quoting', 'proposal'].includes(p.stage) && !p.files.some((f) => f.label === 'Proposal');
+    return `<section class="panel">
+      <div class="row between"><h3>Documents ${files.length ? `<span class="count">${files.length}</span>` : ''}</h3>
+        <button class="btn tiny" data-action="addFile" data-project="${p.id}">${WC.icon('paperclip')} Attach file</button></div>
+      ${files.map((f) => fileRow(p, f)).join('')}
+      ${wantsProposal ? `<p class="small muted">${files.length ? 'No proposal attached yet.' : 'Attach the proposal PDF here once it\'s drafted, so it\'s one tap away.'}</p>` : ''}
+      ${!files.length && !wantsProposal ? empty('No documents yet. Attach proposals, contracts, plans or photos.') : ''}
+    </section>`;
   }
 
   // ======================================================================
@@ -327,6 +359,8 @@
         </div>
         ${p.notes ? `<div class="notes pre">${esc(p.notes)}</div>` : ''}
       </section>
+
+      ${filesPanel(p)}
 
       <section class="panel">
         <div class="row between"><h3>People on this job</h3><button class="btn tiny" data-action="addPerson" data-project="${p.id}">+ Add person</button></div>
@@ -537,6 +571,10 @@
         <div class="row between"><h3>Jobs</h3><button class="btn tiny" data-action="newLead" data-contact="${c.id}">+ New job</button></div>
         ${jobs.map((p) => projectCard(p, `<div class="small">Role: ${esc((p.contacts.find((pc) => pc.contactId === c.id) || {}).role || c.role || '')}</div>`)).join('') || empty('Not linked to any jobs.')}
       </section>
+      ${jobs.some((p) => p.files.length) ? `<section class="panel">
+        <h3>Documents</h3>
+        ${jobs.flatMap((p) => p.files.map((f) => ({ p, f }))).sort((a, b) => b.f.addedAt.localeCompare(a.f.addedAt)).map(({ p, f }) => fileRow(p, f, { showProject: true })).join('')}
+      </section>` : ''}
       <section class="panel">
         <div class="row between"><h3>Follow-ups</h3><button class="btn tiny" data-action="newTask" data-contact="${c.id}">+ Follow-up</button></div>
         ${tasks.map((t) => taskRow(t)).join('') || empty('None.')}
@@ -560,7 +598,7 @@
       </section>
       <section class="panel">
         <h3>Backup & restore</h3>
-        <p class="small muted">Everything is stored only in this browser on this device (${counts}). Export a backup file regularly and keep it in iCloud/Google Drive/email. Import it to restore or move to a new phone.</p>
+        <p class="small muted">Everything is stored only in this browser on this device (${counts}). Export a backup file regularly (it includes attached documents) and keep it in iCloud, Google Drive or email. Import it to restore or move to a new phone.</p>
         <p class="small">Last backup: <b>${st.lastBackup ? esc(U.fmtDate(st.lastBackup.slice(0, 10))) : 'never'}</b></p>
         <div class="row gap wrap">
           <button class="btn primary" data-action="exportData">Export backup</button>
@@ -634,7 +672,7 @@
           name: d.name || `${contact.name}${d.address ? ' – ' + d.address.split(',')[0] : ''}`,
           stage: 'lead', type: d.type, source: d.source, address: d.address || contact.address || '',
           estValue: d.estValue, notes: [d.interest && `Interested in: ${d.interest}`, d.notes].filter(Boolean).join('\n'),
-          contacts, items: [], phases: [], log: [], stageHistory: [{ stage: 'lead', at: new Date().toISOString() }],
+          contacts, items: [], phases: [], log: [], files: [], stageHistory: [{ stage: 'lead', at: new Date().toISOString() }],
         });
         if (d.consultDate) {
           S.upsert('events', { title: `Consult – ${p.name}`, type: 'sales', projectId: p.id, date: d.consultDate, start: d.consultTime, end: '', days: 1, location: p.address, notes: '', done: false });
@@ -905,6 +943,84 @@
     });
   }
 
+  function fileForm(p) {
+    const early = ['lead', 'consult', 'quoting'].includes(p.stage);
+    const fields = [
+      { name: 'file', label: 'File (PDF or photo)', type: 'file', accept: 'application/pdf,image/*', required: true },
+      { name: 'label', label: 'Type', type: 'select', options: C.DOC_LABELS, half: true },
+      { name: 'title', label: 'Name (optional)', placeholder: 'Uses the file name', half: true },
+      { name: 'note', label: 'Note', type: 'textarea', rows: 2, placeholder: 'e.g. Option B with motorized great room' },
+      ...(early ? [{ name: 'markSent', label: 'Move job to “Proposal Sent” and set a 3-day follow-up', type: 'checkbox' }] : []),
+    ];
+    U.openForm({
+      title: 'Attach to ' + p.name, fields, submitLabel: 'Attach',
+      values: { label: section(p) === 'sales' ? 'Proposal' : 'Other', markSent: early },
+      after(form) {
+        const box = form.elements.markSent && form.elements.markSent.closest('.field');
+        if (box) form.elements.label.addEventListener('change', () => { box.style.display = form.elements.label.value === 'Proposal' ? '' : 'none'; });
+      },
+      onSubmit(d) {
+        const file = d.file;
+        if (!file) { U.toast('Choose a file to attach'); return false; }
+        if (file.size > 50 * 1048576) { U.toast('That file is over 50 MB. Try a smaller PDF.'); return false; }
+        const id = S.uid();
+        WC.files.put(id, file).then(() => {
+          p.files.push({ id, name: d.title || file.name, label: d.label, type: file.type || 'application/pdf', size: file.size, addedAt: new Date().toISOString(), note: d.note });
+          let msg = 'Attached';
+          if (d.markSent && d.label === 'Proposal') {
+            const t = S.setStage(p, 'proposal');
+            if (t) msg += ` · moved to Proposal Sent, follow-up ${U.relDate(t.due).toLowerCase()}`;
+          }
+          S.touch(p); render(); U.toast(msg);
+        }).catch((e) => U.toast('Could not save the file: ' + ((e && e.message) || 'storage unavailable')));
+      },
+    });
+  }
+
+  function fileEditForm(p, f) {
+    const fields = [
+      { name: 'name', label: 'Name', required: true },
+      { name: 'label', label: 'Type', type: 'select', options: C.DOC_LABELS },
+      { name: 'note', label: 'Note', type: 'textarea', rows: 2 },
+    ];
+    U.openForm({
+      title: 'Edit document', fields, values: f,
+      onSubmit(d) { Object.assign(f, d); S.touch(p); render(); },
+      onDelete() { p.files = p.files.filter((x) => x.id !== f.id); WC.files.del(f.id); S.touch(p); render(); U.toast('Document deleted'); },
+    });
+  }
+
+  let viewerUrl = null;
+  async function viewFile(p, f) {
+    const isImg = (f.type || '').startsWith('image/');
+    U.openInfo(f.name, `<div class="small muted">${esc(f.label)} · ${esc(p.name)}${f.note ? ' · ' + esc(f.note) : ''}</div>
+      <div class="row gap wrap viewer-tools" id="viewerTools"></div>
+      <div class="viewer" id="viewer"><p class="empty">Loading…</p></div>`, 'wide');
+    const box = document.getElementById('viewer');
+    const tools = document.getElementById('viewerTools');
+    const blob = await WC.files.get(f.id).catch(() => null);
+    if (!blob) { box.innerHTML = empty('This file isn\'t stored on this device. It may have been attached on another phone; restore a backup that includes it.'); return; }
+    if (viewerUrl) URL.revokeObjectURL(viewerUrl);
+    viewerUrl = URL.createObjectURL(blob);
+    const fname = /\.\w{2,4}$/.test(f.name) ? f.name : f.name + (isImg ? '' : '.pdf');
+    if (!WC.DEMO) {
+      const shareFile = new File([blob], fname, { type: blob.type || f.type });
+      if (navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+        tools.insertAdjacentHTML('beforeend', `<button class="btn tiny primary" id="shareFile">${WC.icon('share')} Share / email</button>`);
+        document.getElementById('shareFile').addEventListener('click', () => navigator.share({ files: [shareFile], title: f.name }).catch(() => {}));
+      }
+      tools.insertAdjacentHTML('beforeend', `<a class="btn tiny" href="${viewerUrl}" target="_blank" rel="noopener">${WC.icon('external')} Open full screen</a>
+        <button class="btn tiny" id="dlFile">${WC.icon('download')} Download</button>`);
+      document.getElementById('dlFile').addEventListener('click', () => U.download(fname, blob));
+    }
+    if (isImg) { box.innerHTML = `<img class="viewer-img" src="${viewerUrl}" alt="${esc(f.name)}">`; return; }
+    try {
+      await WC.files.renderPdf(blob, box);
+    } catch (e) {
+      box.innerHTML = empty(WC.DEMO ? 'The preview couldn\'t load here.' : 'The preview needs an internet connection the first time. Use “Open full screen” instead.');
+    }
+  }
+
   // ======================================================================
   // Exports
   // ======================================================================
@@ -947,6 +1063,25 @@
   // ======================================================================
   // Sample data
   // ======================================================================
+  // Builds a one-page PDF from [text, fontSize] lines (ASCII text only).
+  function samplePdf(lines) {
+    const pdfEsc = (str) => str.replace(/[\\()]/g, '\\$&');
+    let y = 730;
+    const body = lines.map(([txt, size]) => { const out = `BT /F1 ${size} Tf 60 ${y} Td (${pdfEsc(txt)}) Tj ET`; y -= size + 9; return out; }).join('\n');
+    const objs = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+      `<< /Length ${body.length} >>\nstream\n${body}\nendstream`,
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ];
+    let out = '%PDF-1.4\n';
+    const offsets = objs.map((o, i) => { const at = out.length; out += `${i + 1} 0 obj\n${o}\nendobj\n`; return at; });
+    const xref = out.length;
+    out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => String(o).padStart(10, '0') + ' 00000 n \n').join('')}`;
+    out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    return new Blob([out], { type: 'application/pdf' });
+  }
   function loadSample(quiet) {
     const t = U.today();
     const iso = (offset) => new Date(Date.now() + offset * 86400000).toISOString();
@@ -957,7 +1092,7 @@
     const ed = c({ name: 'Ed Lin', role: 'Electrician', company: 'Bright Electric', phone: '(555) 778-0099' });
     const tom = c({ name: 'Tom & Lisa Greene', role: 'Homeowner', phone: '(555) 600-4512', address: '9 Harbor Ct' });
 
-    const proj = (o) => S.upsert('projects', { items: [], phases: [], log: [], notes: '', estValue: '', ...o });
+    const proj = (o) => S.upsert('projects', { items: [], phases: [], log: [], files: [], notes: '', estValue: '', ...o });
     const p1 = proj({ name: 'Johnson – Lakeview Dr', stage: 'consult', type: 'Existing home', source: 'Interior designer', address: '42 Lakeview Dr',
       contacts: [{ contactId: sarah.id, role: 'Homeowner' }, { contactId: dana.id, role: 'Interior Designer' }],
       notes: 'Interested in: motorized shades for great room, shutters in bedrooms', estValue: 8500,
@@ -974,6 +1109,17 @@
       ],
       log: [{ id: S.uid(), date: U.addDays(t, -9), type: 'Email', contactId: tom.id, summary: 'Sent proposal. They want to think about the patio screen color.' }] });
     S.upsert('tasks', { title: 'Follow up on proposal', due: U.addDays(t, -2), projectId: p2.id, contactId: tom.id, done: false });
+    const pdfId = S.uid();
+    const pdf = samplePdf([
+      ['PROPOSAL', 22], ['Window treatments for Tom & Lisa Greene', 13], ['9 Harbor Ct', 11], [`Prepared ${U.fmtDate(U.addDays(t, -9), { month: 'long', day: 'numeric', year: 'numeric' })}`, 11], ['', 11],
+      ['Patio - south opening', 13], ['Phantom Screens Executive retractable screen, Charcoal 90%', 11], ['Motorized, hardwired. 144 in W x 96 in H, outside mount            $3,200', 11], ['', 11],
+      ['Kitchen - over sink', 13], ['Hunter Douglas Vignette modern roman shade, Linen', 11], ['Cordless. 36 1/2 in W x 48 in H, inside mount                        $1,000', 11], ['', 11],
+      ['Total (installed)                                                    $4,200', 13], ['', 11],
+      ['Sample document created for the demo.', 9],
+    ]);
+    p2.files.push({ id: pdfId, name: 'Greene proposal.pdf', label: 'Proposal', type: 'application/pdf', size: pdf.size, addedAt: iso(-9), note: 'Option A: motorized patio screen' });
+    S.touch(p2);
+    WC.files.put(pdfId, pdf).catch(() => {});
 
     const p3 = proj({ name: 'Patterson Homes – Lot 14', stage: 'waiting', type: 'New construction', source: 'Builder / contractor', address: '1400 Ridge Rd',
       contacts: [{ contactId: mike.id, role: 'Builder / GC' }, { contactId: dana.id, role: 'Interior Designer' }, { contactId: ed.id, role: 'Electrician' }], estValue: 38000,
@@ -1040,6 +1186,10 @@
       });
     },
 
+    addFile: (ds) => fileForm(proj(ds)),
+    viewFile: (ds) => { const p = proj(ds); viewFile(p, p.files.find((f) => f.id === ds.id)); },
+    editFile: (ds) => { const p = proj(ds); fileEditForm(p, p.files.find((f) => f.id === ds.id)); },
+
     newPhase: (ds) => phaseForm(proj(ds)),
     editPhase: (ds) => { const p = proj(ds); phaseForm(p, p.phases.find((x) => x.id === ds.id)); },
     phaseTemplate: (ds) => {
@@ -1077,7 +1227,11 @@
       document.querySelectorAll('[data-brand-cat]').forEach((ta) => { S.db.settings.brands[ta.dataset.brandCat] = ta.value.split('\n').map((s) => s.trim()).filter(Boolean); });
       S.save(); U.toast('Brands saved');
     },
-    exportData: () => { U.download(`wc-tracker-backup-${U.today()}.json`, S.exportJSON(), 'application/json'); render(); },
+    exportData: () => {
+      U.toast('Preparing backup…');
+      S.exportJSON(!WC.DEMO).then((txt) => { U.download(`wc-tracker-backup-${U.today()}.json`, txt, 'application/json'); render(); })
+        .catch((e) => U.toast('Backup failed: ' + e.message));
+    },
     loadSample: () => { if (!S.all('projects').length) loadSample(); else U.ask('Add sample jobs and contacts alongside your data?', loadSample, 'Add samples'); },
     resetData: () => U.ask(WC.DEMO ? 'Erase all demo data and start from an empty app?' : 'Erase ALL jobs, contacts, appointments and follow-ups on this device? Export a backup first!', () => { S.reset(); go('#/home'); }, 'Erase everything'),
     resetDemo: () => U.ask('Put the sample data back the way it started?', () => { S.reset(); loadSample(true); U.toast('Demo reset'); }, 'Reset demo'),
@@ -1087,7 +1241,8 @@
     setStage: (el) => {
       const p = S.get('projects', el.dataset.id);
       const task = S.setStage(p, el.value);
-      U.toast(task ? `Stage updated. Added follow-up: “${task.title}”` : 'Stage updated');
+      const hint = el.value === 'proposal' && !p.files.some((f) => f.label === 'Proposal') ? ' Attach the proposal PDF under Documents.' : '';
+      U.toast((task ? `Stage updated. Added follow-up: “${task.title}”.` : 'Stage updated.') + hint);
       render();
     },
     bulkStatus: (el) => {
@@ -1103,7 +1258,7 @@
       if (!f) return;
       el.value = '';
       U.ask('Replace everything on this device with the backup file?', () => {
-        f.text().then((txt) => { S.importJSON(txt); U.toast('Backup restored'); render(); }).catch((e) => U.toast('Import failed: ' + e.message));
+        f.text().then((txt) => S.importJSON(txt)).then(() => { U.toast('Backup restored'); render(); }).catch((e) => U.toast('Import failed: ' + e.message));
       }, 'Replace');
     },
   };

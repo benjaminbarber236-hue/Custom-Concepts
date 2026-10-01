@@ -54,6 +54,8 @@
         return `<option value="${esc(val)}" ${String(val) === String(v) ? 'selected' : ''}>${esc(lab)}</option>`;
       }).join('');
       input = `<select id="${id}" name="${f.name}" ${req}>${opts}</select>`;
+    } else if (f.type === 'file') {
+      input = `<input id="${id}" name="${f.name}" type="file" ${f.accept ? `accept="${esc(f.accept)}"` : ''} ${req}>`;
     } else if (f.type === 'checkbox') {
       return `<label class="field check ${f.half ? 'half' : ''}"><input type="checkbox" name="${f.name}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
     } else {
@@ -71,6 +73,7 @@
       const el = form.elements[f.name];
       if (!el) continue;
       if (f.type === 'checkbox') out[f.name] = el.checked;
+      else if (f.type === 'file') out[f.name] = el.files[0] || null;
       else if (f.type === 'number') out[f.name] = el.value === '' ? '' : Number(el.value);
       else out[f.name] = el.value.trim();
     }
@@ -84,6 +87,7 @@
   function openForm(o) {
     const d = dlg();
     const values = o.values || {};
+    d.className = '';
     d.innerHTML = `
       <form method="dialog" class="modal-form">
         <header class="modal-head"><h2>${esc(o.title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${WC.icon('x')}</button></header>
@@ -113,8 +117,9 @@
     if (first && !matchMedia('(pointer: coarse)').matches) first.focus();
   }
 
-  function openInfo(title, html) {
+  function openInfo(title, html, cls) {
     const d = dlg();
+    d.className = cls || '';
     d.innerHTML = `<div class="modal-form"><header class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${WC.icon('x')}</button></header><div class="modal-body">${html}</div></div>`;
     d.querySelector('[data-close]').addEventListener('click', close);
     d.showModal();
@@ -146,7 +151,7 @@
       openInfo(filename, `<p class="small muted">The demo can't save files. In the installed app this downloads <b>${esc(filename)}</b>.</p><textarea class="order-text" rows="12" readonly>${esc(text)}</textarea>`);
       return;
     }
-    const blob = new Blob([text], { type: type || 'application/octet-stream' });
+    const blob = text instanceof Blob ? text : new Blob([text], { type: type || 'application/octet-stream' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = filename;

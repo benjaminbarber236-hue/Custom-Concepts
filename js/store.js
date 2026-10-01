@@ -23,6 +23,7 @@
       p.log = p.log || [];
       p.contacts = p.contacts || [];
       p.stageHistory = p.stageHistory || [];
+      p.files = p.files || [];
     });
     return d;
   }
@@ -74,8 +75,10 @@
     },
 
     remove(coll, id) {
+      const target = S.get(coll, id);
       db[coll] = db[coll].filter((x) => x.id !== id);
       if (coll === 'projects') {
+        if (target && WC.files) target.files.forEach((f) => WC.files.del(f.id));
         db.events = db.events.filter((e) => e.projectId !== id);
         db.tasks = db.tasks.filter((t) => t.projectId !== id);
       }
@@ -129,20 +132,34 @@
       return t;
     },
 
-    exportJSON() {
+    // Backup file: all records plus every attached document (base64) so a restore is complete.
+    async exportJSON(withFiles = true) {
       db.settings.lastBackup = now();
       save();
-      return JSON.stringify(db, null, 2);
+      const fileData = {};
+      if (withFiles && WC.files) {
+        for (const p of db.projects) {
+          for (const f of p.files) {
+            const blob = await WC.files.get(f.id).catch(() => null);
+            if (blob) fileData[f.id] = await WC.files.blobToDataURL(blob);
+          }
+        }
+      }
+      return JSON.stringify({ ...db, fileData }, null, 1);
     },
 
-    importJSON(text) {
+    async importJSON(text) {
       const d = JSON.parse(text);
       if (!d || !Array.isArray(d.projects) || !Array.isArray(d.contacts)) throw new Error('Not a backup file from this app');
+      const fileData = d.fileData || {};
+      delete d.fileData;
+      for (const [id, url] of Object.entries(fileData)) await WC.files.put(id, await WC.files.dataURLToBlob(url));
       db = normalize(d);
       save();
     },
 
     reset() {
+      if (WC.files) db.projects.forEach((p) => p.files.forEach((f) => WC.files.del(f.id)));
       db = empty();
       save();
     },
