@@ -42,13 +42,13 @@ WC.C = {
   LEAD_SOURCES: ['Referral', 'Interior designer', 'Builder / contractor', 'Website', 'Showroom', 'Repeat customer', 'Home show', 'Phone call', 'Other'],
 
   EVENT_TYPES: [
-    { id: 'sales',   label: 'Sales call',      color: '#2563eb' },
-    { id: 'measure', label: 'Measure',         color: '#7c3aed' },
-    { id: 'install', label: 'Install',         color: '#059669' },
-    { id: 'prewire', label: 'Pre-wire / drill', color: '#d97706' },
-    { id: 'service', label: 'Service / repair', color: '#dc2626' },
-    { id: 'meeting', label: 'Site meeting',    color: '#0891b2' },
-    { id: 'other',   label: 'Other',           color: '#64748b' },
+    { id: 'sales',   label: 'Sales call',      color: '#5b6f86' },
+    { id: 'measure', label: 'Measure',         color: '#8a7896' },
+    { id: 'install', label: 'Install',         color: '#5f8466' },
+    { id: 'prewire', label: 'Pre-wire / drill', color: '#b38a47' },
+    { id: 'service', label: 'Service / repair', color: '#ad5d52' },
+    { id: 'meeting', label: 'Site meeting',    color: '#5f8a8b' },
+    { id: 'other',   label: 'Other',           color: '#9a948c' },
   ],
 
   LOG_TYPES: ['Call', 'Text', 'Email', 'Meeting', 'Site visit', 'Note'],

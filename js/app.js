@@ -9,7 +9,8 @@
     installSearch: '',
     contactSearch: '',
     contactRole: '',
-    weekOf: U.weekStart(U.today()),
+    calDay: U.today(),
+    calMonth: U.today().slice(0, 8) + '01',
   };
 
   // ======================================================================
@@ -50,9 +51,9 @@
   function sms(p) { return p ? `sms:${p.replace(/[^\d+]/g, '')}` : ''; }
   function contactActions(c) {
     const out = [];
-    if (c.phone) out.push(`<a class="pill" href="tel:${esc(c.phone.replace(/[^\d+]/g, ''))}">📞 Call</a>`, `<a class="pill" href="${esc(sms(c.phone))}">💬 Text</a>`);
-    if (c.email) out.push(`<a class="pill" href="mailto:${esc(c.email)}">✉️ Email</a>`);
-    if (c.address) out.push(`<a class="pill" target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(c.address)}">📍 Map</a>`);
+    if (c.phone) out.push(`<a class="pill" href="tel:${esc(c.phone.replace(/[^\d+]/g, ''))}">${WC.icon('phone')} Call</a>`, `<a class="pill" href="${esc(sms(c.phone))}">${WC.icon('message')} Text</a>`);
+    if (c.email) out.push(`<a class="pill" href="mailto:${esc(c.email)}">${WC.icon('mail')} Email</a>`);
+    if (c.address) out.push(`<a class="pill" target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(c.address)}">${WC.icon('pin')} Map</a>`);
     return out.join('');
   }
 
@@ -64,8 +65,8 @@
     const ne = nextEvent(p.id);
     const tasks = openTasks((t) => t.projectId === p.id);
     const bits = [];
-    if (ne) bits.push(`📅 ${esc(U.relDate(ne.date))}${ne.start ? ' ' + U.fmtTime(ne.start) : ''} · ${esc(C.eventType(ne.type).label)}`);
-    if (tasks[0]) bits.push(`<span class="${tasks[0].due < U.today() ? 'overdue' : ''}">☐ ${esc(tasks[0].title)} (${esc(U.relDate(tasks[0].due))})</span>`);
+    if (ne) bits.push(`${WC.icon('calendar')} ${esc(U.relDate(ne.date))}${ne.start ? ' ' + U.fmtTime(ne.start) : ''} · ${esc(C.eventType(ne.type).label)}`);
+    if (tasks[0]) bits.push(`<span class="${tasks[0].due < U.today() ? 'overdue' : ''}">${WC.icon('square')} ${esc(tasks[0].title)} (${esc(U.relDate(tasks[0].due))})</span>`);
     const val = projectValue(p);
     return `<a class="card proj" href="#/project/${p.id}">
       <div class="row between"><strong>${esc(p.name)}</strong>${stageBadge(p)}</div>
@@ -91,7 +92,7 @@
       </div>
       <div class="ev-actions">
         ${canWrap ? `<button class="btn tiny primary" data-action="wrapUp" data-id="${e.id}" title="Record what happened and set a follow-up">Wrap up</button>` : ''}
-        ${WC.DEMO ? '' : `<button class="btn tiny ghost" data-action="icsEvent" data-id="${e.id}" title="Add to phone calendar">📲</button>`}
+        ${WC.DEMO ? '' : `<button class="btn tiny ghost" data-action="icsEvent" data-id="${e.id}" title="Add to phone calendar" aria-label="Add to phone calendar">${WC.icon('calendarPlus')}</button>`}
       </div>
     </div>`;
   }
@@ -136,14 +137,15 @@
     const projects = S.all('projects');
 
     if (!projects.length && !S.all('contacts').length) {
-      return `<h1>${greet}${name ? ', ' + esc(name) : ''}</h1>
+      return `<h1>Dashboard</h1>
+        <p class="muted">${greet}${name ? ', ' + esc(name) : ''}</p>
         <div class="card welcome">
-          <h2>Welcome 👋</h2>
+          <h2>Welcome</h2>
           <p>This app tracks every job from first phone call, through the sales consult and proposal, ordering, pre-wire, waiting on other trades, install, punch list, and the check-in afterward.</p>
           <ul>
             <li><b>Sales</b>: leads, consults, quotes, proposals, follow-ups.</li>
             <li><b>Installs</b>: products by room, phases for big jobs, who you're waiting on.</li>
-            <li><b>Calendar</b>: sales calls, measures, install days, site meetings.</li>
+            <li><b>Dashboard</b>: your calendar of sales calls, measures, install days and site meetings, plus follow-ups due.</li>
             <li><b>Contacts</b>: homeowners, designers, builders, electricians, and other trades.</li>
           </ul>
           <div class="row gap wrap">
@@ -158,13 +160,6 @@
     const dueToday = tasks.filter((x) => x.due === t);
     const soon = tasks.filter((x) => x.due > t && x.due <= U.addDays(t, 7));
     const wrap = S.all('events').filter((e) => !e.done && lastDay(e) < t && lastDay(e) >= U.addDays(t, -30)).sort(byWhen);
-
-    let upcoming = '';
-    for (let i = 1; i <= 7; i++) {
-      const d = U.addDays(t, i);
-      const evs = eventsOn(d);
-      if (evs.length) upcoming += `<div class="day-label">${esc(U.relDate(d))}</div>` + evs.map((e) => eventRow(e, { day: d })).join('');
-    }
 
     const salesStages = C.STAGES.filter((s) => s.section === 'sales');
     const pipeline = salesStages.map((s) => {
@@ -185,23 +180,20 @@
 
     const lb = S.db.settings.lastBackup;
     const backupNag = projects.length && (!lb || daysSince(lb) >= 7)
-      ? `<div class="banner">💾 ${lb ? `Last backup was ${daysSince(lb)} days ago.` : 'You haven\'t backed up yet.'} Your data lives only on this device. <a href="#" data-action="exportData">Export backup</a></div>` : '';
+      ? `<div class="banner">${WC.icon('download')} <span>${lb ? `Last backup was ${daysSince(lb)} days ago.` : 'You haven\'t backed up yet.'} Your data lives only on this device. <a href="#" data-action="exportData">Export backup</a></span></div>` : '';
 
     return `
-      <h1>${greet}${name ? ', ' + esc(name) : ''}</h1>
-      <p class="muted">${esc(U.fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
+      <h1>Dashboard</h1>
+      <p class="muted">${greet}${name ? ', ' + esc(name) : ''} · ${esc(U.fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
       ${WC.DEMO ? `<div class="banner demo">You're trying a demo filled with sample jobs. Tap around, add leads, and wrap up appointments. Changes stay in this browser only. <a href="#" data-action="resetDemo">Reset demo</a></div>` : backupNag}
+      ${calendarCard()}
+
       <div class="quick row gap wrap">
         <button class="btn primary" data-action="newLead">+ Lead</button>
-        <button class="btn" data-action="newEvent" data-date="${t}">+ Appointment</button>
+        <button class="btn" data-action="newEvent" data-date="${state.calDay}">+ Appointment</button>
         <button class="btn" data-action="newTask">+ Follow-up</button>
         <button class="btn" data-action="newLog">+ Call / Note</button>
       </div>
-
-      <section class="panel">
-        <h3>Today</h3>
-        ${eventsOn(t).map((e) => eventRow(e, { day: t })).join('') || empty('Nothing scheduled today.')}
-      </section>
 
       ${wrap.length ? `<section class="panel warn">
         <h3>Needs wrap-up <span class="count">${wrap.length}</span></h3>
@@ -218,11 +210,6 @@
       </section>
 
       <section class="panel">
-        <h3>Coming up this week</h3>
-        ${upcoming || empty('Nothing on the calendar for the next 7 days.')}
-      </section>
-
-      <section class="panel">
         <h3>Sales pipeline</h3>
         <div class="stats">${pipeline}</div>
       </section>
@@ -236,7 +223,7 @@
       ${waiting.length ? `<section class="panel">
         <h3>Installs waiting on others</h3>
         ${waiting.map(({ p, w }) => `<a class="item" href="#/project/${p.id}"><div class="grow"><strong>${esc(p.name)}</strong>
-          <div class="small muted">${w.map((ph) => `⏳ ${esc(ph.name)}${ph.waitingOn ? ` — waiting on <b>${esc(ph.waitingOn)}</b>` : ''}${ph.date ? ` (target ${esc(U.fmtDate(ph.date))})` : ''}`).join('<br>')}</div></div></a>`).join('')}
+          <div class="small muted">${w.map((ph) => `${WC.icon('hourglass')} ${esc(ph.name)}${ph.waitingOn ? ` — waiting on <b>${esc(ph.waitingOn)}</b>` : ''}${ph.date ? ` (target ${esc(U.fmtDate(ph.date))})` : ''}`).join('<br>')}</div></div></a>`).join('')}
       </section>` : ''}
     `;
   };
@@ -277,7 +264,7 @@
     return `<div class="progress-wrap small">
       ${n ? `<div class="progress"><span style="width:${pct}%"></span></div><span class="muted">${done}/${n} installed</span>` : ''}
       ${p.phases.length ? `<span class="muted">· phases ${phDone}/${p.phases.length}</span>` : ''}
-      ${waiting ? `<div class="waiting">⏳ ${esc(waiting.name)}${waiting.waitingOn ? ` — waiting on ${esc(waiting.waitingOn)}` : ''}</div>` : ''}
+      ${waiting ? `<div class="waiting">${WC.icon('hourglass')} ${esc(waiting.name)}${waiting.waitingOn ? ` — waiting on ${esc(waiting.waitingOn)}` : ''}</div>` : ''}
     </div>`;
   }
 
@@ -310,9 +297,9 @@
     const body = { overview: projectOverview, products: projectProducts, phases: projectPhases, schedule: projectSchedule, log: projectLog }[tab] || projectOverview;
     const home = section(p) === 'install' || p.stage === 'complete' ? 'installs' : 'sales';
     return `
-      <a class="back" href="#/${home}">← ${home === 'sales' ? 'Sales' : 'Installs'}</a>
+      <a class="back" href="#/${home}">${WC.icon('left')} ${home === 'sales' ? 'Sales' : 'Installs'}</a>
       <div class="row between wrap gap"><h1>${esc(p.name)}</h1>${stageSel}</div>
-      ${p.address ? `<div class="muted">📍 ${U.mapLink(p.address)}</div>` : ''}
+      ${p.address ? `<div class="muted addr">${WC.icon('pin')} ${U.mapLink(p.address)}</div>` : ''}
       <div class="quick row gap wrap">
         <button class="btn" data-action="newLog" data-project="${p.id}">+ Call / Note</button>
         <button class="btn" data-action="newEvent" data-project="${p.id}">+ Appointment</button>
@@ -347,7 +334,7 @@
             <div class="grow"><a href="#/contact/${pc.contact.id}"><strong>${esc(pc.contact.name)}</strong></a>
               <span class="badge">${esc(pc.role || pc.contact.role || '')}</span>${pc.contact.company ? ` <span class="muted small">${esc(pc.contact.company)}</span>` : ''}
               <div class="pills">${contactActions({ ...pc.contact, address: '' })}</div></div>
-            <button class="btn tiny ghost" data-action="removePerson" data-project="${p.id}" data-id="${pc.contactId}" title="Remove from job">✕</button>
+            <button class="btn tiny ghost" data-action="removePerson" data-project="${p.id}" data-id="${pc.contactId}" title="Remove from job" aria-label="Remove from job">${WC.icon('x')}</button>
           </div>`).join('') || empty('No one linked yet. Add the homeowner, designer, builder, electrician…')}
       </section>
 
@@ -429,7 +416,7 @@
           </div>
           <div class="col-actions">
             <button class="badge ph-badge" data-action="cyclePhase" data-project="${p.id}" data-id="${ph.id}">${esc(ph.status)}</button>
-            <div class="row gap"><button class="btn tiny ghost" data-action="movePhase" data-project="${p.id}" data-id="${ph.id}" data-dir="-1" aria-label="Move up">↑</button><button class="btn tiny ghost" data-action="movePhase" data-project="${p.id}" data-id="${ph.id}" data-dir="1" aria-label="Move down">↓</button></div>
+            <div class="row gap"><button class="btn tiny ghost" data-action="movePhase" data-project="${p.id}" data-id="${ph.id}" data-dir="-1" aria-label="Move up">${WC.icon('up')}</button><button class="btn tiny ghost" data-action="movePhase" data-project="${p.id}" data-id="${ph.id}" data-dir="1" aria-label="Move down">${WC.icon('down')}</button></div>
           </div>
         </div>`).join('') || empty('No phases yet. Small jobs usually don\'t need them.')}
       </section>`;
@@ -462,33 +449,47 @@
     </section>`;
   }
 
-  // ---------------- Calendar ----------------
-  views.calendar = () => {
-    const ws = state.weekOf;
+  // ---------------- Dashboard calendar ----------------
+  function calendarCard() {
     const t = U.today();
-    let days = '';
-    for (let i = 0; i < 7; i++) {
-      const d = U.addDays(ws, i);
+    const m = state.calMonth;
+    const month = U.parse(m).getMonth();
+    const gridStart = U.weekStart(m);
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const d = U.addDays(gridStart, i);
+      const dt = U.parse(d);
+      if (i % 7 === 0 && i >= 28 && dt.getMonth() !== month) break;
       const evs = eventsOn(d);
-      const tasks = openTasks((x) => x.due === d);
-      days += `<section class="panel day ${d === t ? 'is-today' : ''}">
-        <div class="row between"><h3>${esc(U.fmtDate(d, { weekday: 'long', month: 'short', day: 'numeric' }))}${d === t ? ' <span class="badge st-sales">Today</span>' : ''}</h3>
-          <button class="btn tiny ghost" data-action="newEvent" data-date="${d}" aria-label="Add appointment">+</button></div>
-        ${evs.map((e) => eventRow(e, { day: d })).join('')}
-        ${tasks.map((x) => taskRow(x)).join('')}
-        ${!evs.length && !tasks.length ? '<p class="empty small">Open</p>' : ''}
-      </section>`;
+      const due = openTasks((x) => x.due === d).length;
+      const label = `${U.fmtDate(d, { weekday: 'long', month: 'long', day: 'numeric' })}: ${evs.length} appointment${evs.length === 1 ? '' : 's'}${due ? `, ${due} follow-up${due === 1 ? '' : 's'}` : ''}`;
+      cells += `<button class="cal-day${dt.getMonth() !== month ? ' out' : ''}${d === t ? ' today' : ''}${d === state.calDay ? ' sel' : ''}" data-action="calDay" data-date="${d}" aria-label="${esc(label)}">
+        <span>${dt.getDate()}</span><i>${evs.slice(0, 3).map((e) => `<b style="background:${C.eventType(e.type).color}"></b>`).join('')}${due ? '<b class="task-dot"></b>' : ''}</i></button>`;
     }
-    return `
-      <div class="row between wrap gap"><h1>Calendar</h1><button class="btn primary" data-action="newEvent" data-date="${t}">+ Appointment</button></div>
-      <div class="row between week-nav">
-        <button class="btn ghost" data-action="week" data-dir="-1">← Prev</button>
-        <button class="btn ghost" data-action="week" data-dir="0">${esc(U.fmtDate(ws, { month: 'short', day: 'numeric' }))} – ${esc(U.fmtDate(U.addDays(ws, 6), { month: 'short', day: 'numeric' }))}</button>
-        <button class="btn ghost" data-action="week" data-dir="1">Next →</button>
+    const sel = state.calDay;
+    const evs = eventsOn(sel);
+    const tasks = sel === t ? [] : openTasks((x) => x.due === sel);
+    const used = new Set(S.all('events').map((e) => e.type));
+    return `<section class="panel cal">
+      <div class="row between cal-head">
+        <h2 class="cal-title">${esc(U.parse(m).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))}</h2>
+        <div class="row">
+          <button class="btn tiny ghost" data-action="calMonth" data-dir="-1" aria-label="Previous month">${WC.icon('left')}</button>
+          <button class="btn tiny ghost" data-action="calMonth" data-dir="0">Today</button>
+          <button class="btn tiny ghost" data-action="calMonth" data-dir="1" aria-label="Next month">${WC.icon('right')}</button>
+        </div>
       </div>
-      <div class="legend small">${C.EVENT_TYPES.map((x) => `<span>${typeDot(x.id)}${esc(x.label)}</span>`).join('')}</div>
-      ${days}`;
-  };
+      <div class="cal-grid">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="cal-dow">${d}</div>`).join('')}${cells}</div>
+      <div class="cal-legend">${C.EVENT_TYPES.filter((x) => used.has(x.id)).map((x) => `<span>${typeDot(x.id)}${esc(x.label)}</span>`).join('')}<span><span class="dot" style="box-shadow:inset 0 0 0 1px var(--muted)"></span>Follow-up due</span></div>
+      <div class="cal-agenda">
+        <div class="row between"><h3>${sel === t ? 'Today' : esc(U.fmtDate(sel, { weekday: 'long', month: 'short', day: 'numeric' }))}</h3>
+          <button class="btn tiny" data-action="newEvent" data-date="${sel}">${WC.icon('plus')} Appointment</button></div>
+        ${evs.map((e) => eventRow(e, { day: sel })).join('')}
+        ${tasks.map((x) => taskRow(x)).join('')}
+        ${!evs.length && !tasks.length ? empty(sel === t ? 'Nothing scheduled today.' : 'Nothing scheduled.') : ''}
+      </div>
+    </section>`;
+  }
 
   // ---------------- Contacts ----------------
   function contactList() {
@@ -522,7 +523,7 @@
     logs.sort((a, b) => b.l.date.localeCompare(a.l.date));
     const tasks = S.all('tasks').filter((t) => t.contactId === c.id).sort(byDue);
     return `
-      <a class="back" href="#/contacts">← Contacts</a>
+      <a class="back" href="#/contacts">${WC.icon('left')} Contacts</a>
       <div class="row between wrap gap"><h1>${esc(c.name)}</h1><button class="btn ghost" data-action="editContact" data-id="${c.id}">Edit</button></div>
       <div class="muted">${[c.role, c.company].filter(Boolean).map(esc).join(' · ')}</div>
       <div class="pills big">${contactActions(c)}</div>
@@ -587,7 +588,7 @@
   // ======================================================================
   function leadForm(prefill = {}) {
     const fields = [
-      { name: 'existingContact', label: 'Client', type: 'select', options: contactOptions('➕ New person (fill in below)') },
+      { name: 'existingContact', label: 'Client', type: 'select', options: contactOptions('+ New person (fill in below)') },
       { name: 'clientName', label: 'Name', placeholder: 'e.g. Sarah Johnson', half: true },
       { name: 'clientRole', label: 'They are a…', type: 'select', options: C.CONTACT_ROLES, default: 'Homeowner', half: true },
       { name: 'phone', label: 'Phone', type: 'tel', half: true },
@@ -685,7 +686,7 @@
 
   function addPersonForm(p) {
     const fields = [
-      { name: 'contactId', label: 'Person', type: 'select', options: contactOptions('➕ New person (fill in below)') },
+      { name: 'contactId', label: 'Person', type: 'select', options: contactOptions('+ New person (fill in below)') },
       { name: 'name', label: 'Name', half: true },
       { name: 'company', label: 'Company', half: true },
       { name: 'phone', label: 'Phone', type: 'tel', half: true },
@@ -946,7 +947,7 @@
   // ======================================================================
   // Sample data
   // ======================================================================
-  function loadSample() {
+  function loadSample(quiet) {
     const t = U.today();
     const iso = (offset) => new Date(Date.now() + offset * 86400000).toISOString();
     const c = (o) => S.upsert('contacts', { address: '', notes: '', company: '', email: '', ...o });
@@ -989,7 +990,7 @@
       items: ['Living Room', 'Living Room', 'Bedroom 2'].map((room, i) => ({ id: S.uid(), room, location: `Window ${i + 1}`, category: 'Shutters', brand: 'Norman', product: 'Woodlore', color: 'Pure White', width: '30', height: '54', mount: 'Inside', control: '', qty: 1, price: 850, status: i === 0 ? 'Installed' : 'Received', notes: '' })) });
     S.upsert('events', { title: 'Install – Kim', type: 'install', projectId: p4.id, date: t, start: '09:00', end: '15:00', days: 2, location: p4.address, notes: '', done: false });
     S.upsert('events', { title: 'Measure – Greene patio', type: 'measure', projectId: p2.id, date: U.addDays(t, -3), start: '13:00', end: '14:00', days: 1, location: p2.address, notes: '', done: false });
-    U.toast('Sample data loaded');
+    if (quiet !== true) U.toast('Sample data loaded');
     go('#/home');
   }
 
@@ -1062,7 +1063,14 @@
     editContact: (ds) => contactForm(S.get('contacts', ds.id)),
 
     setFilter: (ds) => { state[ds.key] = ds.value; render(); },
-    week: (ds) => { const n = Number(ds.dir); state.weekOf = n === 0 ? U.weekStart(U.today()) : U.addDays(state.weekOf, 7 * n); render(); },
+    calDay: (ds) => { state.calDay = ds.date; state.calMonth = ds.date.slice(0, 8) + '01'; render(); },
+    calMonth: (ds) => {
+      const n = Number(ds.dir);
+      if (n === 0) { state.calDay = U.today(); state.calMonth = state.calDay.slice(0, 8) + '01'; } else {
+        const d = U.parse(state.calMonth); d.setMonth(d.getMonth() + n); state.calMonth = U.ymd(d);
+      }
+      render();
+    },
 
     saveName: () => { S.db.settings.userName = document.getElementById('set_name').value.trim(); S.save(); U.toast('Saved'); },
     saveBrands: () => {
@@ -1072,7 +1080,7 @@
     exportData: () => { U.download(`wc-tracker-backup-${U.today()}.json`, S.exportJSON(), 'application/json'); render(); },
     loadSample: () => { if (!S.all('projects').length) loadSample(); else U.ask('Add sample jobs and contacts alongside your data?', loadSample, 'Add samples'); },
     resetData: () => U.ask(WC.DEMO ? 'Erase all demo data and start from an empty app?' : 'Erase ALL jobs, contacts, appointments and follow-ups on this device? Export a backup first!', () => { S.reset(); go('#/home'); }, 'Erase everything'),
-    resetDemo: () => U.ask('Put the sample data back the way it started?', () => { S.reset(); loadSample(); }, 'Reset demo'),
+    resetDemo: () => U.ask('Put the sample data back the way it started?', () => { S.reset(); loadSample(true); U.toast('Demo reset'); }, 'Reset demo'),
   };
 
   const changes = {
@@ -1148,7 +1156,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.getElementById('modal').open) render(); });
 
   WC.render = render;
-  if (WC.DEMO && !S.all('projects').length) loadSample();
+  if (WC.DEMO && !S.all('projects').length) loadSample(true);
   render();
 
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});

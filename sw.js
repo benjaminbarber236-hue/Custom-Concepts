@@ -1,7 +1,7 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
-const CACHE = 'wc-tracker-v1';
+const CACHE = 'wc-tracker-v3';
 const SHELL = [
-  './', 'index.html', 'css/styles.css', 'js/constants.js', 'js/ui.js', 'js/store.js', 'js/app.js',
+  './', 'index.html', 'css/styles.css', 'js/icons.js', 'js/constants.js', 'js/ui.js', 'js/store.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

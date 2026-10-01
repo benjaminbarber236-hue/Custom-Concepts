@@ -12,10 +12,11 @@ const css = read('css/styles.css') + `
 /* Hosted-demo adjustments */
 .topbar { top: env(safe-area-inset-top, 0px); padding-top: 8px; }
 `;
-const js = ['js/constants.js', 'js/ui.js', 'js/store.js', 'js/app.js'].map(read).join('\n')
+const js = ['js/icons.js', 'js/constants.js', 'js/ui.js', 'js/store.js', 'js/app.js'].map(read).join('\n')
   .replace("const KEY = 'wc-tracker-v1';", "const KEY = 'wc-tracker-demo-v1';");
 
 const html = `<title>Window Covering Job Tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <meta name="description" content="Demo of a sales and install tracker for a window covering business.">
 <style>
 ${css}

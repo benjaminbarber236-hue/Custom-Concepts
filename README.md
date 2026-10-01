@@ -8,10 +8,9 @@ It's plain HTML, CSS and JavaScript. There's no build step and no server, it wor
 
 | Section | What's there |
 |---|---|
-| **Home** | Today's schedule, overdue and upcoming follow-ups, past appointments that still need wrap-up notes, the sales pipeline, sales leads going cold, and installs waiting on other trades. |
+| **Dashboard** | A month calendar of sales calls, measures, install days and site meetings (tap a day to see its appointments; multi-day installs supported, and each appointment can go to your phone calendar), overdue and upcoming follow-ups, past appointments that still need wrap-up notes, the sales pipeline, sales leads going cold, and installs waiting on other trades. |
 | **Sales** | Leads → Consult scheduled → Measure/quoting → Proposal sent. Includes search and stage filters. |
 | **Installs** | Sold/ordering → Pre-wire → Waiting on trades → Installing → Punch list. Shows install progress and who you're waiting on. |
-| **Calendar** | A week view of sales calls, measures, install days, pre-wire visits and site meetings, plus follow-ups due each day. Multi-day installs are supported. Each appointment can be added to your phone calendar (.ics). |
 | **Contacts** | Homeowners, designers, builders, electricians and other trades, with tap-to-call, text, email and map buttons. Each person's page lists every job they're on and their conversation history. |
 
 **Each job** has:

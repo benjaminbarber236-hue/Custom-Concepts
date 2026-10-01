@@ -86,7 +86,7 @@
     const values = o.values || {};
     d.innerHTML = `
       <form method="dialog" class="modal-form">
-        <header class="modal-head"><h2>${esc(o.title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></header>
+        <header class="modal-head"><h2>${esc(o.title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${WC.icon('x')}</button></header>
         <div class="modal-body">
           ${o.intro || ''}
           <div class="form-grid">${o.fields.map((f) => f.html || fieldHtml(f, values)).join('')}</div>
@@ -115,7 +115,7 @@
 
   function openInfo(title, html) {
     const d = dlg();
-    d.innerHTML = `<div class="modal-form"><header class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></header><div class="modal-body">${html}</div></div>`;
+    d.innerHTML = `<div class="modal-form"><header class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${WC.icon('x')}</button></header><div class="modal-body">${html}</div></div>`;
     d.querySelector('[data-close]').addEventListener('click', close);
     d.showModal();
   }
