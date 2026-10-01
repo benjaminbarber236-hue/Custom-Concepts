@@ -60,7 +60,7 @@ WC.C = {
     { id: 'other',   label: 'Other',           color: '#9a948c' },
   ],
 
-  DOC_LABELS: ['Proposal', 'Signed contract', 'Quote / estimate', 'Invoice', 'Plans / drawings', 'Photo', 'Spec sheet', 'Other'],
+  DOC_LABELS: ['Proposal', 'Signed contract', 'Quote / estimate', 'Order sheet', 'Invoice', 'Plans / drawings', 'Photo', 'Spec sheet', 'Other'],
 
   LOG_TYPES: ['Call', 'Text', 'Email', 'Meeting', 'Site visit', 'Note'],
 

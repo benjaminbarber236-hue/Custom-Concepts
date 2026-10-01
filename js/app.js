@@ -129,6 +129,11 @@
     </div>`;
   }
 
+  const isPlan = (f) => f.label === 'Plans / drawings';
+  const isSheet = (f) => f.label === 'Order sheet';
+  const itemClass = (s) => `it-${(s || 'Quoted').toLowerCase()}`;
+  const phaseClass = (s) => `ph-${(s || 'To do').toLowerCase().replace(/\s/g, '')}`;
+
   const fmtSize = (n) => (!n ? '' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
   function fileRow(p, f, opts = {}) {
@@ -325,10 +330,10 @@
     const p = S.get('projects', id);
     if (!p) return `<p>Job not found. <a href="#/sales">Back to Sales</a></p>`;
     tab = tab || 'overview';
-    const tabs = [['overview', 'Overview'], ['products', `Products (${p.items.length})`], ['phases', `Phases (${p.phases.length})`], ['schedule', 'Schedule'], ['log', `Log (${p.log.length})`]];
+    const tabs = [['overview', 'Overview'], ['products', `Products (${p.items.length})`], ['plans', `Plans (${p.files.filter(isPlan).length})`], ['phases', `Phases (${p.phases.length})`], ['schedule', 'Schedule'], ['log', `Log (${p.log.length})`]];
     const stageSel = `<select class="stage-select" data-change="setStage" data-id="${p.id}">${['sales', 'install', 'closed'].map((sec) =>
       `<optgroup label="${sec === 'sales' ? 'Sales' : sec === 'install' ? 'Install' : 'Closed'}">${C.STAGES.filter((s) => s.section === sec).map((s) => `<option value="${s.id}" ${s.id === p.stage ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</optgroup>`).join('')}</select>`;
-    const body = { overview: projectOverview, products: projectProducts, phases: projectPhases, schedule: projectSchedule, log: projectLog }[tab] || projectOverview;
+    const body = { overview: projectOverview, products: projectProducts, plans: projectPlans, phases: projectPhases, schedule: projectSchedule, log: projectLog }[tab] || projectOverview;
     const home = section(p) === 'install' || p.stage === 'complete' ? 'installs' : 'sales';
     return `
       <a class="back" href="#/${home}">${WC.icon('left')} ${home === 'sales' ? 'Sales' : 'Installs'}</a>
@@ -408,12 +413,17 @@
           <div>${counts || '<span class="muted">No products yet.</span>'} ${itemTotal(p) ? `<b class="total">${U.money(itemTotal(p))}</b>` : ''}</div>
           <div class="row gap wrap">
             <button class="btn primary tiny" data-action="newItem" data-project="${p.id}">+ Add window / product</button>
+            <button class="btn tiny" data-action="importSheet" data-project="${p.id}">${WC.icon('upload')} Import order sheet</button>
             ${p.items.length ? `<select class="tiny-select" data-change="bulkStatus" data-project="${p.id}"><option value="">Mark all as…</option>${C.ITEM_STATUSES.map((s) => `<option>${s}</option>`).join('')}</select>
             <button class="btn tiny" data-action="copyOrder" data-project="${p.id}">Order list</button>` : ''}
           </div>
         </div>
-        <p class="small muted">Tap a status badge to advance it (Quoted → Ordered → Received → Installed). Use “Copy” to quickly add the next window with the same specs.</p>
+        <p class="small muted">Tap a status to change it. Use “Copy” to add the next window with the same specs, or import the order sheet to fill this list automatically.</p>
       </section>
+      ${p.files.some(isSheet) ? `<section class="panel">
+        <h3>Order sheets <span class="count">${p.files.filter(isSheet).length}</span></h3>
+        ${p.files.filter(isSheet).map((f) => fileRow(p, f)).join('')}
+      </section>` : ''}
       ${Object.keys(rooms).sort().map((room) => `
         <section class="panel">
           <h3>${esc(room)} <span class="count">${rooms[room].length}</span></h3>
@@ -425,11 +435,28 @@
               ${i.notes ? `<div class="small muted pre">${esc(i.notes)}</div>` : ''}
             </div>
             <div class="col-actions">
-              <button class="badge it-${(i.status || 'quoted').toLowerCase()}" data-action="cycleItem" data-project="${p.id}" data-id="${i.id}">${esc(i.status || 'Quoted')}</button>
+              <button class="badge status-btn ${itemClass(i.status)}" data-action="itemStatus" data-project="${p.id}" data-id="${i.id}" aria-label="Status: ${esc(i.status || 'Quoted')}. Change status">${esc(i.status || 'Quoted')}${WC.icon('down')}</button>
               <div class="row gap"><button class="btn tiny ghost" data-action="editItem" data-project="${p.id}" data-id="${i.id}">Edit</button><button class="btn tiny ghost" data-action="dupItem" data-project="${p.id}" data-id="${i.id}">Copy</button></div>
             </div>
           </div>`).join('')}
         </section>`).join('')}`;
+  }
+
+  function projectPlans(p) {
+    const plans = p.files.filter(isPlan).sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+    return `
+      <section class="panel">
+        <div class="row between wrap gap"><h3>Plans & drawings</h3>
+          <button class="btn primary tiny" data-action="addPlans" data-project="${p.id}">${WC.icon('upload')} Upload plans</button></div>
+        <p class="small muted">Floor plans, elevations, window schedules, electrical plans. Tap one to open it; use Zoom to read the details.</p>
+        ${plans.length ? `<div class="plan-grid">${plans.map((f) => `
+          <div class="plan-card">
+            <button class="plan-thumb" data-action="viewFile" data-project="${p.id}" data-id="${f.id}" data-thumb="${f.id}" aria-label="Open ${esc(f.name)}">${WC.icon((f.type || '').startsWith('image/') ? 'image' : 'file')}</button>
+            <div class="plan-meta"><a href="#" data-action="viewFile" data-project="${p.id}" data-id="${f.id}"><strong>${esc(f.name)}</strong></a>
+              <div class="small muted">${esc(U.fmtDate(f.addedAt.slice(0, 10)))}${f.note ? ' · ' + esc(f.note) : ''}</div></div>
+            <button class="btn tiny ghost" data-action="editFile" data-project="${p.id}" data-id="${f.id}">Edit</button>
+          </div>`).join('')}</div>` : empty('No plans yet. Upload the builder\'s or designer\'s plans so they\'re on hand at the site.')}
+      </section>`;
   }
 
   function projectPhases(p) {
@@ -442,7 +469,7 @@
             <button class="btn tiny" data-action="phaseTemplate" data-project="${p.id}">Add new-construction template</button>
           </div>
         </div>
-        <p class="small muted">For jobs that span weeks: pre-wire, wait on framers/drywall, come back to install. Tap the status to cycle To do → Waiting → Scheduled → Done.</p>
+        <p class="small muted">For jobs that span weeks: pre-wire, wait on framers/drywall, come back to install. Tap a status to change it.</p>
         ${p.phases.map((ph, idx) => `<div class="item phase ph-${ph.status.toLowerCase().replace(/\s/g, '')}">
           <div class="ph-num">${idx + 1}</div>
           <div class="grow">
@@ -451,7 +478,7 @@
             ${ph.notes ? `<div class="small pre">${esc(ph.notes)}</div>` : ''}
           </div>
           <div class="col-actions">
-            <button class="badge ph-badge" data-action="cyclePhase" data-project="${p.id}" data-id="${ph.id}">${esc(ph.status)}</button>
+            <button class="badge ph-badge status-btn" data-action="phaseStatus" data-project="${p.id}" data-id="${ph.id}" aria-label="Status: ${esc(ph.status)}. Change status">${esc(ph.status)}${WC.icon('down')}</button>
             <div class="row gap"><button class="btn tiny ghost" data-action="movePhase" data-project="${p.id}" data-id="${ph.id}" data-dir="-1" aria-label="Move up">${WC.icon('up')}</button><button class="btn tiny ghost" data-action="movePhase" data-project="${p.id}" data-id="${ph.id}" data-dir="1" aria-label="Move down">${WC.icon('down')}</button></div>
           </div>
         </div>`).join('') || empty('No phases yet. Small jobs usually don\'t need them.')}
@@ -1090,8 +1117,8 @@
       { name: 'color', label: 'Fabric / color', half: true },
       { name: 'width', label: 'Width (in)', placeholder: '34 3/8', half: true },
       { name: 'height', label: 'Height (in)', placeholder: '60 1/4', half: true },
-      { name: 'mount', label: 'Mount', type: 'select', options: ['', ...C.MOUNTS], half: true },
-      { name: 'control', label: 'Control / power', type: 'select', options: ['', ...C.CONTROLS], half: true },
+      { name: 'mount', label: 'Mount', type: 'select', options: ['', ...C.MOUNTS, ...(i.mount && !C.MOUNTS.includes(i.mount) ? [i.mount] : [])], half: true },
+      { name: 'control', label: 'Control / power', type: 'select', options: ['', ...C.CONTROLS, ...(i.control && !C.CONTROLS.includes(i.control) ? [i.control] : [])], half: true },
       { name: 'qty', label: 'Qty', type: 'number', step: 1, half: true },
       { name: 'price', label: 'Price each ($)', type: 'number', half: true },
       { name: 'status', label: 'Status', type: 'select', options: C.ITEM_STATUSES },
@@ -1136,30 +1163,33 @@
     });
   }
 
-  function fileForm(p) {
-    const early = ['lead', 'consult', 'quoting'].includes(p.stage);
+  function fileForm(p, opts = {}) {
+    const early = !opts.label && ['lead', 'consult', 'quoting'].includes(p.stage);
     const fields = [
-      { name: 'file', label: 'File (PDF or photo)', type: 'file', accept: 'application/pdf,image/*', required: true },
+      { name: 'file', label: opts.multiple ? 'Files (PDF or photos, pick several at once)' : 'File (PDF or photo)', type: 'file', accept: 'application/pdf,image/*', required: true, multiple: !!opts.multiple },
       { name: 'label', label: 'Type', type: 'select', options: C.DOC_LABELS, half: true },
-      { name: 'title', label: 'Name (optional)', placeholder: 'Uses the file name', half: true },
+      ...(opts.multiple ? [] : [{ name: 'title', label: 'Name (optional)', placeholder: 'Uses the file name', half: true }]),
       { name: 'note', label: 'Note', type: 'textarea', rows: 2, placeholder: 'e.g. Option B with motorized great room' },
       ...(early ? [{ name: 'markSent', label: 'Move job to “Proposal Sent” and set a 3-day follow-up', type: 'checkbox' }] : []),
     ];
     U.openForm({
-      title: 'Attach to ' + p.name, fields, submitLabel: 'Attach',
-      values: { label: section(p) === 'sales' ? 'Proposal' : 'Other', markSent: early },
+      title: opts.title || 'Attach to ' + p.name, fields, submitLabel: opts.multiple ? 'Upload' : 'Attach',
+      values: { label: opts.label || (section(p) === 'sales' ? 'Proposal' : 'Other'), markSent: early },
       after(form) {
         const box = form.elements.markSent && form.elements.markSent.closest('.field');
         if (box) form.elements.label.addEventListener('change', () => { box.style.display = form.elements.label.value === 'Proposal' ? '' : 'none'; });
       },
       onSubmit(d) {
-        const file = d.file;
-        if (!file) { U.toast('Choose a file to attach'); return false; }
-        if (file.size > 50 * 1048576) { U.toast('That file is over 50 MB. Try a smaller PDF.'); return false; }
-        const id = S.uid();
-        WC.files.put(id, file).then(() => {
-          p.files.push({ id, name: d.title || file.name, label: d.label, type: file.type || 'application/pdf', size: file.size, addedAt: new Date().toISOString(), note: d.note });
-          let msg = 'Attached';
+        const files = [].concat(d.file || []);
+        if (!files.length) { U.toast('Choose a file to attach'); return false; }
+        if (files.some((f) => f.size > 50 * 1048576)) { U.toast('A file is over 50 MB. Try a smaller PDF.'); return false; }
+        Promise.all(files.map((file) => {
+          const id = S.uid();
+          return WC.files.put(id, file).then(() => {
+            p.files.push({ id, name: (files.length === 1 && d.title) || file.name, label: d.label, type: file.type || 'application/pdf', size: file.size, addedAt: new Date().toISOString(), note: d.note });
+          });
+        })).then(() => {
+          let msg = files.length > 1 ? `${files.length} files uploaded` : 'Attached';
           if (d.markSent && d.label === 'Proposal') {
             const t = S.setStage(p, 'proposal');
             if (t) msg += ` · moved to Proposal Sent, follow-up ${U.relDate(t.due).toLowerCase()}`;
@@ -1206,12 +1236,128 @@
         <button class="btn tiny" id="dlFile">${WC.icon('download')} Download</button>`);
       document.getElementById('dlFile').addEventListener('click', () => U.download(fname, blob));
     }
+    const kind = WC.importer.kindOf(f.name, f.type);
+    if (kind === 'csv' || kind === 'excel') {
+      try {
+        const grid = (await WC.importer.readGrid(blob, f.name)).find((g) => g.length) || [];
+        box.innerHTML = `<div class="sheet-wrap"><table class="sheet">${grid.slice(0, 300).map((row, ri) => `<tr>${row.map((c) => (ri ? `<td>${esc(c)}</td>` : `<th>${esc(c)}</th>`)).join('')}</tr>`).join('')}</table></div>`;
+      } catch (e) { box.innerHTML = empty('The preview couldn\'t load: ' + esc(e.message)); }
+      return;
+    }
+    let zoom = 1;
+    tools.insertAdjacentHTML('beforeend', `<button class="btn tiny" id="zoomBtn" aria-pressed="false">${WC.icon('zoom')} Zoom in</button>`);
+    const zoomBtn = document.getElementById('zoomBtn');
+    zoomBtn.addEventListener('click', async () => {
+      zoom = zoom === 1 ? 2.5 : 1;
+      zoomBtn.setAttribute('aria-pressed', String(zoom > 1));
+      zoomBtn.innerHTML = `${WC.icon('zoom')} ${zoom > 1 ? 'Zoom out' : 'Zoom in'}`;
+      box.classList.toggle('zoomed', zoom > 1);
+      if (isImg) return;
+      await WC.files.renderPdf(blob, box, zoom).catch(() => {});
+    });
     if (isImg) { box.innerHTML = `<img class="viewer-img" src="${viewerUrl}" alt="${esc(f.name)}">`; return; }
     try {
       await WC.files.renderPdf(blob, box);
     } catch (e) {
       box.innerHTML = empty(WC.DEMO ? 'The preview couldn\'t load here.' : 'The preview needs an internet connection the first time. Use “Open full screen” instead.');
     }
+  }
+
+  // ---- Order sheet import ----
+  const SHEET_ACCEPT = '.xlsx,.xls,.csv,.tsv,.txt,.pdf,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
+
+  function pickOrderSheet(p) {
+    U.openInfo('Import order sheet', `
+      <p>Upload the order sheet and its lines become products on this job. You'll see everything before it's added.</p>
+      <ul class="small muted tight-list">
+        <li><b>Excel or CSV</b> works best: any sheet with a header row like Room, Window, Width, Height, Fabric, Mount, Control.</li>
+        <li><b>PDF</b> order forms work when they have selectable text (not a scan). Results may need a quick check.</li>
+      </ul>
+      <div class="row gap wrap">
+        <label class="btn primary">${WC.icon('upload')} Choose file<input type="file" id="sheetInput" accept="${SHEET_ACCEPT}" hidden></label>
+        <button class="btn" id="sheetTemplate">Get blank template</button>
+      </div>`);
+    document.getElementById('sheetTemplate').addEventListener('click', () => U.download('order-sheet-template.csv', WC.importer.TEMPLATE, 'text/csv'));
+    document.getElementById('sheetInput').addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      document.querySelector('#modal .modal-body').innerHTML = '<p class="empty">Reading ' + esc(file.name) + '…</p>';
+      try {
+        reviewImport(p, file, await WC.importer.analyze(file));
+      } catch (e) {
+        document.querySelector('#modal .modal-body').innerHTML = `<p>Couldn't read that file: ${esc(e.message)}</p>`;
+      }
+    });
+  }
+
+  function reviewImport(p, file, res) {
+    const st = { ...res, items: res.items };
+    const colOpts = (sel) => `<option value="">— not in sheet —</option>${(st.grid ? st.grid[st.headerIdx] : []).map((h, ci) => `<option value="${ci}" ${String(sel) === String(ci) ? 'selected' : ''}>${esc(h || `Column ${ci + 1}`)}</option>`).join('')}`;
+    const rowHtml = (it, k) => `<label class="imp-row">
+        <input type="checkbox" data-imp="${k}" ${it.include ? 'checked' : ''}>
+        <span class="grow"><b>${esc(it.room || 'No room')}${it.location ? ' · ' + esc(it.location) : ''}</b>
+          <span class="imp-dim">${it.width || it.height ? `${esc(it.width || '?')} × ${esc(it.height || '?')}` : ''}${it.qty > 1 ? ` · qty ${it.qty}` : ''}</span>
+          <span class="small muted">${[it.brand, it.product, it.color, it.mount && it.mount + ' mount', it.control, it.price && U.money(it.price)].filter(Boolean).map(esc).join(' · ')}</span></span>
+      </label>`;
+    const body = () => {
+      const n = st.items.filter((x) => x.include).length;
+      return `
+        ${st.items.length ? `<p class="small">Found <b>${st.items.length}</b> line${st.items.length === 1 ? '' : 's'} in <b>${esc(file.name)}</b>. Uncheck anything you don't want. You can edit details after importing.</p>`
+          : `<p>No product lines were found in <b>${esc(file.name)}</b>. Order sheets import best as Excel or CSV with a header row (Room, Width, Height…). You can still save the file to the job.</p>`}
+        ${st.mode === 'lines' ? '<p class="small muted">This PDF had no clear table header, so lines with W × H measurements were picked out. Check rooms and products.</p>' : ''}
+        ${st.mode === 'table' ? `<details class="imp-map"><summary>Column matching</summary><div class="form-grid">${WC.importer.FIELDS.map(([f, label]) => `<label class="field half"><span>${esc(label)}</span><select data-map="${f}">${colOpts(st.map[f])}</select></label>`).join('')}</div></details>` : ''}
+        <div class="imp-list">${st.items.map(rowHtml).join('')}</div>
+        <div class="form-grid imp-opts">
+          ${st.items.length ? `<label class="field half"><span>Set status to</span><select id="impStatus">${['Quoted', 'Ordered', 'Received'].map((x) => `<option ${x === 'Ordered' ? 'selected' : ''}>${x}</option>`).join('')}</select></label>` : ''}
+          <label class="field check"><input type="checkbox" id="impSave" checked> Save the order sheet to this job</label>
+          ${p.items.length && st.items.length ? `<label class="field check"><input type="checkbox" id="impReplace"> Replace the ${p.items.length} current product${p.items.length === 1 ? '' : 's'}</label>` : ''}
+        </div>
+        <div class="row gap end imp-actions">
+          <button class="btn ghost" id="impCancel">Cancel</button>
+          <button class="btn primary" id="impGo">${n ? `Add ${n} product${n === 1 ? '' : 's'}` : 'Save file only'}</button>
+        </div>`;
+    };
+    U.openInfo('Review order sheet', '<div id="impBody"></div>', 'wide');
+    const host = document.getElementById('impBody');
+    const draw = () => { host.innerHTML = body(); };
+    draw();
+    host.addEventListener('change', (ev) => {
+      const t = ev.target;
+      if (t.dataset.imp !== undefined) { st.items[Number(t.dataset.imp)].include = t.checked; const n = st.items.filter((x) => x.include).length; document.getElementById('impGo').textContent = n ? `Add ${n} product${n === 1 ? '' : 's'}` : 'Save file only'; }
+      if (t.dataset.map) {
+        st.map[t.dataset.map] = t.value === '' ? undefined : Number(t.value);
+        st.items = WC.importer.rowsToItems(st.grid, st.headerIdx, st.map);
+        const open = host.querySelector('details').open;
+        draw();
+        host.querySelector('details').open = open;
+      }
+    });
+    host.addEventListener('click', (ev) => {
+      if (ev.target.closest('#impCancel')) U.close();
+      if (!ev.target.closest('#impGo')) return;
+      const chosen = st.items.filter((x) => x.include);
+      const status = (document.getElementById('impStatus') || {}).value || 'Ordered';
+      const replace = (document.getElementById('impReplace') || {}).checked;
+      const saveFile = document.getElementById('impSave').checked;
+      if (!chosen.length && !saveFile) { U.close(); return; }
+      if (replace) p.items = [];
+      chosen.forEach(({ include, ...it }) => p.items.push({ ...it, id: S.uid(), status, importedFrom: file.name }));
+      const done = () => { S.touch(p); U.close(); go(`#/project/${p.id}/products`); render(); U.toast(chosen.length ? `Added ${chosen.length} product${chosen.length === 1 ? '' : 's'} from ${file.name}` : 'Order sheet saved'); };
+      if (!saveFile) { done(); return; }
+      const id = S.uid();
+      WC.files.put(id, file).then(() => {
+        p.files.push({ id, name: file.name, label: 'Order sheet', type: file.type || '', size: file.size, addedAt: new Date().toISOString(), note: chosen.length ? `${chosen.length} products imported` : '' });
+        done();
+      }).catch(() => { done(); U.toast('Products added, but the file could not be saved on this device'); });
+    });
+  }
+
+  function statusPicker(title, options, current, cls, onPick) {
+    U.openInfo(title, `<p class="small muted">Current status: <b>${esc(current)}</b></p><div class="chooser">${options.map((o) => `<button class="chooser-btn ${o === current ? 'is-current' : ''}" data-status="${esc(o)}"><span class="badge ${cls(o)}">${esc(o)}</span>${o === current ? '<em>Current</em>' : ''}</button>`).join('')}</div>`);
+    document.querySelectorAll('#modal [data-status]').forEach((b) => b.addEventListener('click', () => {
+      U.close();
+      if (b.dataset.status !== current) onPick(b.dataset.status);
+    }));
   }
 
   // ======================================================================
@@ -1257,14 +1403,15 @@
   // Sample data
   // ======================================================================
   // Builds a one-page PDF from [text, fontSize] lines (ASCII text only).
-  function samplePdf(lines) {
+  function samplePdf(lines, draw = '', box = [612, 792]) {
     const pdfEsc = (str) => str.replace(/[\\()]/g, '\\$&');
-    let y = 730;
-    const body = lines.map(([txt, size]) => { const out = `BT /F1 ${size} Tf 60 ${y} Td (${pdfEsc(txt)}) Tj ET`; y -= size + 9; return out; }).join('\n');
+    let y = box[1] - 62;
+    // A line is [text, size] or [text, size, x, y] for positioned labels.
+    const body = draw + '\n' + lines.map(([txt, size, lx, ly]) => { const out = `BT /F1 ${size} Tf ${lx ?? 60} ${ly ?? y} Td (${pdfEsc(txt)}) Tj ET`; if (lx == null) y -= size + 9; return out; }).join('\n');
     const objs = [
       '<< /Type /Catalog /Pages 2 0 R >>',
       '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${box[0]} ${box[1]}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>`,
       `<< /Length ${body.length} >>\nstream\n${body}\nendstream`,
       '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
     ];
@@ -1327,6 +1474,25 @@
       items: ['Great Room', 'Great Room', 'Primary Bedroom', 'Primary Bath', 'Office'].map((room, i) => ({ id: S.uid(), room, location: `Window ${i + 1}`, category: 'Shades', brand: 'Lutron', product: 'Sivoia QS Roller', color: 'Basketweave 3%', width: '', height: '', mount: 'Pocket', control: 'Motorized – hardwired', qty: 1, price: 1800, status: 'Quoted', notes: 'Wire pulled to left side' })),
       log: [{ id: S.uid(), date: U.addDays(t, -30), type: 'Site visit', contactId: ed.id, summary: 'Ran low-voltage to all 5 shade pockets with Ed. Marked headers for blocking.' },
         { id: S.uid(), date: U.addDays(t, -7), type: 'Call', contactId: mike.id, summary: 'Mike says drywall starts in ~2 weeks. Will call when paint is done.' }] });
+    // Simple floor plan sheet: room outlines with window marks.
+    const plan = samplePdf([
+      ['LOT 14 - FIRST FLOOR PLAN', 16, 40, 560], ['Patterson Homes  |  Window treatment layout  |  Scale 1/8 in = 1 ft', 9, 40, 544],
+      ['GREAT ROOM', 12, 120, 380], ['PRIMARY BEDROOM', 12, 470, 380], ['PRIMARY BATH', 10, 480, 190], ['OFFICE', 12, 140, 190],
+      ['W1', 9, 92, 474], ['W2', 9, 222, 474], ['W3', 9, 520, 474], ['W4', 9, 650, 300], ['W5', 9, 30, 160],
+      ['Shade pockets at W1-W3: 4 in deep, wire pulled left side', 9, 40, 40],
+    ], '0.15 0.2 0.3 RG 2 w 60 80 m 700 80 l 700 470 l 60 470 h S 1 w 360 80 m 360 470 l S 60 270 m 700 270 l S 420 80 m 420 270 l S '
+      + '0.35 0.55 0.8 RG 5 w 80 470 m 150 470 l S 210 470 m 280 470 l S 500 470 m 590 470 l S 700 290 m 700 360 l S 60 140 m 60 200 l S', [792, 612]);
+    const planId = S.uid();
+    p3.files.push({ id: planId, name: 'Lot 14 first floor plan.pdf', label: 'Plans / drawings', type: 'application/pdf', size: plan.size, addedAt: iso(-45), note: 'From Patterson Homes, rev B' });
+    WC.files.put(planId, plan).catch(() => {});
+    const sheetCsv = 'Room,Window,Width,Height,Qty,Brand,Product,Fabric / Color,Mount,Control,Price\n'
+      + p3.items.map((i) => [i.room, i.location, '', '', 1, i.brand, i.product, i.color, i.mount, i.control, i.price].join(',')).join('\n') + '\n';
+    const sheet = new Blob([sheetCsv], { type: 'text/csv' });
+    const sheetId = S.uid();
+    p3.files.push({ id: sheetId, name: 'Lot 14 Lutron order.csv', label: 'Order sheet', type: 'text/csv', size: sheet.size, addedAt: iso(-38), note: 'Widths/heights after final measure' });
+    WC.files.put(sheetId, sheet).catch(() => {});
+    S.touch(p3);
+
     S.upsert('events', { title: 'Site meeting – Patterson Lot 14', type: 'meeting', projectId: p3.id, date: U.addDays(t, 3), start: '08:00', end: '09:00', days: 1, location: p3.address, notes: 'Walk with Mike & Dana, confirm pocket sizes.', done: false });
     S.upsert('tasks', { title: 'Check with Mike on drywall schedule', due: U.addDays(t, 7), projectId: p3.id, contactId: mike.id, done: false });
 
@@ -1377,12 +1543,14 @@
       p.items.splice(p.items.indexOf(i) + 1, 0, copy);
       S.touch(p); render(); itemForm(p, copy);
     },
-    cycleItem: (ds) => {
+    itemStatus: (ds) => {
       const p = proj(ds); const i = p.items.find((x) => x.id === ds.id);
-      const flow = ['Quoted', 'Ordered', 'Received', 'Installed'];
-      i.status = flow[(flow.indexOf(i.status) + 1) % flow.length];
-      S.touch(p); render();
+      statusPicker(`${i.room || 'Product'}${i.location ? ' · ' + i.location : ''}`, C.ITEM_STATUSES, i.status || 'Quoted', itemClass, (st) => {
+        i.status = st; S.touch(p); render(); U.toast(`Marked ${st}`);
+      });
     },
+    importSheet: (ds) => pickOrderSheet(proj(ds)),
+    addPlans: (ds) => fileForm(proj(ds), { label: 'Plans / drawings', multiple: true, title: 'Upload plans' }),
     copyOrder: (ds) => {
       const text = orderList(proj(ds));
       U.openInfo('Order list (quoted & ordered items)', `<textarea class="order-text" rows="14" readonly>${esc(text)}</textarea><button class="btn primary" id="copyBtn">Copy to clipboard</button>`);
@@ -1402,10 +1570,11 @@
       C.PHASE_TEMPLATE.forEach((ph) => p.phases.push({ id: S.uid(), name: ph.name, waitingOn: ph.waitingOn, status: 'To do', date: '', notes: '' }));
       S.touch(p); render(); U.toast('Phases added. Edit or delete any that don\'t apply.');
     },
-    cyclePhase: (ds) => {
+    phaseStatus: (ds) => {
       const p = proj(ds); const ph = p.phases.find((x) => x.id === ds.id);
-      ph.status = C.PHASE_STATUSES[(C.PHASE_STATUSES.indexOf(ph.status) + 1) % C.PHASE_STATUSES.length];
-      S.touch(p); render();
+      statusPicker(ph.name, C.PHASE_STATUSES, ph.status, (o) => `ph-badge ${phaseClass(o)}`, (st) => {
+        ph.status = st; S.touch(p); render(); U.toast(`Marked ${st}`);
+      });
     },
     movePhase: (ds) => {
       const p = proj(ds); const i = p.phases.findIndex((x) => x.id === ds.id); const j = i + Number(ds.dir);
@@ -1511,6 +1680,9 @@
     if (r.view === 'project') { const p = S.get('projects', r.id); active = p && (section(p) === 'install' || p.stage === 'complete') ? 'installs' : 'sales'; }
     if (r.view === 'contact' || r.view === 'company' || r.view === 'contacts') active = 'records';
     document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === active));
+    document.querySelectorAll('[data-thumb]').forEach((el) => {
+      WC.files.get(el.dataset.thumb).then((blob) => blob && WC.files.renderThumb(blob, el)).catch(() => {});
+    });
   }
 
   window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });

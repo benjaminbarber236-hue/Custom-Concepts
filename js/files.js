@@ -59,27 +59,51 @@
     return pdfjsP;
   }
 
-  async function renderPdf(blob, container) {
+  // zoom > 1 renders larger (for reading plans); the container scrolls.
+  async function renderPdf(blob, container, zoom = 1) {
     const lib = await pdfjs();
     const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    const width = Math.max(280, container.clientWidth || 600) * zoom;
     container.innerHTML = '';
-    const width = Math.max(280, container.clientWidth || 600);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
       const base = page.getViewport({ scale: 1 });
-      const vp = page.getViewport({ scale: (width / base.width) * dpr });
+      const vp = page.getViewport({ scale: Math.min((width / base.width) * dpr, 4096 / base.width) });
       const canvas = document.createElement('canvas');
       canvas.width = vp.width;
       canvas.height = vp.height;
       canvas.className = 'pdf-page';
+      canvas.style.width = `${zoom * 100}%`;
       canvas.setAttribute('aria-label', `Page ${n} of ${doc.numPages}`);
       container.appendChild(canvas);
       await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
     }
   }
 
+  // Small first-page preview for file lists.
+  async function renderThumb(blob, el) {
+    if ((blob.type || '').startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(blob);
+      img.alt = '';
+      el.replaceChildren(img);
+      return;
+    }
+    const lib = await pdfjs();
+    const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    const page = await doc.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: (320 / base.width) });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    el.replaceChildren(canvas);
+  }
+
   WC.files = {
+    pdfjs,
+    renderThumb,
     put: (id, blob) => tx('readwrite', (s) => s.put(blob, id)),
     get: (id) => tx('readonly', (s) => s.get(id)),
     del: (id) => tx('readwrite', (s) => s.delete(id)).catch(() => {}),

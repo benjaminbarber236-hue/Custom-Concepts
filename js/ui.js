@@ -55,7 +55,7 @@
       }).join('');
       input = `<select id="${id}" name="${f.name}" ${req}>${opts}</select>`;
     } else if (f.type === 'file') {
-      input = `<input id="${id}" name="${f.name}" type="file" ${f.accept ? `accept="${esc(f.accept)}"` : ''} ${req}>`;
+      input = `<input id="${id}" name="${f.name}" type="file" ${f.accept ? `accept="${esc(f.accept)}"` : ''} ${f.multiple ? 'multiple' : ''} ${req}>`;
     } else if (f.type === 'checkbox') {
       return `<label class="field check ${f.half ? 'half' : ''}"><input type="checkbox" name="${f.name}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
     } else {
@@ -73,7 +73,7 @@
       const el = form.elements[f.name];
       if (!el) continue;
       if (f.type === 'checkbox') out[f.name] = el.checked;
-      else if (f.type === 'file') out[f.name] = el.files[0] || null;
+      else if (f.type === 'file') out[f.name] = f.multiple ? Array.from(el.files) : (el.files[0] || null);
       else if (f.type === 'number') out[f.name] = el.value === '' ? '' : Number(el.value);
       else out[f.name] = el.value.trim();
     }

@@ -12,7 +12,7 @@ const css = read('css/styles.css') + `
 /* Hosted-demo adjustments */
 .topbar { top: env(safe-area-inset-top, 0px); padding-top: 8px; }
 `;
-const js = ['js/icons.js', 'js/constants.js', 'js/files.js', 'js/ui.js', 'js/store.js', 'js/app.js'].map(read).join('\n')
+const js = ['js/icons.js', 'js/constants.js', 'js/files.js', 'js/importer.js', 'js/ui.js', 'js/store.js', 'js/app.js'].map(read).join('\n')
   .replace("const KEY = 'wc-tracker-v1';", "const KEY = 'wc-tracker-demo-v1';");
 
 const html = `<title>Window Covering Job Tracker</title>
