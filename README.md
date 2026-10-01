@@ -61,3 +61,6 @@ js/store.js           data storage (localStorage) + backup/restore
 js/app.js             screens and actions
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
 ```
+
+## Demo build
+`node tools/build-demo.js demo.html` bundles the app into one self-contained page in demo mode: sample data is preloaded, navigation stays in memory, and file downloads are shown as text.

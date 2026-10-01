@@ -15,6 +15,12 @@
   // ======================================================================
   // Helpers
   // ======================================================================
+  // Navigation. The hosted demo keeps the route in memory instead of the URL hash.
+  let demoRoute = '#/home';
+  const currentHash = () => (WC.DEMO ? demoRoute : location.hash);
+  function go(hash) {
+    if (WC.DEMO) { demoRoute = hash; render(); window.scrollTo(0, 0); } else location.hash = hash;
+  }
   const section = (p) => C.stage(p.stage).section;
   const lastDay = (e) => U.addDays(e.date, Math.max(1, e.days || 1) - 1);
   const byDue = (a, b) => (a.due || '').localeCompare(b.due || '');
@@ -85,7 +91,7 @@
       </div>
       <div class="ev-actions">
         ${canWrap ? `<button class="btn tiny primary" data-action="wrapUp" data-id="${e.id}" title="Record what happened and set a follow-up">Wrap up</button>` : ''}
-        <button class="btn tiny ghost" data-action="icsEvent" data-id="${e.id}" title="Add to phone calendar">📲</button>
+        ${WC.DEMO ? '' : `<button class="btn tiny ghost" data-action="icsEvent" data-id="${e.id}" title="Add to phone calendar">📲</button>`}
       </div>
     </div>`;
   }
@@ -184,7 +190,7 @@
     return `
       <h1>${greet}${name ? ', ' + esc(name) : ''}</h1>
       <p class="muted">${esc(U.fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
-      ${backupNag}
+      ${WC.DEMO ? `<div class="banner demo">You're trying a demo filled with sample jobs. Tap around, add leads, and wrap up appointments. Changes stay in this browser only. <a href="#" data-action="resetDemo">Reset demo</a></div>` : backupNag}
       <div class="quick row gap wrap">
         <button class="btn primary" data-action="newLead">+ Lead</button>
         <button class="btn" data-action="newEvent" data-date="${t}">+ Appointment</button>
@@ -636,7 +642,7 @@
           S.upsert('tasks', { title: 'Call to schedule consult', due: U.addDays(U.today(), 1), projectId: p.id, contactId: contact.id, done: false });
         }
         U.toast(d.consultDate ? 'Lead created and consult scheduled' : 'Lead created with a follow-up for tomorrow');
-        location.hash = `#/project/${p.id}`;
+        go(`#/project/${p.id}`);
       },
     });
   }
@@ -653,7 +659,7 @@
     U.openForm({
       title: 'Edit job', fields, values: p,
       onSubmit(d) { Object.assign(p, d); S.touch(p); render(); },
-      onDelete() { S.remove('projects', p.id); location.hash = '#/sales'; U.toast('Job deleted'); },
+      onDelete() { S.remove('projects', p.id); go('#/sales'); U.toast('Job deleted'); },
     });
   }
 
@@ -671,9 +677,9 @@
       title: c.id ? 'Edit contact' : 'New contact', fields, values: c,
       onSubmit(d) {
         const saved = S.upsert('contacts', c.id ? { ...d, id: c.id } : d);
-        if (onSaved) onSaved(saved); else if (!c.id) location.hash = `#/contact/${saved.id}`; else render();
+        if (onSaved) onSaved(saved); else if (!c.id) go(`#/contact/${saved.id}`); else render();
       },
-      onDelete: c.id ? () => { S.remove('contacts', c.id); location.hash = '#/contacts'; } : null,
+      onDelete: c.id ? () => { S.remove('contacts', c.id); go('#/contacts'); } : null,
     });
   }
 
@@ -984,8 +990,7 @@
     S.upsert('events', { title: 'Install – Kim', type: 'install', projectId: p4.id, date: t, start: '09:00', end: '15:00', days: 2, location: p4.address, notes: '', done: false });
     S.upsert('events', { title: 'Measure – Greene patio', type: 'measure', projectId: p2.id, date: U.addDays(t, -3), start: '13:00', end: '14:00', days: 1, location: p2.address, notes: '', done: false });
     U.toast('Sample data loaded');
-    location.hash = '#/home';
-    render();
+    go('#/home');
   }
 
   // ======================================================================
@@ -1065,8 +1070,9 @@
       S.save(); U.toast('Brands saved');
     },
     exportData: () => { U.download(`wc-tracker-backup-${U.today()}.json`, S.exportJSON(), 'application/json'); render(); },
-    loadSample: () => { if (!S.all('projects').length || confirm('Add sample jobs and contacts alongside your data?')) loadSample(); },
-    resetData: () => { if (confirm('Erase ALL jobs, contacts, appointments and follow-ups on this device? Export a backup first!') && confirm('Really erase everything?')) { S.reset(); location.hash = '#/home'; render(); } },
+    loadSample: () => { if (!S.all('projects').length) loadSample(); else U.ask('Add sample jobs and contacts alongside your data?', loadSample, 'Add samples'); },
+    resetData: () => U.ask(WC.DEMO ? 'Erase all demo data and start from an empty app?' : 'Erase ALL jobs, contacts, appointments and follow-ups on this device? Export a backup first!', () => { S.reset(); go('#/home'); }, 'Erase everything'),
+    resetDemo: () => U.ask('Put the sample data back the way it started?', () => { S.reset(); loadSample(); }, 'Reset demo'),
   };
 
   const changes = {
@@ -1077,30 +1083,36 @@
       render();
     },
     bulkStatus: (el) => {
-      if (!el.value) return;
+      const status = el.value;
+      el.value = '';
+      if (!status) return;
       const p = proj(el.dataset);
-      if (!confirm(`Mark all ${p.items.length} products as ${el.value}?`)) { el.value = ''; return; }
-      p.items.forEach((i) => { i.status = el.value; });
-      S.touch(p); render();
+      U.ask(`Mark all ${p.items.length} products as ${status}?`, () => { p.items.forEach((i) => { i.status = status; }); S.touch(p); render(); }, 'Mark all');
     },
     contactRole: (el) => { state.contactRole = el.value; document.getElementById('contactList').innerHTML = contactList(); },
     importData: (el) => {
       const f = el.files[0];
       if (!f) return;
-      if (!confirm('Replace everything on this device with the backup file?')) return;
-      f.text().then((txt) => { S.importJSON(txt); U.toast('Backup restored'); render(); }).catch((e) => alert('Import failed: ' + e.message));
+      el.value = '';
+      U.ask('Replace everything on this device with the backup file?', () => {
+        f.text().then((txt) => { S.importJSON(txt); U.toast('Backup restored'); render(); }).catch((e) => U.toast('Import failed: ' + e.message));
+      }, 'Replace');
     },
   };
 
   const searchRenderers = { salesList: () => pipelineList('sales', 'salesFilter', 'salesSearch'), installList: () => pipelineList('install', 'installFilter', 'installSearch'), contactList };
 
   document.addEventListener('click', (ev) => {
+    if (WC.DEMO) {
+      const a = ev.target.closest('a[href^="#/"]');
+      if (a && !a.dataset.action) { ev.preventDefault(); go(a.getAttribute('href')); return; }
+    }
     const el = ev.target.closest('[data-action]');
     if (!el || el.closest('dialog')) return;
     const fn = actions[el.dataset.action];
     if (!fn) return;
     if (el.tagName !== 'INPUT') ev.preventDefault();
-    if (el.dataset.action === 'setFilter' && el.getAttribute('href')) { state[el.dataset.key] = el.dataset.value; location.hash = el.getAttribute('href'); return; }
+    if (el.dataset.action === 'setFilter' && el.getAttribute('href')) { state[el.dataset.key] = el.dataset.value; go(el.getAttribute('href')); return; }
     fn(el.dataset, el);
   });
   document.addEventListener('change', (ev) => {
@@ -1118,7 +1130,7 @@
   // Router
   // ======================================================================
   function parseRoute() {
-    const [view, id, sub] = (location.hash.replace(/^#\/?/, '') || 'home').split('/');
+    const [view, id, sub] = (currentHash().replace(/^#\/?/, '') || 'home').split('/');
     return { view: views[view] ? view : 'home', id, sub };
   }
 
@@ -1136,6 +1148,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.getElementById('modal').open) render(); });
 
   WC.render = render;
+  if (WC.DEMO && !S.all('projects').length) loadSample();
   render();
 
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});

@@ -15,9 +15,12 @@
   --bad-soft: #fde8e8;
   --radius: 12px;
   --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+  --toast-bg: #1b2430;
+  --toast-fg: #ffffff;
+  --on-accent: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f141b;
     --surface: #18202b;
     --text: #e6ebf2;
@@ -33,7 +36,32 @@
     --bad: #f87171;
     --bad-soft: #3b1a1a;
     --shadow: none;
+    --toast-bg: #e6ebf2;
+    --toast-fg: #0f141b;
+    --on-accent: #0f141b;
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141b;
+  --surface: #18202b;
+  --text: #e6ebf2;
+  --muted: #93a0b0;
+  --line: #2a3442;
+  --brand: #9cc3ff;
+  --accent: #6ea2ff;
+  --accent-soft: #1d2b44;
+  --good: #34d399;
+  --good-soft: #12332a;
+  --warn: #fbbf24;
+  --warn-soft: #3a2e12;
+  --bad: #f87171;
+  --bad-soft: #3b1a1a;
+  --shadow: none;
+  --toast-bg: #e6ebf2;
+  --toast-fg: #0f141b;
+  --on-accent: #0f141b;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -85,6 +113,7 @@ h3 { font-size: 1rem; margin: 0 0 .5rem; display: flex; align-items: center; gap
 .pre { white-space: pre-wrap; }
 .overdue { color: var(--bad); font-weight: 600; }
 .spacer { flex: 1; }
+.end { justify-content: flex-end; }
 .empty { color: var(--muted); font-style: italic; margin: .3rem 0; }
 .quick { margin: 12px 0; }
 .back { display: inline-block; margin: 4px 0; font-size: .9rem; }
@@ -96,7 +125,7 @@ h3 { font-size: 1rem; margin: 0 0 .5rem; display: flex; align-items: center; gap
   border: 1px solid var(--line); background: var(--surface); color: var(--text);
   font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap;
 }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.ghost { background: transparent; }
 .btn.danger { color: var(--bad); border-color: var(--bad); }
 .btn.tiny { min-height: 32px; padding: 4px 10px; font-size: .85rem; border-radius: 8px; }
@@ -186,7 +215,7 @@ button.badge { cursor: pointer; min-height: 28px; padding: 4px 10px; }
 
 .chips { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: none; }
 .chip { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 6px 12px; border-radius: 999px; font: inherit; font-size: .85rem; white-space: nowrap; cursor: pointer; }
-.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 .search, .role-filter, .stage-select, .tiny-select, .field input, .field select, .field textarea {
   width: 100%; font: inherit; font-size: 16px; color: var(--text);
@@ -226,9 +255,13 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
 .quick-dates { margin-bottom: 10px; }
 .order-text { width: 100%; font: 13px/1.4 ui-monospace, Menlo, monospace; margin-bottom: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
 
+dialog.confirm-dlg { width: min(400px, calc(100vw - 32px)); margin: auto; border-radius: 16px; }
+dialog.confirm-dlg p { margin: 0 0 14px; }
+.banner.demo { background: var(--accent-soft); border-color: var(--accent); }
+
 #toast {
   position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
-  background: #1b2430; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: .9rem;
+  background: var(--toast-bg); color: var(--toast-fg); padding: 10px 16px; border-radius: 10px; font-size: .9rem;
   opacity: 0; pointer-events: none; transition: .25s; z-index: 100; max-width: calc(100vw - 32px);
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -238,5 +271,9 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
   .tabbar a { flex-direction: row; gap: 6px; font-size: .9rem; padding: 10px 12px; }
   .tabbar a span { font-size: 1rem; }
   body { padding-bottom: 24px; }
-  #toast { bottom: 24px; }
+  dialog.confirm-dlg { width: min(400px, calc(100vw - 32px)); margin: auto; border-radius: 16px; }
+dialog.confirm-dlg p { margin: 0 0 14px; }
+.banner.demo { background: var(--accent-soft); border-color: var(--accent); }
+
+#toast { bottom: 24px; }
 }

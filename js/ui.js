@@ -106,7 +106,7 @@
     });
     d.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
     const del = d.querySelector('[data-delete]');
-    if (del) del.addEventListener('click', () => { if (confirm('Delete this? This cannot be undone.')) { o.onDelete(); close(); } });
+    if (del) del.addEventListener('click', () => ask('Delete this? This can\'t be undone.', () => { o.onDelete(); close(); }));
     if (o.after) o.after(form);
     d.showModal();
     const first = form.querySelector('input:not([type=checkbox]),select,textarea');
@@ -117,6 +117,16 @@
     const d = dlg();
     d.innerHTML = `<div class="modal-form"><header class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">✕</button></header><div class="modal-body">${html}</div></div>`;
     d.querySelector('[data-close]').addEventListener('click', close);
+    d.showModal();
+  }
+
+  // In-app confirmation (stacks above an open form dialog; works where window.confirm is blocked).
+  function ask(msg, onYes, yesLabel) {
+    let d = document.getElementById('confirmDlg');
+    if (!d) { d = document.createElement('dialog'); d.id = 'confirmDlg'; d.className = 'confirm-dlg'; document.body.appendChild(d); }
+    d.innerHTML = `<div class="modal-body"><p>${esc(msg)}</p><div class="row gap end"><button type="button" class="btn ghost" data-no>Cancel</button><button type="button" class="btn danger" data-yes>${esc(yesLabel || 'Delete')}</button></div></div>`;
+    d.querySelector('[data-no]').addEventListener('click', () => d.close());
+    d.querySelector('[data-yes]').addEventListener('click', () => { d.close(); onYes(); });
     d.showModal();
   }
 
@@ -132,6 +142,10 @@
   }
 
   function download(filename, text, type) {
+    if (WC.DEMO) {
+      openInfo(filename, `<p class="small muted">The demo can't save files. In the installed app this downloads <b>${esc(filename)}</b>.</p><textarea class="order-text" rows="12" readonly>${esc(text)}</textarea>`);
+      return;
+    }
     const blob = new Blob([text], { type: type || 'application/octet-stream' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -143,6 +157,6 @@
 
   WC.ui = {
     esc, ymd, parse, today, addDays, daysBetween, weekStart, fmtDate, relDate, fmtTime, money,
-    telLink, mapLink, fieldHtml, readForm, openForm, openInfo, close, toast, download,
+    telLink, mapLink, fieldHtml, readForm, openForm, openInfo, ask, close, toast, download,
   };
 })();
