@@ -7,7 +7,9 @@
     installFilter: 'active',
     salesSearch: '',
     installSearch: '',
-    contactSearch: '',
+    recQuery: '',
+    recType: 'all',
+    jobStatus: 'all',
     contactRole: '',
     calDay: U.today(),
     calMonth: U.today().slice(0, 8) + '01',
@@ -525,51 +527,157 @@
     </section>`;
   }
 
-  // ---------------- Contacts ----------------
-  function contactList() {
-    const q = state.contactSearch.toLowerCase();
-    const list = S.all('contacts').filter((c) => (!state.contactRole || c.role === state.contactRole)
-      && (!q || `${c.name} ${c.company} ${c.phone} ${c.email} ${c.role}`.toLowerCase().includes(q))).sort(byName);
-    return list.map((c) => {
-      const jobs = S.all('projects').filter((p) => p.contacts.some((pc) => pc.contactId === c.id));
-      return `<a class="card" href="#/contact/${c.id}">
-        <div class="row between"><strong>${esc(c.name)}</strong><span class="badge">${esc(c.role || '')}</span></div>
-        <div class="small muted">${[c.company, c.phone, c.email].filter(Boolean).map(esc).join(' · ')}</div>
-        ${jobs.length ? `<div class="small">${jobs.length} job${jobs.length > 1 ? 's' : ''}: ${jobs.slice(0, 3).map((p) => esc(p.name)).join(', ')}${jobs.length > 3 ? '…' : ''}</div>` : ''}
-      </a>`;
-    }).join('') || empty(q || state.contactRole ? 'No matches.' : 'No contacts yet.');
+  // ---------------- Records (people, companies, jobs, documents) ----------------
+  const norm = (v) => String(v || '').toLowerCase();
+  const allDocs = () => S.all('projects').flatMap((p) => p.files.map((f) => ({ p, f }))).sort((a, b) => b.f.addedAt.localeCompare(a.f.addedAt));
+  const contactJobs = (cid) => S.all('projects').filter((p) => p.contacts.some((pc) => pc.contactId === cid));
+  const companyJobs = (coId) => {
+    const ids = new Set(S.companyContacts(coId).map((c) => c.id));
+    return S.all('projects').filter((p) => p.contacts.some((pc) => ids.has(pc.contactId)));
+  };
+  const jobStatusOf = (p) => (p.stage === 'complete' ? 'complete' : p.stage === 'lost' ? 'lost' : 'active');
+
+  function snippet(text, q) {
+    const i = norm(text).indexOf(q);
+    if (i < 0) return text.slice(0, 90);
+    const start = Math.max(0, i - 30);
+    const end = Math.min(text.length, i + q.length + 60);
+    return (start ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
   }
 
-  views.contacts = () => `
-    <div class="row between"><h1>Contacts</h1><button class="btn primary" data-action="newContact">+ Contact</button></div>
-    <div class="row gap">
-      <input class="search grow" type="search" placeholder="Search people & companies…" value="${esc(state.contactSearch)}" data-search="contactSearch" data-target="contactList">
-      <select class="role-filter" data-change="contactRole"><option value="">All roles</option>${C.CONTACT_ROLES.map((r) => `<option ${r === state.contactRole ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>
-    </div>
-    <div id="contactList">${contactList()}</div>`;
+  // Where a job matches the search: its basics, or (with a short excerpt) its notes, products, log or phases.
+  function jobMatch(p, q) {
+    const people = S.projectContacts(p).map((pc) => `${pc.contact.name} ${pc.contact.company || ''}`).join(' ');
+    if (norm(`${p.name} ${p.address} ${p.type} ${p.source} ${people} ${C.stage(p.stage).label}`).includes(q)) return {};
+    if (norm(p.notes).includes(q)) return { where: 'Notes', text: snippet(p.notes, q) };
+    for (const i of p.items) {
+      const t = [i.room, i.location, i.category, i.brand, i.product, i.color, i.notes].filter(Boolean).join(' · ');
+      if (norm(t).includes(q)) return { where: 'Product', text: t };
+    }
+    for (const l of p.log) if (norm(l.summary).includes(q)) return { where: `${l.type}, ${U.fmtDate(l.date)}`, text: snippet(l.summary, q) };
+    for (const ph of p.phases) if (norm(`${ph.name} ${ph.waitingOn} ${ph.notes}`).includes(q)) return { where: 'Phase', text: ph.name };
+    for (const f of p.files) if (norm(`${f.name} ${f.label} ${f.note}`).includes(q)) return { where: 'Document', text: f.name };
+    return null;
+  }
+
+  function personCard(c) {
+    const jobs = contactJobs(c.id);
+    return `<a class="card" href="#/contact/${c.id}">
+      <div class="row between gap"><strong>${esc(c.name)}</strong><span class="badge">${esc(c.role || '')}</span></div>
+      <div class="small muted">${[c.company, c.phone, c.email].filter(Boolean).map(esc).join(' · ')}</div>
+      ${jobs.length ? `<div class="small">${jobs.length} job${jobs.length > 1 ? 's' : ''}: ${jobs.slice(0, 3).map((p) => esc(p.name)).join(', ')}${jobs.length > 3 ? '…' : ''}</div>` : ''}
+    </a>`;
+  }
+
+  function companyCard(co) {
+    const people = S.companyContacts(co.id);
+    const jobs = companyJobs(co.id);
+    return `<a class="card" href="#/company/${co.id}">
+      <div class="row between gap"><strong>${esc(co.name)}</strong><span class="badge">${esc(co.type || '')}</span></div>
+      <div class="small muted">${[co.phone, co.email, co.website].filter(Boolean).map(esc).join(' · ')}</div>
+      <div class="small">${people.length} ${people.length === 1 ? 'person' : 'people'} · ${jobs.length} job${jobs.length === 1 ? '' : 's'}${people.length ? `: ${people.slice(0, 3).map((c) => esc(c.name)).join(', ')}` : ''}</div>
+    </a>`;
+  }
+
+  function jobCard(p, m) {
+    return projectCard(p, m && m.where ? `<div class="small muted match">${esc(m.where)}: ${esc(m.text)}</div>` : '');
+  }
+
+  // Current jobs first, then finished/lost ones under "Previous jobs".
+  function jobsGrouped(jobs, extra) {
+    const cur = jobs.filter((p) => section(p) !== 'closed');
+    const prev = jobs.filter((p) => section(p) === 'closed').sort((a, b) => S.lastActivity(b).localeCompare(S.lastActivity(a)));
+    return `${cur.map((p) => projectCard(p, extra && extra(p))).join('')}
+      ${prev.length ? `<div class="group-label">Previous jobs <span class="count">${prev.length}</span></div>${prev.map((p) => projectCard(p, extra && extra(p))).join('')}` : ''}`;
+  }
+
+  const REC_TYPES = [['all', 'All'], ['people', 'People'], ['companies', 'Companies'], ['jobs', 'Jobs'], ['docs', 'Documents']];
+
+  function recResults() {
+    const q = norm(state.recQuery.trim());
+    const type = state.recType;
+    const people = S.all('contacts').filter((c) => (type !== 'people' || !state.contactRole || c.role === state.contactRole)
+      && (!q || norm(`${c.name} ${c.company} ${c.phone} ${c.email} ${c.role} ${c.address} ${c.notes}`).includes(q))).sort(byName);
+    const companies = S.all('companies').filter((co) => !q || norm(`${co.name} ${co.type} ${co.phone} ${co.email} ${co.website} ${co.address} ${co.notes}`).includes(q)).sort(byName);
+    const jobs = S.all('projects').map((p) => ({ p, m: q ? jobMatch(p, q) : {} })).filter((x) => x.m
+      && (type !== 'jobs' || state.jobStatus === 'all' || jobStatusOf(x.p) === state.jobStatus))
+      .sort((a, b) => S.lastActivity(b.p).localeCompare(S.lastActivity(a.p)));
+    const docs = allDocs().filter(({ p, f }) => !q || norm(`${f.name} ${f.label} ${f.note} ${p.name}`).includes(q));
+
+    const sections = {
+      people: { label: 'People', n: people.length, html: (lim) => people.slice(0, lim).map(personCard).join('') },
+      companies: { label: 'Companies', n: companies.length, html: (lim) => companies.slice(0, lim).map(companyCard).join('') },
+      jobs: { label: 'Jobs', n: jobs.length, html: (lim) => jobs.slice(0, lim).map(({ p, m }) => jobCard(p, m)).join('') },
+      docs: { label: 'Documents', n: docs.length, html: (lim) => `<div class="panel tight">${docs.slice(0, lim).map(({ p, f }) => fileRow(p, f, { showProject: true })).join('')}</div>` },
+    };
+
+    if (type === 'all' && !q) {
+      const done = S.all('projects').filter((p) => p.stage === 'complete').length;
+      const recent = [
+        ...S.all('contacts').map((x) => ({ at: x.updatedAt || x.createdAt || '', html: personCard(x) })),
+        ...S.all('companies').map((x) => ({ at: x.updatedAt || x.createdAt || '', html: companyCard(x) })),
+        ...S.all('projects').map((x) => ({ at: S.lastActivity(x), html: projectCard(x) })),
+      ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
+      const tile = (key, n, label, sub) => `<button class="stat" data-action="setFilter" data-key="recType" data-value="${key}"><b>${n}</b><span>${label}</span>${sub ? `<em>${sub}</em>` : ''}</button>`;
+      return `<div class="stats rec-stats">
+          ${tile('people', S.all('contacts').length, 'People')}
+          ${tile('companies', S.all('companies').length, 'Companies')}
+          ${tile('jobs', S.all('projects').length, 'Jobs', done ? `${done} completed` : '')}
+          ${tile('docs', allDocs().length, 'Documents')}
+        </div>
+        <div class="group-label">Recently updated</div>
+        ${recent.map((r) => r.html).join('') || empty('Nothing here yet. Tap “+ Add” to start your records.')}`;
+    }
+
+    let filters = '';
+    if (type === 'people') {
+      filters = `<select class="role-filter" data-change="contactRole" aria-label="Filter by role"><option value="">All roles</option>${C.CONTACT_ROLES.map((r) => `<option ${r === state.contactRole ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>`;
+    } else if (type === 'jobs') {
+      filters = `<div class="chips">${[['all', 'All jobs'], ['active', 'Active'], ['complete', 'Completed'], ['lost', 'Lost']].map(([k, l]) => `<button class="chip small-chip ${state.jobStatus === k ? 'on' : ''}" data-action="setFilter" data-key="jobStatus" data-value="${k}">${l}</button>`).join('')}</div>`;
+    }
+
+    if (type !== 'all') {
+      const sec = sections[type];
+      return `${filters}${sec.n ? sec.html(Infinity) : empty(q ? 'No matches.' : 'Nothing here yet.')}`;
+    }
+    const groups = Object.entries(sections).filter(([, sec]) => sec.n).map(([key, sec]) => `
+      <div class="group-label">${sec.label} <span class="count">${sec.n}</span></div>
+      ${sec.html(5)}
+      ${sec.n > 5 ? `<button class="btn tiny ghost" data-action="setFilter" data-key="recType" data-value="${key}">Show all ${sec.n} ${sec.label.toLowerCase()}</button>` : ''}`).join('');
+    return groups || empty(`Nothing matches “${esc(state.recQuery.trim())}”.`);
+  }
+
+  views.records = () => `
+    <div class="row between"><h1>Records</h1><button class="btn primary" data-action="newRecord">${WC.icon('plus')} Add</button></div>
+    <input class="search" type="search" placeholder="Search all records…" value="${esc(state.recQuery)}" data-search="recQuery" data-target="recResults" aria-label="Search records">
+    <div class="chips">${REC_TYPES.map(([k, l]) => `<button class="chip ${state.recType === k ? 'on' : ''}" data-action="setFilter" data-key="recType" data-value="${k}">${l}</button>`).join('')}</div>
+    <div id="recResults">${recResults()}</div>`;
+  views.contacts = views.records;
 
   views.contact = (id) => {
     const c = S.get('contacts', id);
-    if (!c) return `<p>Contact not found. <a href="#/contacts">Back</a></p>`;
-    const jobs = S.all('projects').filter((p) => p.contacts.some((pc) => pc.contactId === c.id));
+    if (!c) return `<p>Contact not found. <a href="#/records">Back to Records</a></p>`;
+    const jobs = contactJobs(c.id);
     const logs = [];
     S.all('projects').forEach((p) => p.log.forEach((l) => { if (l.contactId === c.id) logs.push({ p, l }); }));
     logs.sort((a, b) => b.l.date.localeCompare(a.l.date));
     const tasks = S.all('tasks').filter((t) => t.contactId === c.id).sort(byDue);
+    const co = c.companyId && S.get('companies', c.companyId);
     return `
-      <a class="back" href="#/contacts">${WC.icon('left')} Contacts</a>
+      <a class="back" href="#/records">${WC.icon('left')} Records</a>
       <div class="row between wrap gap"><h1>${esc(c.name)}</h1><button class="btn ghost" data-action="editContact" data-id="${c.id}">Edit</button></div>
-      <div class="muted">${[c.role, c.company].filter(Boolean).map(esc).join(' · ')}</div>
+      <div class="muted">${[c.role && esc(c.role), co ? `<a href="#/company/${co.id}">${esc(co.name)}</a>` : esc(c.company || '')].filter(Boolean).join(' · ')}</div>
       <div class="pills big">${contactActions(c)}</div>
       <section class="panel details">
         ${c.phone ? `<div><span>Phone</span>${U.telLink(c.phone)}</div>` : ''}
         ${c.email ? `<div><span>Email</span><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></div>` : ''}
         ${c.address ? `<div><span>Address</span>${U.mapLink(c.address)}</div>` : ''}
+        ${co ? `<div><span>Company</span><a href="#/company/${co.id}">${esc(co.name)}</a></div>` : ''}
       </section>
       ${c.notes ? `<section class="panel"><h3>Notes</h3><div class="pre">${esc(c.notes)}</div></section>` : ''}
       <section class="panel">
         <div class="row between"><h3>Jobs</h3><button class="btn tiny" data-action="newLead" data-contact="${c.id}">+ New job</button></div>
-        ${jobs.map((p) => projectCard(p, `<div class="small">Role: ${esc((p.contacts.find((pc) => pc.contactId === c.id) || {}).role || c.role || '')}</div>`)).join('') || empty('Not linked to any jobs.')}
+        ${jobs.length ? jobsGrouped(jobs, (p) => `<div class="small">Role: ${esc((p.contacts.find((pc) => pc.contactId === c.id) || {}).role || c.role || '')}</div>`) : empty('Not linked to any jobs.')}
       </section>
       ${jobs.some((p) => p.files.length) ? `<section class="panel">
         <h3>Documents</h3>
@@ -585,10 +693,45 @@
       </section>`;
   };
 
+  views.company = (id) => {
+    const co = S.get('companies', id);
+    if (!co) return `<p>Company not found. <a href="#/records">Back to Records</a></p>`;
+    const people = S.companyContacts(co.id).sort(byName);
+    const jobs = companyJobs(co.id);
+    const docs = jobs.flatMap((p) => p.files.map((f) => ({ p, f }))).sort((a, b) => b.f.addedAt.localeCompare(a.f.addedAt));
+    const site = co.website ? (/^https?:\/\//.test(co.website) ? co.website : 'https://' + co.website) : '';
+    const done = jobs.filter((p) => p.stage === 'complete');
+    const sold = done.reduce((a, p) => a + projectValue(p), 0);
+    return `
+      <a class="back" href="#/records">${WC.icon('left')} Records</a>
+      <div class="row between wrap gap"><h1>${esc(co.name)}</h1><button class="btn ghost" data-action="editCompany" data-id="${co.id}">Edit</button></div>
+      <div class="muted">${esc(co.type || 'Company')}</div>
+      <div class="pills big">${contactActions(co)}${site ? `<a class="pill" href="${esc(site)}" target="_blank" rel="noopener">${WC.icon('external')} Website</a>` : ''}</div>
+      <section class="panel details">
+        <div><span>People</span>${people.length}</div>
+        <div><span>Jobs</span>${jobs.length}${done.length ? ` (${done.length} completed)` : ''}</div>
+        ${sold ? `<div><span>Completed work</span>${U.money(sold)}</div>` : ''}
+        ${co.phone ? `<div><span>Phone</span>${U.telLink(co.phone)}</div>` : ''}
+        ${co.email ? `<div><span>Email</span><a href="mailto:${esc(co.email)}">${esc(co.email)}</a></div>` : ''}
+        ${co.address ? `<div><span>Address</span>${U.mapLink(co.address)}</div>` : ''}
+      </section>
+      ${co.notes ? `<section class="panel"><h3>Notes</h3><div class="pre">${esc(co.notes)}</div></section>` : ''}
+      <section class="panel">
+        <div class="row between"><h3>People</h3><button class="btn tiny" data-action="newContact" data-company="${esc(co.name)}">+ Add person</button></div>
+        ${people.map((c) => `<div class="item"><div class="grow"><a href="#/contact/${c.id}"><strong>${esc(c.name)}</strong></a> <span class="badge">${esc(c.role || '')}</span>
+          <div class="pills">${contactActions({ ...c, address: '' })}</div></div></div>`).join('') || empty('No people linked yet.')}
+      </section>
+      <section class="panel">
+        <h3>Jobs</h3>
+        ${jobs.length ? jobsGrouped(jobs) : empty('No jobs yet with people from this company.')}
+      </section>
+      ${docs.length ? `<section class="panel"><h3>Documents</h3>${docs.map(({ p, f }) => fileRow(p, f, { showProject: true })).join('')}</section>` : ''}`;
+  };
+
   // ---------------- Settings ----------------
   views.settings = () => {
     const st = S.db.settings;
-    const counts = ['projects', 'contacts', 'events', 'tasks'].map((k) => `${S.all(k).length} ${k}`).join(' · ');
+    const counts = ['projects', 'contacts', 'companies', 'events', 'tasks'].map((k) => `${S.all(k).length} ${k === 'projects' ? 'jobs' : k}`).join(' · ');
     return `
       <h1>Settings</h1>
       <section class="panel">
@@ -639,15 +782,18 @@
       { name: 'referredBy', label: 'Referred by / designer / builder', type: 'select', options: contactOptions() },
       { name: 'estValue', label: 'Rough budget / estimate ($)', type: 'number', half: true },
       { name: 'interest', label: 'Interested in', placeholder: 'e.g. motorized shades, shutters, patio screens', half: true },
-      { name: 'consultDate', label: 'Consult date (optional)', type: 'date', half: true },
-      { name: 'consultTime', label: 'Consult time', type: 'time', half: true },
+      ...(prefill.past
+        ? [{ name: 'startStage', label: 'Status', type: 'select', options: [{ value: 'complete', label: 'Complete' }, { value: 'lost', label: 'Lost' }], half: true },
+          { name: 'doneDate', label: 'Completed / closed on', type: 'date', half: true }]
+        : [{ name: 'consultDate', label: 'Consult date (optional)', type: 'date', half: true },
+          { name: 'consultTime', label: 'Consult time', type: 'time', half: true }]),
       { name: 'notes', label: 'Notes', type: 'textarea' },
     ];
     U.openForm({
-      title: 'New lead',
+      title: prefill.past ? 'Add previous job' : 'New lead',
       fields,
-      values: { existingContact: prefill.contactId || '' },
-      submitLabel: 'Create lead',
+      values: { existingContact: prefill.contactId || '', startStage: 'complete', doneDate: U.today() },
+      submitLabel: prefill.past ? 'Save job' : 'Create lead',
       after(form) {
         const toggle = () => {
           const existing = !!form.elements.existingContact.value;
@@ -674,6 +820,15 @@
           estValue: d.estValue, notes: [d.interest && `Interested in: ${d.interest}`, d.notes].filter(Boolean).join('\n'),
           contacts, items: [], phases: [], log: [], files: [], stageHistory: [{ stage: 'lead', at: new Date().toISOString() }],
         });
+        if (prefill.past) {
+          const at = d.doneDate ? new Date(U.parse(d.doneDate).getTime() + 43200000).toISOString() : new Date().toISOString();
+          p.stage = d.startStage;
+          p.stageHistory = [{ stage: d.startStage, at }];
+          S.touch(p);
+          U.toast('Previous job saved');
+          go(`#/project/${p.id}`);
+          return;
+        }
         if (d.consultDate) {
           S.upsert('events', { title: `Consult – ${p.name}`, type: 'sales', projectId: p.id, date: d.consultDate, start: d.consultTime, end: '', days: 1, location: p.address, notes: '', done: false });
           S.setStage(p, 'consult');
@@ -702,24 +857,62 @@
     });
   }
 
-  function contactForm(c = {}, onSaved) {
+  const companyNames = () => S.all('companies').map((co) => co.name).sort();
+
+  function contactForm(c = {}, onSaved, defaults = {}) {
     const fields = [
       { name: 'name', label: 'Name', required: true },
       { name: 'role', label: 'Role', type: 'select', options: C.CONTACT_ROLES, half: true },
-      { name: 'company', label: 'Company', half: true },
+      { name: 'company', label: 'Company', list: companyNames(), half: true, placeholder: 'Pick or type a new one' },
       { name: 'phone', label: 'Phone', type: 'tel', half: true },
       { name: 'email', label: 'Email', type: 'email', half: true },
       { name: 'address', label: 'Address' },
       { name: 'notes', label: 'Notes (preferences, how they like to communicate…)', type: 'textarea' },
     ];
     U.openForm({
-      title: c.id ? 'Edit contact' : 'New contact', fields, values: c,
+      title: c.id ? 'Edit contact' : 'New contact', fields, values: c.id ? c : defaults,
       onSubmit(d) {
         const saved = S.upsert('contacts', c.id ? { ...d, id: c.id } : d);
         if (onSaved) onSaved(saved); else if (!c.id) go(`#/contact/${saved.id}`); else render();
       },
-      onDelete: c.id ? () => { S.remove('contacts', c.id); go('#/contacts'); } : null,
+      onDelete: c.id ? () => { S.remove('contacts', c.id); go('#/records'); } : null,
     });
+  }
+
+  function companyForm(co = {}) {
+    const fields = [
+      { name: 'name', label: 'Company name', required: true },
+      { name: 'type', label: 'Type', type: 'select', options: C.COMPANY_TYPES, half: true },
+      { name: 'phone', label: 'Phone', type: 'tel', half: true },
+      { name: 'email', label: 'Email', type: 'email', half: true },
+      { name: 'website', label: 'Website', half: true, placeholder: 'example.com' },
+      { name: 'address', label: 'Address' },
+      { name: 'notes', label: 'Notes (how they work, who to call for what, pricing agreements…)', type: 'textarea' },
+    ];
+    U.openForm({
+      title: co.id ? 'Edit company' : 'New company', fields, values: co.id ? co : { type: 'Design firm' },
+      onSubmit(d) {
+        const dup = S.all('companies').find((x) => x.id !== co.id && x.name.toLowerCase() === d.name.toLowerCase());
+        if (dup) { U.toast(`“${dup.name}” is already in your records`); return false; }
+        const saved = S.upsert('companies', co.id ? { ...d, id: co.id } : d);
+        if (!co.id) go(`#/company/${saved.id}`); else render();
+      },
+      onDelete: co.id ? () => { S.remove('companies', co.id); go('#/records'); U.toast('Company deleted. Its people are kept.'); } : null,
+    });
+  }
+
+  function newRecordChooser() {
+    const opts = [
+      ['person', 'users', 'Person', 'Client, designer, builder, electrician…'],
+      ['company', 'briefcase', 'Company', 'Design firm, builder, supplier…'],
+      ['job', 'plus', 'New job / lead', 'Starts in Sales'],
+      ['past', 'file', 'Previous job', 'Record a job you already finished'],
+    ];
+    U.openInfo('Add to records', `<div class="chooser">${opts.map(([k, ic, l, sub]) => `<button class="chooser-btn" data-pick="${k}">${WC.icon(ic)}<span><b>${l}</b><em>${sub}</em></span></button>`).join('')}</div>`);
+    document.querySelectorAll('[data-pick]').forEach((btn) => btn.addEventListener('click', () => {
+      U.close();
+      ({ person: () => contactForm(), company: () => companyForm(), job: () => leadForm(), past: () => leadForm({ past: true }) })[btn.dataset.pick]();
+    }));
   }
 
   function addPersonForm(p) {
@@ -1092,6 +1285,12 @@
     const ed = c({ name: 'Ed Lin', role: 'Electrician', company: 'Bright Electric', phone: '(555) 778-0099' });
     const tom = c({ name: 'Tom & Lisa Greene', role: 'Homeowner', phone: '(555) 600-4512', address: '9 Harbor Ct' });
 
+    const maria = c({ name: 'Maria Alvarez', role: 'Homeowner', phone: '(555) 219-4410', address: '18 Oak Ln' });
+    const ruizCo = S.all('companies').find((x) => x.id === dana.companyId);
+    S.upsert('companies', { ...ruizCo, phone: '(555) 410-7700', website: 'ruizinteriors.example', address: '220 Main St, Suite 4', notes: 'Sends 4–6 jobs a year. Trade pricing applies. Dana handles selections; Jen in their office handles scheduling.' });
+    const pattCo = S.all('companies').find((x) => x.id === mike.companyId);
+    S.upsert('companies', { ...pattCo, phone: '(555) 330-1000', notes: 'Custom builder. Wants pre-wire done before insulation.' });
+
     const proj = (o) => S.upsert('projects', { items: [], phases: [], log: [], files: [], notes: '', estValue: '', ...o });
     const p1 = proj({ name: 'Johnson – Lakeview Dr', stage: 'consult', type: 'Existing home', source: 'Interior designer', address: '42 Lakeview Dr',
       contacts: [{ contactId: sarah.id, role: 'Homeowner' }, { contactId: dana.id, role: 'Interior Designer' }],
@@ -1130,6 +1329,12 @@
         { id: S.uid(), date: U.addDays(t, -7), type: 'Call', contactId: mike.id, summary: 'Mike says drywall starts in ~2 weeks. Will call when paint is done.' }] });
     S.upsert('events', { title: 'Site meeting – Patterson Lot 14', type: 'meeting', projectId: p3.id, date: U.addDays(t, 3), start: '08:00', end: '09:00', days: 1, location: p3.address, notes: 'Walk with Mike & Dana, confirm pocket sizes.', done: false });
     S.upsert('tasks', { title: 'Check with Mike on drywall schedule', due: U.addDays(t, 7), projectId: p3.id, contactId: mike.id, done: false });
+
+    proj({ name: 'Alvarez – Oak Ln', stage: 'complete', type: 'Existing home', source: 'Interior designer', address: '18 Oak Ln',
+      contacts: [{ contactId: maria.id, role: 'Homeowner' }, { contactId: dana.id, role: 'Interior Designer' }], estValue: 6200,
+      stageHistory: [{ stage: 'lead', at: iso(-150) }, { stage: 'sold', at: iso(-130) }, { stage: 'complete', at: iso(-110) }],
+      items: ['Living Room', 'Living Room', 'Dining', 'Primary Bedroom'].map((room, i) => ({ id: S.uid(), room, location: `Window ${i + 1}`, category: 'Shades', brand: 'Hunter Douglas', product: 'Silhouette', color: 'Opal', width: '42', height: '66', mount: 'Inside', control: 'Motorized – battery', qty: 1, price: 1550, status: 'Installed', notes: '' })),
+      log: [{ id: S.uid(), date: U.addDays(t, -110), type: 'Site visit', contactId: maria.id, summary: 'Install complete. Programmed PowerView scenes for morning and evening. Maria very happy.' }] });
 
     const p4 = proj({ name: 'Kim – Maple St', stage: 'install', type: 'Existing home', source: 'Website', address: '77 Maple St',
       contacts: [], estValue: 2600, stageHistory: [{ stage: 'lead', at: iso(-25) }, { stage: 'sold', at: iso(-18) }, { stage: 'install', at: iso(0) }],
@@ -1209,7 +1414,9 @@
       S.touch(p); render();
     },
 
-    newContact: () => contactForm(),
+    newContact: (ds) => contactForm({}, null, { company: ds.company || '', role: ds.company ? undefined : 'Homeowner' }),
+    newRecord: () => newRecordChooser(),
+    editCompany: (ds) => companyForm(S.get('companies', ds.id)),
     editContact: (ds) => contactForm(S.get('contacts', ds.id)),
 
     setFilter: (ds) => { state[ds.key] = ds.value; render(); },
@@ -1252,7 +1459,7 @@
       const p = proj(el.dataset);
       U.ask(`Mark all ${p.items.length} products as ${status}?`, () => { p.items.forEach((i) => { i.status = status; }); S.touch(p); render(); }, 'Mark all');
     },
-    contactRole: (el) => { state.contactRole = el.value; document.getElementById('contactList').innerHTML = contactList(); },
+    contactRole: (el) => { state.contactRole = el.value; document.getElementById('recResults').innerHTML = recResults(); },
     importData: (el) => {
       const f = el.files[0];
       if (!f) return;
@@ -1263,7 +1470,7 @@
     },
   };
 
-  const searchRenderers = { salesList: () => pipelineList('sales', 'salesFilter', 'salesSearch'), installList: () => pipelineList('install', 'installFilter', 'installSearch'), contactList };
+  const searchRenderers = { salesList: () => pipelineList('sales', 'salesFilter', 'salesSearch'), installList: () => pipelineList('install', 'installFilter', 'installSearch'), recResults };
 
   document.addEventListener('click', (ev) => {
     if (WC.DEMO) {
@@ -1302,7 +1509,7 @@
     document.getElementById('main').innerHTML = views[r.view](r.id, r.sub);
     let active = r.view;
     if (r.view === 'project') { const p = S.get('projects', r.id); active = p && (section(p) === 'install' || p.stage === 'complete') ? 'installs' : 'sales'; }
-    if (r.view === 'contact') active = 'contacts';
+    if (r.view === 'contact' || r.view === 'company' || r.view === 'contacts') active = 'records';
     document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === active));
   }
 

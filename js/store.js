@@ -7,6 +7,7 @@
   const empty = () => ({
     version: 1,
     contacts: [],
+    companies: [],
     projects: [],
     events: [],
     tasks: [],
@@ -17,6 +18,8 @@
     const base = empty();
     for (const k of Object.keys(base)) if (!(k in d)) d[k] = base[k];
     d.settings = Object.assign(base.settings, d.settings);
+    // Older data stored a company only as text on each contact; turn those into company records.
+    d.contacts.forEach((c) => linkCompany(c, d));
     d.projects.forEach((p) => {
       p.items = p.items || [];
       p.phases = p.phases || [];
@@ -26,6 +29,21 @@
       p.files = p.files || [];
     });
     return d;
+  }
+
+  // Point a contact at the company named in its `company` field, creating the company if needed.
+  function linkCompany(c, d) {
+    const name = (c.company || '').trim();
+    if (!name) { c.companyId = ''; return; }
+    let co = d.companies.find((x) => x.id === c.companyId && x.name.toLowerCase() === name.toLowerCase())
+      || d.companies.find((x) => x.name.toLowerCase() === name.toLowerCase());
+    if (!co) {
+      co = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), name, type: WC.C.ROLE_COMPANY_TYPE[c.role] || 'Other',
+        phone: '', email: '', website: '', address: '', notes: '', createdAt: new Date().toISOString() };
+      d.companies.push(co);
+    }
+    c.companyId = co.id;
+    c.company = co.name;
   }
 
   function load() {
@@ -69,9 +87,12 @@
         if (i >= 0) db[coll][i] = Object.assign(db[coll][i], obj);
         else db[coll].push(obj);
       }
-      obj.updatedAt = now();
+      const saved = S.get(coll, obj.id);
+      saved.updatedAt = now();
+      if (coll === 'contacts') linkCompany(saved, db);
+      if (coll === 'companies') db.contacts.forEach((c) => { if (c.companyId === saved.id) c.company = saved.name; });
       save();
-      return S.get(coll, obj.id);
+      return saved;
     },
 
     remove(coll, id) {
@@ -81,6 +102,9 @@
         if (target && WC.files) target.files.forEach((f) => WC.files.del(f.id));
         db.events = db.events.filter((e) => e.projectId !== id);
         db.tasks = db.tasks.filter((t) => t.projectId !== id);
+      }
+      if (coll === 'companies') {
+        db.contacts.forEach((c) => { if (c.companyId === id) { c.companyId = ''; c.company = ''; } });
       }
       if (coll === 'contacts') {
         db.projects.forEach((p) => { p.contacts = p.contacts.filter((c) => c.contactId !== id); });
@@ -113,6 +137,8 @@
       S.touch(project);
       return task;
     },
+
+    companyContacts: (companyId) => db.contacts.filter((c) => c.companyId === companyId),
 
     projectContacts(project) {
       return project.contacts

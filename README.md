@@ -11,7 +11,7 @@ It's plain HTML, CSS and JavaScript. There's no build step and no server, it wor
 | **Dashboard** | A month calendar of sales calls, measures, install days and site meetings (tap a day to see its appointments; multi-day installs supported, and each appointment can go to your phone calendar), overdue and upcoming follow-ups, past appointments that still need wrap-up notes, the sales pipeline, sales leads going cold, and installs waiting on other trades. |
 | **Sales** | Leads → Consult scheduled → Measure/quoting → Proposal sent. Includes search and stage filters. |
 | **Installs** | Sold/ordering → Pre-wire → Waiting on trades → Installing → Punch list. Shows install progress and who you're waiting on. |
-| **Contacts** | Homeowners, designers, builders, electricians and other trades, with tap-to-call, text, email and map buttons. Each person's page lists every job they're on and their conversation history. |
+| **Records** | Your searchable database. One search box covers people, companies, every job (including completed and lost ones), products, notes, call logs and documents. Filter by People, Companies, Jobs (Active, Completed, Lost) or Documents. A company page lists its people and all of their jobs, current and previous. **+ Add** creates a person, a company, a new lead, or a previous job you already finished. |
 
 **Each job** has:
 - **Documents**: attach the proposal PDF (or quotes, signed contracts, plans and photos) to the job. Tap it to read it right in the app, or share/email it from your phone. Attaching a proposal can move the job to *Proposal Sent* and set the follow-up for you. A contact's page lists the documents from all of their jobs.

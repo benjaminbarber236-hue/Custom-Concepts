@@ -37,6 +37,15 @@ WC.C = {
     'Property Manager', 'Vendor / Rep', 'Coworker', 'Other',
   ],
 
+  COMPANY_TYPES: ['Design firm', 'Builder / GC', 'Contractor', 'Architect', 'Electrical / low-voltage', 'Supplier / vendor', 'Property management', 'Commercial client', 'Other'],
+
+  // Best guess for a new company's type from the role of the person it was created from.
+  ROLE_COMPANY_TYPE: {
+    'Interior Designer': 'Design firm', 'Builder / GC': 'Builder / GC', 'Contractor': 'Contractor', 'Architect': 'Architect',
+    'Electrician': 'Electrical / low-voltage', 'Low-voltage / AV': 'Electrical / low-voltage', 'Framer': 'Contractor',
+    'Drywaller': 'Contractor', 'Painter': 'Contractor', 'Property Manager': 'Property management', 'Vendor / Rep': 'Supplier / vendor',
+  },
+
   PROJECT_TYPES: ['Existing home', 'New construction', 'Remodel', 'Commercial', 'Service / Repair'],
 
   LEAD_SOURCES: ['Referral', 'Interior designer', 'Builder / contractor', 'Website', 'Showroom', 'Repeat customer', 'Home show', 'Phone call', 'Other'],
