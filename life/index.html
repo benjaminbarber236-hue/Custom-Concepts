@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Life Tracker</title>
+  <meta name="description" content="Work, congregation, recreation and fitness in one place: a calendar, to-dos, notes and workouts.">
+  <meta name="theme-color" content="#1e2b3c" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0f16" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Life">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/home" class="brand"><img src="icons/icon.svg" alt="" width="24" height="24"> Life Tracker</a>
+    <div class="row">
+      <a href="#/search" class="icon-btn" aria-label="Search"><span data-icon="search"></span></a>
+      <a href="#/settings" class="icon-btn" aria-label="Settings"><span data-icon="sliders"></span></a>
+    </div>
+  </header>
+
+  <main id="main" class="container"></main>
+
+  <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
+
+  <dialog id="modal"></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/constants.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/sample.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
