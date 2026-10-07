@@ -45,12 +45,14 @@ Add a reminder from the Dashboard or from any day on the calendar, with an optio
 ## Using it
 
 ### On your phone (recommended): GitHub Pages
-1. On GitHub, open the repo → **Settings → Pages**.
-2. Under "Build and deployment", choose **Deploy from a branch**, pick the branch and the `/ (root)` folder, then click **Save**.
-3. After about a minute, open the URL GitHub shows (e.g. `https://<user>.github.io/<repo>/`) on your phone.
+1. Open https://github.com/benjaminbarber236-hue/Custom-Concepts/settings/pages
+2. Under **Build and deployment**, set **Source** to **Deploy from a branch**. Pick the branch `claude/window-covering-scheduler-qfe9s1` and the `/ (root)` folder, then tap **Save**.
+3. Wait about a minute, then open **https://benjaminbarber236-hue.github.io/Custom-Concepts/** on your phone.
 4. Add it to your home screen:
-   - **iPhone (Safari):** Share → **Add to Home Screen**.
-   - **Android (Chrome):** ⋮ → **Install app**.
+   - **iPhone:** open the link in **Safari**, tap the **Share** button, then **Add to Home Screen**.
+   - **Android:** open it in **Chrome**, tap **⋮**, then **Install app**.
+
+It then opens full screen like a regular app, works offline, and updates itself when new changes are pushed.
 
 ### On a computer
 Open `index.html` directly in a browser, or run `python3 -m http.server` in this folder and go to http://localhost:8000.
