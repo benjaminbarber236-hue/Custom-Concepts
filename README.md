@@ -23,6 +23,10 @@ Each job page shows where the job is and a **Next step** card with one big butto
 
 Scheduling an appointment moves the job forward automatically. For example, booking a final measure moves it to **Final measure**. After each appointment, **Add notes** asks what happened and what's next, and can set a reminder. Reminders the app made for a step clear themselves when the job moves on.
 
+## Reminders
+
+Add a reminder from the Dashboard or from any day on the calendar, with an optional time. When it's done, tap it, write what you talked about in **Notes**, and tap **Mark done**, or just tick the box. Finished reminders stay on their calendar day (crossed off) with their notes, so you can look back later. If a reminder belongs to a job, its notes also appear in that job's **Notes** tab, and Records search finds them.
+
 ## Screens
 
 | Tab | What's there |

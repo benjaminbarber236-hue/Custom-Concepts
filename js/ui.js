@@ -112,14 +112,19 @@
           ${o.onDelete ? '<button type="button" class="btn danger ghost" data-delete>Delete</button>' : ''}
           <span class="spacer"></span>
           <button type="button" class="btn ghost" data-close>Cancel</button>
-          <button type="submit" class="btn primary">${esc(o.submitLabel || 'Save')}</button>
+          <button type="submit" class="btn ${o.altSubmit ? '' : 'primary'}">${esc(o.submitLabel || 'Save')}</button>
+          ${o.altSubmit ? `<button type="submit" class="btn primary" data-alt>${esc(o.altSubmit)}</button>` : ''}
         </footer>
       </form>`;
     const form = d.querySelector('form');
+    let alt = false;
+    form.querySelectorAll('button[type=submit]').forEach((b) => b.addEventListener('click', () => { alt = b.hasAttribute('data-alt'); }));
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const data = readForm(form, o.fields.filter((f) => f.name));
-      if (o.onSubmit(data, form) !== false) close();
+      const isAlt = alt || !!(e.submitter && e.submitter.hasAttribute('data-alt'));
+      alt = false;
+      if (o.onSubmit(data, form, isAlt) !== false) close();
     });
     d.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
     const del = d.querySelector('[data-delete]');

@@ -27,7 +27,8 @@
   }
   const section = (p) => C.stage(p.stage).section;
   const lastDay = (e) => U.addDays(e.date, Math.max(1, e.days || 1) - 1);
-  const byDue = (a, b) => (a.due || '').localeCompare(b.due || '');
+  const byDue = (a, b) => `${a.due || ''} ${a.time || ''}`.localeCompare(`${b.due || ''} ${b.time || ''}`);
+  const tasksOn = (day) => S.all('tasks').filter((x) => x.due === day).sort(byDue);
   const byWhen = (a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || ''));
   const byName = (a, b) => (a.name || '').localeCompare(b.name || '');
 
@@ -112,11 +113,15 @@
   function taskRow(t, opts = {}) {
     const p = t.projectId && S.get('projects', t.projectId);
     const late = !t.done && t.due < U.today();
+    const when = opts.hideDate ? (t.time ? U.fmtTime(t.time) : '') : `${U.relDate(t.due)}${t.time ? ' · ' + U.fmtTime(t.time) : ''}`;
+    const sub = [when, p && !opts.hideProject ? `<a href="#/project/${p.id}">${esc(p.name)}</a>` : ''].filter(Boolean).join(' · ');
+    const note = (t.notes || '').split('\n')[0];
     return `<div class="item task ${t.done ? 'done' : ''}">
-      <input type="checkbox" class="chk" data-action="toggleTask" data-id="${t.id}" ${t.done ? 'checked' : ''} aria-label="Mark done">
+      <input type="checkbox" class="chk" data-action="toggleTask" data-id="${t.id}" ${t.done ? 'checked' : ''} aria-label="${t.done ? 'Mark not done' : 'Mark done'}">
       <div class="grow">
-        <a href="#" data-action="editTask" data-id="${t.id}">${esc(t.title)}</a>
-        <div class="small ${late ? 'overdue' : 'muted'}">${esc(U.relDate(t.due))}${p && !opts.hideProject ? ` · <a href="#/project/${p.id}">${esc(p.name)}</a>` : ''}</div>
+        <a href="#" class="task-title" data-action="editTask" data-id="${t.id}">${esc(t.title)}</a>
+        ${sub ? `<div class="small ${late ? 'overdue' : 'muted'}">${sub}</div>` : ''}
+        ${note ? `<a href="#" class="task-note" data-action="editTask" data-id="${t.id}">${WC.icon('note')} ${esc(note.length > 110 ? note.slice(0, 110) + '…' : note)}</a>` : ''}
       </div>
     </div>`;
   }
@@ -195,6 +200,7 @@
 
     const wrap = S.all('events').filter((e) => !e.done && lastDay(e) < t && lastDay(e) >= U.addDays(t, -30)).sort(byWhen);
     const due = openTasks((x) => x.due <= t);
+    const doneToday = S.all('tasks').filter((x) => x.done && (x.due === t || (x.doneAt || '').slice(0, 10) === t)).sort(byDue);
     const soon = openTasks((x) => x.due > t && x.due <= U.addDays(t, 7));
     const stuck = stuckJobs();
     const todoCount = wrap.length + due.length + stuck.length;
@@ -233,7 +239,7 @@
       <div class="quick-actions">
         <button class="qa" data-action="newLead">${WC.icon('plus')}<span>New lead</span></button>
         <button class="qa" data-action="newEvent" data-date="${state.calDay}">${WC.icon('calendar')}<span>Schedule</span></button>
-        <button class="qa" data-action="newTask">${WC.icon('clock')}<span>Reminder</span></button>
+        <button class="qa" data-action="newTask" data-date="${state.calDay}">${WC.icon('clock')}<span>Reminder</span></button>
       </div>
 
       <section class="panel">
@@ -242,6 +248,7 @@
         ${due.map((x) => taskRow(x)).join('')}
         ${stuck.map(stuckItem).join('')}
         ${todoCount ? '' : empty('You\'re all caught up.')}
+        ${doneToday.length ? `<div class="group-label">Done today</div>${doneToday.map((x) => taskRow(x)).join('')}` : ''}
       </section>
 
       ${soon.length ? `<section class="panel">
@@ -567,14 +574,16 @@
       const dt = U.parse(d);
       if (i % 7 === 0 && i >= 28 && dt.getMonth() !== month) break;
       const evs = eventsOn(d);
-      const due = openTasks((x) => x.due === d).length;
+      const dayTasks = tasksOn(d);
+      const due = dayTasks.length;
+      const allDone = due && dayTasks.every((x) => x.done);
       const label = `${U.fmtDate(d, { weekday: 'long', month: 'long', day: 'numeric' })}: ${evs.length} appointment${evs.length === 1 ? '' : 's'}${due ? `, ${due} reminder${due === 1 ? '' : 's'}` : ''}`;
       cells += `<button class="cal-day${dt.getMonth() !== month ? ' out' : ''}${d === t ? ' today' : ''}${d === state.calDay ? ' sel' : ''}" data-action="calDay" data-date="${d}" aria-label="${esc(label)}">
-        <span>${dt.getDate()}</span><i>${evs.slice(0, 3).map((e) => `<b style="background:${C.eventType(e.type).color}"></b>`).join('')}${due ? '<b class="task-dot"></b>' : ''}</i></button>`;
+        <span>${dt.getDate()}</span><i>${evs.slice(0, 3).map((e) => `<b style="background:${C.eventType(e.type).color}"></b>`).join('')}${due ? `<b class="task-dot${allDone ? ' done' : ''}"></b>` : ''}</i></button>`;
     }
     const sel = state.calDay;
     const evs = eventsOn(sel);
-    const tasks = sel === t ? [] : openTasks((x) => x.due === sel);
+    const tasks = tasksOn(sel);
     const used = new Set(S.all('events').map((e) => e.type));
     return `<section class="panel cal">
       <div class="row between cal-head">
@@ -589,9 +598,9 @@
       <div class="cal-legend">${C.EVENT_TYPES.filter((x) => used.has(x.id)).map((x) => `<span>${typeDot(x.id)}${esc(x.label)}</span>`).join('')}<span><span class="dot" style="box-shadow:inset 0 0 0 1px var(--muted)"></span>Reminder</span></div>
       <div class="cal-agenda">
         <div class="row between"><h3>${sel === t ? 'Today' : esc(U.fmtDate(sel, { weekday: 'long', month: 'short', day: 'numeric' }))}</h3>
-          <button class="btn tiny" data-action="newEvent" data-date="${sel}">${WC.icon('plus')} Schedule</button></div>
+          <div class="row gap"><button class="btn tiny" data-action="newTask" data-date="${sel}">${WC.icon('plus')} Reminder</button><button class="btn tiny" data-action="newEvent" data-date="${sel}">${WC.icon('plus')} Schedule</button></div></div>
         ${evs.map((e) => eventRow(e, { day: sel })).join('')}
-        ${tasks.map((x) => taskRow(x)).join('')}
+        ${tasks.map((x) => taskRow(x, { hideDate: true })).join('')}
         ${!evs.length && !tasks.length ? empty(sel === t ? 'Nothing scheduled today.' : 'Nothing scheduled.') : ''}
       </div>
     </section>`;
@@ -673,11 +682,13 @@
       && (type !== 'jobs' || state.jobStatus === 'all' || jobStatusOf(x.p) === state.jobStatus))
       .sort((a, b) => S.lastActivity(b.p).localeCompare(S.lastActivity(a.p)));
     const docs = allDocs().filter(({ p, f }) => !q || norm(`${f.name} ${f.label} ${f.note} ${p.name}`).includes(q));
+    const reminders = q && type === 'all' ? S.all('tasks').filter((x) => norm(`${x.title} ${x.notes}`).includes(q)).sort((a, b) => byDue(b, a)) : [];
 
     const sections = {
       people: { label: 'People', n: people.length, html: (lim) => people.slice(0, lim).map(personCard).join('') },
       companies: { label: 'Companies', n: companies.length, html: (lim) => companies.slice(0, lim).map(companyCard).join('') },
       jobs: { label: 'Jobs', n: jobs.length, html: (lim) => jobs.slice(0, lim).map(({ p, m }) => jobCard(p, m)).join('') },
+      reminders: { label: 'Reminders', n: reminders.length, html: (lim) => `<div class="panel tight">${reminders.slice(0, lim).map((x) => taskRow(x)).join('')}</div>` },
       docs: { label: 'Documents', n: docs.length, html: (lim) => `<div class="panel tight">${docs.slice(0, lim).map(({ p, f }) => fileRow(p, f, { showProject: true })).join('')}</div>` },
     };
 
@@ -1104,29 +1115,62 @@
     });
   }
 
+  // Notes written on a reminder also appear in its job's Notes, so they're easy to find later.
+  function syncTaskNote(task) {
+    const p = task.projectId && S.get('projects', task.projectId);
+    if (!p) return;
+    const entry = p.log.find((l) => l.taskId === task.id);
+    if (task.notes) {
+      const fields = { date: (task.doneAt || '').slice(0, 10) || task.due || U.today(), type: 'Note', summary: `${task.title}: ${task.notes}` };
+      if (entry) Object.assign(entry, fields); else p.log.push({ id: S.uid(), taskId: task.id, contactId: '', ...fields });
+    } else if (entry) p.log = p.log.filter((l) => l !== entry);
+    S.touch(p);
+  }
+
   function taskForm(t = {}, defaults = {}) {
     const isNew = !t.id;
     const pid = t.projectId || defaults.projectId;
     const p0 = pid && S.get('projects', pid);
     const fields = [
-      { name: 'title', label: 'What do you need to do?', required: true, placeholder: 'e.g. Call Sarah about fabric samples' },
+      { name: 'title', label: isNew ? 'What do you need to do?' : 'Reminder', required: true, placeholder: 'e.g. Talk to Nick about the Aetna job' },
       ...(p0 ? [] : [{ name: 'projectId', label: 'Job (optional)', type: 'select', options: projectOptions(t.projectId) }]),
-      { name: 'due', label: 'When', type: 'date', required: true, quick: [['Tomorrow', 1], ['In 3 days', 3], ['Next week', 7], ['In 2 weeks', 14], ['In a month', 30]] },
+      { name: 'due', label: 'Day', type: 'date', required: true, half: true },
+      { name: 'time', label: 'Time (optional)', type: 'time', half: true },
+      { name: 'notes', label: isNew ? 'Notes (optional)' : 'Notes', type: 'textarea', rows: isNew ? 2 : 5, placeholder: 'What did you talk about? It stays with this reminder.' },
+      ...(!isNew && t.done ? [{ name: 'done', label: 'Done', type: 'checkbox' }] : []),
     ];
+    const quick = isNew ? `<div class="quick-row reminder-quick">${[['Tomorrow', 1], ['In 3 days', 3], ['Next week', 7], ['In 2 weeks', 14], ['In a month', 30]].map(([l, n]) => `<button type="button" class="chip" data-days="${n}">${l}</button>`).join('')}</div>` : '';
+    const status = !isNew && t.done ? `<p class="form-context">${WC.icon('check')} Done${t.doneAt ? ` ${esc(U.fmtDate(t.doneAt.slice(0, 10)))}` : ''}</p>` : '';
     U.openForm({
-      title: isNew ? 'Reminder' : 'Edit reminder',
-      intro: p0 ? `<p class="form-context">For <b>${esc(p0.name)}</b></p>` : '',
+      title: isNew ? 'Reminder' : (t.done ? 'Reminder (done)' : 'Reminder'),
+      intro: `${p0 ? `<p class="form-context">For <b>${esc(p0.name)}</b></p>` : ''}${status}`,
       fields,
-      values: isNew ? { due: U.addDays(U.today(), 1), projectId: '' } : t,
+      values: isNew ? { due: defaults.date && defaults.date >= U.today() ? defaults.date : U.addDays(U.today(), 1), projectId: '' } : t,
       submitLabel: isNew ? 'Set reminder' : 'Save',
-      onSubmit(d) {
+      altSubmit: !isNew && !t.done ? 'Mark done' : '',
+      after(form) {
+        if (!quick) return;
+        form.querySelector('#f_due').closest('.field').insertAdjacentHTML('afterend', `<div class="field">${quick}</div>`);
+        form.querySelectorAll('.reminder-quick [data-days]').forEach((b) => b.addEventListener('click', () => {
+          form.elements.due.value = U.addDays(U.today(), Number(b.dataset.days));
+          b.parentElement.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === b));
+        }));
+      },
+      onSubmit(d, form, markDone) {
         if (p0) d.projectId = p0.id;
         if (isNew) { d.done = false; d.contactId = defaults.contactId || ''; }
-        S.upsert('tasks', isNew ? d : { ...d, id: t.id });
-        U.toast(isNew ? `Reminder set for ${relIn(d.due)}` : 'Saved');
+        if (markDone) d.done = true;
+        if (!isNew && 'done' in d || markDone) d.doneAt = d.done ? (t.doneAt || new Date().toISOString()) : null;
+        const saved = S.upsert('tasks', isNew ? d : { ...d, id: t.id });
+        syncTaskNote(saved);
+        U.toast(isNew ? `Reminder set for ${relIn(d.due)}${d.time ? ' at ' + U.fmtTime(d.time) : ''}` : markDone ? 'Done. Your notes are saved with it.' : 'Saved');
         render();
       },
-      onDelete: isNew ? null : () => { S.remove('tasks', t.id); render(); },
+      onDelete: isNew ? null : () => {
+        const p = t.projectId && S.get('projects', t.projectId);
+        if (p) { p.log = p.log.filter((l) => l.taskId !== t.id); S.touch(p); }
+        S.remove('tasks', t.id); render();
+      },
     });
   }
 
@@ -1716,9 +1760,16 @@
     wrapUp: (ds) => wrapUpForm(S.get('events', ds.id)),
     icsEvent: (ds) => { const e = S.get('events', ds.id); U.download(`${e.title.replace(/[^\w-]+/g, '_')}.ics`, icsFor(e), 'text/calendar'); },
 
-    newTask: (ds) => taskForm({}, { projectId: ds.project, contactId: ds.contact }),
+    newTask: (ds) => taskForm({}, { projectId: ds.project, contactId: ds.contact, date: ds.date }),
     editTask: (ds) => taskForm(S.get('tasks', ds.id)),
-    toggleTask: (ds) => { const t = S.get('tasks', ds.id); t.done = !t.done; t.doneAt = t.done ? new Date().toISOString() : null; S.save(); setTimeout(render, 250); },
+    toggleTask: (ds) => {
+      const t = S.get('tasks', ds.id);
+      t.done = !t.done;
+      t.doneAt = t.done ? new Date().toISOString() : null;
+      S.save();
+      if (t.done) U.toast(t.notes ? 'Done' : 'Done. Tap it to add notes.');
+      setTimeout(render, 250);
+    },
 
     addQuote: (ds) => quoteForm(proj(ds)),
     editQuote: (ds) => { const p = proj(ds); quoteForm(p, p.quotes.find((q) => q.id === ds.id)); },

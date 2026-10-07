@@ -183,8 +183,13 @@ h3 { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spac
 .panel > .item:first-of-type, .panel h3 + .item, .panel .row + .item, .panel p + .item, .cal-agenda .row + .item { border-top: 0; }
 .item a { text-decoration: none; }
 .item a:hover { text-decoration: underline; }
-.item.done { opacity: .5; }
-.item.done strong, .item.done > .grow > a { text-decoration: line-through; }
+.item.done { opacity: .55; }
+.item.done strong, .item.done > .grow > a.task-title, .item.done > .grow > a.ev-title { text-decoration: line-through; }
+.item.task.done { opacity: .75; }
+.item.task.done .task-title { color: var(--muted); }
+.task-note { display: flex; gap: 6px; align-items: flex-start; margin-top: 4px; font-size: .84rem; color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
+.task-note .ic { width: 14px; height: 14px; margin-top: 2px; color: var(--muted); flex-shrink: 0; }
+.reminder-quick { margin-top: -4px; }
 .ev-time { width: 78px; flex-shrink: 0; font-size: .84rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ev-time b { color: var(--text); font-weight: 600; }
 .ev-actions, .snooze { display: flex; gap: 4px; flex-shrink: 0; }
@@ -216,6 +221,7 @@ h3 { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spac
 .cal-day i { display: flex; gap: 3px; height: 5px; }
 .cal-day i b { width: 5px; height: 5px; border-radius: 50%; }
 .cal-day i b.task-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--muted); }
+.cal-day i b.task-dot.done { background: var(--line); box-shadow: none; }
 .cal-agenda { margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
 .cal-agenda h3 { margin: 0; }
 .cal-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: .75rem; color: var(--muted); }
