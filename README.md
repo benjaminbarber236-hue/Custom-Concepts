@@ -44,7 +44,12 @@ Add a reminder from the Dashboard or from any day on the calendar, with an optio
 
 ## Using it
 
-### On your phone (recommended): GitHub Pages
+### Quickest: open the link and add it to your home screen
+**https://raw.githack.com/benjaminbarber236-hue/Custom-Concepts/HEAD/index.html**
+
+Open it in Safari on iPhone, tap **Share**, then **Add to Home Screen**. It always serves the latest version of the app from this repository.
+
+### Alternative: GitHub Pages (a shorter address)
 1. Open https://github.com/benjaminbarber236-hue/Custom-Concepts/settings/pages
 2. Under **Build and deployment**, set **Source** to **Deploy from a branch**. Pick the branch `claude/window-covering-scheduler-qfe9s1` and the `/ (root)` folder, then tap **Save**.
 3. Wait about a minute, then open **https://benjaminbarber236-hue.github.io/Custom-Concepts/** on your phone.
