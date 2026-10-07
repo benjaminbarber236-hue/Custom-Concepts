@@ -4,28 +4,39 @@ A phone-friendly app for tracking a window covering business (shades, blinds, sh
 
 It's plain HTML, CSS and JavaScript. There's no build step and no server, it works offline, and you can install it on your phone's home screen.
 
-## What it does
+## How a job works
 
-| Section | What's there |
+Every job follows the same steps, matching how a typical job goes:
+
+**New lead → Sales calls → Quotes out → Final measure → Ordered → Install → Done**
+
+Each job page shows where the job is and a **Next step** card with one big button for what to do now:
+
+| Step | Next step button |
 |---|---|
-| **Dashboard** | A month calendar of sales calls, measures, install days and site meetings (tap a day to see its appointments; multi-day installs supported, and each appointment can go to your phone calendar), overdue and upcoming follow-ups, past appointments that still need wrap-up notes, the sales pipeline, sales leads going cold, and installs waiting on other trades. |
-| **Sales** | Leads → Consult scheduled → Measure/quoting → Proposal sent. Includes search and stage filters. |
-| **Installs** | Sold/ordering → Pre-wire → Waiting on trades → Installing → Punch list. Shows install progress and who you're waiting on. |
-| **Records** | Your searchable database. One search box covers people, companies, every job (including completed and lost ones), products, notes, call logs and documents. Filter by People, Companies, Jobs (Active, Completed, Lost) or Documents. A company page lists its people and all of their jobs, current and previous. **+ Add** creates a person, a company, a new lead, or a previous job you already finished. |
+| New lead | Schedule sales call |
+| Sales calls | Add a quote (one per option or price range, with its PDF) |
+| Quotes out | They said yes: book final measure (asks which option they picked) |
+| Final measure | Measured: place the order |
+| Ordered | Product is in: schedule install (you enter the expected arrival date and get a reminder that day) |
+| Install | Job finished (sets a check-in reminder 2 weeks later) |
 
-**Each job** has:
-- **Documents**: attach the proposal PDF (or quotes, signed contracts, plans and photos) to the job. Tap it to read it right in the app, or share/email it from your phone. Attaching a proposal can move the job to *Proposal Sent* and set the follow-up for you. A contact's page lists the documents from all of their jobs.
-- **Overview**: the people on the job and their roles, open follow-ups, upcoming appointments, recent activity and stage history.
-- **Products**: windows grouped by room, with category, brand, product line, color, measurements, mount, control/motor, quantity and price. Tap a status to choose a new one (Quoted, Ordered, Received, Installed, Issue). One tap only opens the menu, so nothing changes by accident. **Copy** adds the next window with the same specs. **Order list** builds a text list grouped by brand.
-- **Import order sheet**: upload the order sheet (Excel, CSV, or a PDF with selectable text) and its lines become products. The app matches columns like Room, Window, Width, Height, Fabric, Mount, Control and Price, and converts decimals to fractions (34.375 becomes 34 3/8). You review and uncheck rows before anything is added, and the sheet is saved with the job. **Get blank template** gives you a CSV with the right headers.
-- **Plans**: upload floor plans, elevations or window schedules (several at once). They show as thumbnails, and **Zoom in** helps you read the details on site.
-- **Phases**: steps for long jobs, such as pre-wire, blocking, waiting on drywall, final measure, order, install, program motors and punch list. Each phase can name who it depends on. There's a one-tap template for new construction.
-- **Schedule** and **Log**: every appointment, plus every call, text, email, meeting and site visit.
+Scheduling an appointment moves the job forward automatically. For example, booking a final measure moves it to **Final measure**. After each appointment, **Add notes** asks what happened and what's next, and can set a reminder. Reminders the app made for a step clear themselves when the job moves on.
 
-**Built-in follow-through**
-- New leads get a "call to schedule consult" follow-up automatically, or a consult appointment if you enter a date.
-- After an appointment, **Wrap up** asks what happened, lets you move the job to the next stage, and sets the next follow-up.
-- Moving a job to *Proposal Sent* adds a follow-up for 3 days later. *Sold* adds "place orders". *Complete* adds a check-in 2 weeks after the install.
+## Screens
+
+| Tab | What's there |
+|---|---|
+| **Dashboard** | Month calendar (tap a day), quick buttons (New lead, Schedule, Reminder), a **To do** list (appointments to add notes for, reminders due, jobs with no next step), and a count of jobs at each step. |
+| **Sales** | Jobs in New lead, Sales calls and Quotes out. |
+| **Installs** | Jobs in Final measure, Ordered and Install. |
+| **Records** | One search across people, companies, every job (including finished and lost), products, notes and files. |
+
+**Each job** has four tabs:
+- **Overview**: what's coming up, quotes, people, details, and history. Big jobs can turn on **phases** (pre-wire, waiting on drywall…) from the ⋯ menu.
+- **Products**: windows by room. Tap a status to change it, **Copy** to add the next window with the same specs, or **Import order sheet** (Excel, CSV or text PDF) to fill the list automatically after a review.
+- **Files**: plans, quote PDFs, order sheets and photos, with thumbnails and a zoomable viewer.
+- **Notes**: what you talked about and decided.
 
 ## Using it
 

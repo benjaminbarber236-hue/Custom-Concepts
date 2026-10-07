@@ -27,6 +27,11 @@
       p.contacts = p.contacts || [];
       p.stageHistory = p.stageHistory || [];
       p.files = p.files || [];
+      p.quotes = p.quotes || [];
+      const OLD = WC.C.OLD_STAGES;
+      if (OLD[p.stage]) p.stage = OLD[p.stage];
+      p.stageHistory.forEach((h) => { if (OLD[h.stage]) h.stage = OLD[h.stage]; });
+      p.files.forEach((f) => { if (WC.C.OLD_DOC_LABELS[f.label]) f.label = WC.C.OLD_DOC_LABELS[f.label]; });
     });
     return d;
   }
@@ -123,6 +128,10 @@
       if (project.stage === stageId) return null;
       project.stage = stageId;
       project.stageHistory.push({ stage: stageId, at: now() });
+      // Reminders the app made for an earlier step are finished once the job moves on.
+      db.tasks.forEach((t) => {
+        if (t.projectId === project.id && !t.done && t.forStage && t.forStage !== stageId) { t.done = true; t.doneAt = now(); }
+      });
       let task = null;
       const auto = WC.C.STAGE_AUTOTASKS[stageId];
       if (auto) {
@@ -132,6 +141,7 @@
           projectId: project.id,
           done: false,
           auto: true,
+          forStage: stageId,
         });
       }
       S.touch(project);

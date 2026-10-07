@@ -38,13 +38,21 @@
   const mapLink = (addr) => addr ? `<a href="https://maps.google.com/?q=${encodeURIComponent(addr)}" target="_blank" rel="noopener">${esc(addr)}</a>` : '';
 
   // ---- Form builder ----
-  // field: { name, label, type: text|textarea|select|date|time|number|checkbox|tel|email, options, list, half, required, placeholder }
+  // field: { name, label, type: text|textarea|select|chips|date|time|number|checkbox|tel|email|file,
+  //          options, list, half, required, placeholder, quick: [[label, days]…] (date shortcuts), more (under "More details"), cls }
+  const optList = (options) => (options || []).map((o) => (Array.isArray(o) ? { value: o[0], label: o[1] } : typeof o === 'object' ? o : { value: o, label: o }));
+
   function fieldHtml(f, values) {
     const v = values[f.name] ?? f.default ?? '';
     const id = 'f_' + f.name;
     const req = f.required ? 'required' : '';
     const ph = f.placeholder ? `placeholder="${esc(f.placeholder)}"` : '';
+    const cls = `${f.half ? 'half' : ''} ${f.cls || ''}`;
     let input;
+    if (f.type === 'chips') {
+      return `<fieldset class="field choices ${cls}"><legend>${esc(f.label)}</legend><div class="choice-row">${optList(f.options).map((o) =>
+        `<label class="choice"><input type="radio" name="${f.name}" value="${esc(o.value)}" ${String(o.value) === String(v) ? 'checked' : ''}><span>${esc(o.label)}</span></label>`).join('')}</div></fieldset>`;
+    }
     if (f.type === 'textarea') {
       input = `<textarea id="${id}" name="${f.name}" rows="${f.rows || 3}" ${req} ${ph}>${esc(v)}</textarea>`;
     } else if (f.type === 'select') {
@@ -57,14 +65,18 @@
     } else if (f.type === 'file') {
       input = `<input id="${id}" name="${f.name}" type="file" ${f.accept ? `accept="${esc(f.accept)}"` : ''} ${f.multiple ? 'multiple' : ''} ${req}>`;
     } else if (f.type === 'checkbox') {
-      return `<label class="field check ${f.half ? 'half' : ''}"><input type="checkbox" name="${f.name}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
+      return `<label class="field check ${cls}"><input type="checkbox" name="${f.name}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
     } else {
       const list = f.list ? `list="dl_${f.name}"` : '';
       const dl = f.list ? `<datalist id="dl_${f.name}">${f.list.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>` : '';
       const step = f.type === 'number' ? `step="${f.step || 'any'}" inputmode="decimal"` : '';
       input = `<input id="${id}" name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}" ${req} ${ph} ${list} ${step}>${dl}`;
     }
-    return `<label class="field ${f.half ? 'half' : ''}" for="${id}"><span>${esc(f.label)}</span>${input}</label>`;
+    if (f.quick) {
+      const quick = `<div class="quick-row">${f.quick.map(([l, n]) => `<button type="button" class="chip" data-quick-for="${id}" data-days="${n}">${esc(l)}</button>`).join('')}</div>`;
+      return `<div class="field ${cls}"><label for="${id}">${esc(f.label)}</label>${input}${quick}</div>`;
+    }
+    return `<label class="field ${cls}" for="${id}"><span>${esc(f.label)}</span>${input}</label>`;
   }
 
   function readForm(form, fields) {
@@ -75,7 +87,7 @@
       if (f.type === 'checkbox') out[f.name] = el.checked;
       else if (f.type === 'file') out[f.name] = f.multiple ? Array.from(el.files) : (el.files[0] || null);
       else if (f.type === 'number') out[f.name] = el.value === '' ? '' : Number(el.value);
-      else out[f.name] = el.value.trim();
+      else out[f.name] = String(el.value ?? '').trim();
     }
     return out;
   }
@@ -91,9 +103,10 @@
     d.innerHTML = `
       <form method="dialog" class="modal-form">
         <header class="modal-head"><h2>${esc(o.title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${WC.icon('x')}</button></header>
-        <div class="modal-body">
+        <div class="modal-body" tabindex="-1" autofocus>
           ${o.intro || ''}
-          <div class="form-grid">${o.fields.map((f) => f.html || fieldHtml(f, values)).join('')}</div>
+          <div class="form-grid">${o.fields.filter((f) => !f.more).map((f) => f.html || fieldHtml(f, values)).join('')}</div>
+          ${o.fields.some((f) => f.more) ? `<details class="more-fields"><summary>More details</summary><div class="form-grid">${o.fields.filter((f) => f.more).map((f) => fieldHtml(f, values)).join('')}</div></details>` : ''}
         </div>
         <footer class="modal-foot">
           ${o.onDelete ? '<button type="button" class="btn danger ghost" data-delete>Delete</button>' : ''}
@@ -111,16 +124,20 @@
     d.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
     const del = d.querySelector('[data-delete]');
     if (del) del.addEventListener('click', () => ask('Delete this? This can\'t be undone.', () => { o.onDelete(); close(); }));
+    form.querySelectorAll('[data-quick-for]').forEach((b) => b.addEventListener('click', () => {
+      form.querySelector('#' + b.dataset.quickFor).value = addDays(today(), Number(b.dataset.days));
+      b.parentElement.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === b));
+    }));
     if (o.after) o.after(form);
     d.showModal();
-    const first = form.querySelector('input:not([type=checkbox]),select,textarea');
+    const first = form.querySelector('input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea');
     if (first && !matchMedia('(pointer: coarse)').matches) first.focus();
   }
 
   function openInfo(title, html, cls) {
     const d = dlg();
     d.className = cls || '';
-    d.innerHTML = `<div class="modal-form"><header class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${WC.icon('x')}</button></header><div class="modal-body">${html}</div></div>`;
+    d.innerHTML = `<div class="modal-form"><header class="modal-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${WC.icon('x')}</button></header><div class="modal-body" tabindex="-1" autofocus>${html}</div></div>`;
     d.querySelector('[data-close]').addEventListener('click', close);
     d.showModal();
   }

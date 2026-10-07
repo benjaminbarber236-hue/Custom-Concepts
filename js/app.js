@@ -11,6 +11,7 @@
     recType: 'all',
     jobStatus: 'all',
     contactRole: '',
+    fileFilter: 'all',
     calDay: U.today(),
     calMonth: U.today().slice(0, 8) + '01',
   };
@@ -41,6 +42,12 @@
   const stageBadge = (p) => `<span class="badge st-${section(p)}">${esc(C.stage(p.stage).label)}</span>`;
   const typeDot = (type) => `<span class="dot" style="background:${C.eventType(type).color}"></span>`;
   const empty = (msg) => `<p class="empty">${msg}</p>`;
+  // "today" / "tomorrow" / "Wednesday" / "Wed, Oct 14" for use mid-sentence.
+  const relIn = (d) => { const r = U.relDate(d); return /^(Today|Tomorrow|Yesterday)$/.test(r) ? r.toLowerCase() : r; };
+  const whenText = (e) => `${U.relDate(e.date)}${e.start ? ' at ' + U.fmtTime(e.start) : ''}`;
+  const firstName = (c) => (c && c.name ? c.name.split(/[ &]/)[0] : '');
+  // Open a follow-up dialog after the current one has closed.
+  const later = (fn) => setTimeout(fn, 60);
 
   function projectOptions(includeId) {
     const ps = S.all('projects').filter((p) => section(p) !== 'closed' || p.id === includeId).sort(byName);
@@ -62,85 +69,80 @@
   // ======================================================================
   // Reusable rows / cards
   // ======================================================================
+  // One line saying what happens next on a job (shown on job cards).
+  function nextLine(p) {
+    const ne = nextEvent(p.id);
+    if (ne) return `${WC.icon('calendar')} ${esc(C.eventType(ne.type).label)} ${esc(whenText(ne))}`;
+    const t = openTasks((x) => x.projectId === p.id)[0];
+    if (t) return `<span class="${t.due < U.today() ? 'overdue' : ''}">${WC.icon('clock')} ${esc(t.title)} · ${esc(U.relDate(t.due))}</span>`;
+    if (p.stage === 'ordered' && p.eta) return `${WC.icon('clock')} Product expected ${esc(U.fmtDate(p.eta))}`;
+    if (section(p) === 'closed') return '';
+    return `<span class="warn-text">${WC.icon('clock')} No next step set</span>`;
+  }
+
   function projectCard(p, extra) {
     const pc = S.primaryContact(p);
-    const ne = nextEvent(p.id);
-    const tasks = openTasks((t) => t.projectId === p.id);
-    const bits = [];
-    if (ne) bits.push(`${WC.icon('calendar')} ${esc(U.relDate(ne.date))}${ne.start ? ' ' + U.fmtTime(ne.start) : ''} · ${esc(C.eventType(ne.type).label)}`);
-    if (p.files.length) {
-      const prop = p.files.some((f) => f.label === 'Proposal');
-      bits.push(`${WC.icon('paperclip')} ${p.files.length} document${p.files.length > 1 ? 's' : ''}${prop ? ' · proposal attached' : ''}`);
-    }
-    if (tasks[0]) bits.push(`<span class="${tasks[0].due < U.today() ? 'overdue' : ''}">${WC.icon('square')} ${esc(tasks[0].title)} (${esc(U.relDate(tasks[0].due))})</span>`);
     const val = projectValue(p);
+    const nl = nextLine(p);
     return `<a class="card proj" href="#/project/${p.id}">
-      <div class="row between"><strong>${esc(p.name)}</strong>${stageBadge(p)}</div>
-      <div class="muted small">${[pc && esc(pc.name), esc(p.address || ''), esc(p.type || '')].filter(Boolean).join(' · ')}</div>
+      <div class="row between gap"><strong>${esc(p.name)}</strong>${stageBadge(p)}</div>
+      <div class="muted small">${[pc && esc(pc.name), esc(p.address || '')].filter(Boolean).join(' · ')}</div>
       ${extra || ''}
-      ${bits.length ? `<div class="small meta">${bits.join('<br>')}</div>` : ''}
-      <div class="row between small muted"><span>${val ? U.money(val) : ''}</span><span>Last activity ${esc(U.relDate(S.lastActivity(p).slice(0, 10)))}</span></div>
+      ${nl || val ? `<div class="row between gap small card-foot"><span>${nl}</span><span class="muted">${val ? U.money(val) : ''}</span></div>` : ''}
     </a>`;
   }
 
   function eventRow(e, opts = {}) {
     const p = e.projectId && S.get('projects', e.projectId);
-    const span = (e.days || 1) > 1 && opts.day ? ` <span class="muted small">(day ${U.daysBetween(e.date, opts.day) + 1} of ${e.days})</span>` : '';
-    const time = e.start ? `${U.fmtTime(e.start)}${e.end ? '–' + U.fmtTime(e.end) : ''}` : 'Any time';
-    const canWrap = !e.done && e.date <= U.today();
+    const days = Math.max(1, e.days || 1);
+    const span = days > 1 ? (opts.day ? `Day ${U.daysBetween(e.date, opts.day) + 1} of ${days}` : `${days} days`) : '';
+    // Notes are asked for once the appointment's last day has come (a 2-day install waits for day 2).
+    const canWrap = !e.done && lastDay(e) <= U.today();
+    const sub = [p && !opts.hideProject ? `<a href="#/project/${p.id}">${esc(p.name)}</a>` : '', span, e.notes ? esc(e.notes) : ''].filter(Boolean).join(' · ');
     return `<div class="item ev ${e.done ? 'done' : ''}">
-      <div class="ev-time">${opts.showDate ? `<b>${esc(U.relDate(e.date))}</b><br>` : ''}${time}</div>
+      <div class="ev-time">${opts.showDate ? `<b>${esc(U.relDate(e.date))}</b><br>` : ''}${e.start ? U.fmtTime(e.start) : 'Any time'}</div>
       <div class="grow">
-        <div>${typeDot(e.type)}<a href="#" data-action="editEvent" data-id="${e.id}"><strong>${esc(e.title)}</strong></a>${span}${e.done ? ' <span class="badge st-closed">done</span>' : ''}</div>
-        ${p && !opts.hideProject ? `<div class="small"><a href="#/project/${p.id}">${esc(p.name)}</a></div>` : ''}
-        ${e.location ? `<div class="small muted">${U.mapLink(e.location)}</div>` : ''}
-        ${e.notes ? `<div class="small muted pre">${esc(e.notes)}</div>` : ''}
+        <a href="#" class="ev-title" data-action="editEvent" data-id="${e.id}">${typeDot(e.type)}<strong>${esc(C.eventType(e.type).label)}</strong></a>
+        ${sub ? `<div class="small muted">${sub}</div>` : ''}
       </div>
-      <div class="ev-actions">
-        ${canWrap ? `<button class="btn tiny primary" data-action="wrapUp" data-id="${e.id}" title="Record what happened and set a follow-up">Wrap up</button>` : ''}
-        ${WC.DEMO ? '' : `<button class="btn tiny ghost" data-action="icsEvent" data-id="${e.id}" title="Add to phone calendar" aria-label="Add to phone calendar">${WC.icon('calendarPlus')}</button>`}
-      </div>
+      ${canWrap ? `<button class="btn tiny primary" data-action="wrapUp" data-id="${e.id}">Add notes</button>` : ''}
     </div>`;
   }
 
   function taskRow(t, opts = {}) {
     const p = t.projectId && S.get('projects', t.projectId);
-    const c = t.contactId && S.get('contacts', t.contactId);
     const late = !t.done && t.due < U.today();
     return `<div class="item task ${t.done ? 'done' : ''}">
-      <input type="checkbox" class="chk" data-action="toggleTask" data-id="${t.id}" ${t.done ? 'checked' : ''} aria-label="Done">
+      <input type="checkbox" class="chk" data-action="toggleTask" data-id="${t.id}" ${t.done ? 'checked' : ''} aria-label="Mark done">
       <div class="grow">
         <a href="#" data-action="editTask" data-id="${t.id}">${esc(t.title)}</a>
-        <div class="small ${late ? 'overdue' : 'muted'}">${esc(U.relDate(t.due))}${p && !opts.hideProject ? ` · <a href="#/project/${p.id}">${esc(p.name)}</a>` : ''}${c ? ` · ${esc(c.name)}` : ''}</div>
+        <div class="small ${late ? 'overdue' : 'muted'}">${esc(U.relDate(t.due))}${p && !opts.hideProject ? ` · <a href="#/project/${p.id}">${esc(p.name)}</a>` : ''}</div>
       </div>
-      ${t.done ? '' : `<div class="snooze"><button class="btn tiny ghost" data-action="snooze" data-id="${t.id}" data-days="1">+1d</button><button class="btn tiny ghost" data-action="snooze" data-id="${t.id}" data-days="7">+1w</button></div>`}
     </div>`;
   }
 
   function logRow(p, l, opts = {}) {
-    const c = l.contactId && S.get('contacts', l.contactId);
     return `<div class="item log">
-      <div class="log-type">${esc(l.type)}</div>
       <div class="grow">
-        <div class="small muted">${esc(U.fmtDate(l.date))}${c ? ` · with ${esc(c.name)}` : ''}${opts.showProject ? ` · <a href="#/project/${p.id}">${esc(p.name)}</a>` : ''}</div>
+        <div class="small muted">${esc(U.fmtDate(l.date))} · ${esc(l.type)}${opts.showProject ? ` · <a href="#/project/${p.id}">${esc(p.name)}</a>` : ''}</div>
         <div class="pre">${esc(l.summary)}</div>
       </div>
       <button class="btn tiny ghost" data-action="editLog" data-project="${p.id}" data-id="${l.id}">Edit</button>
     </div>`;
   }
 
-  const isPlan = (f) => f.label === 'Plans / drawings';
+  const isPlan = (f) => f.label === 'Plans';
   const isSheet = (f) => f.label === 'Order sheet';
+  const isImg = (f) => (f.type || '').startsWith('image/');
   const itemClass = (s) => `it-${(s || 'Quoted').toLowerCase()}`;
   const phaseClass = (s) => `ph-${(s || 'To do').toLowerCase().replace(/\s/g, '')}`;
 
   const fmtSize = (n) => (!n ? '' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
   function fileRow(p, f, opts = {}) {
-    const isImg = (f.type || '').startsWith('image/');
     const meta = [esc(f.label), esc(U.fmtDate(f.addedAt.slice(0, 10))), fmtSize(f.size), opts.showProject ? `<a href="#/project/${p.id}">${esc(p.name)}</a>` : ''].filter(Boolean).join(' · ');
     return `<div class="item file">
-      <button class="file-ic" data-action="viewFile" data-project="${p.id}" data-id="${f.id}" aria-label="Open ${esc(f.name)}">${WC.icon(isImg ? 'image' : 'file')}</button>
+      <button class="file-ic" data-action="viewFile" data-project="${p.id}" data-id="${f.id}" aria-label="Open ${esc(f.name)}">${WC.icon(isImg(f) ? 'image' : 'file')}</button>
       <div class="grow">
         <a href="#" data-action="viewFile" data-project="${p.id}" data-id="${f.id}"><strong>${esc(f.name)}</strong></a>
         <div class="small muted">${meta}</div>
@@ -150,16 +152,15 @@
     </div>`;
   }
 
-  function filesPanel(p) {
-    const files = p.files.slice().sort((a, b) => b.addedAt.localeCompare(a.addedAt));
-    const wantsProposal = ['consult', 'quoting', 'proposal'].includes(p.stage) && !p.files.some((f) => f.label === 'Proposal');
-    return `<section class="panel">
-      <div class="row between"><h3>Documents ${files.length ? `<span class="count">${files.length}</span>` : ''}</h3>
-        <button class="btn tiny" data-action="addFile" data-project="${p.id}">${WC.icon('paperclip')} Attach file</button></div>
-      ${files.map((f) => fileRow(p, f)).join('')}
-      ${wantsProposal ? `<p class="small muted">${files.length ? 'No proposal attached yet.' : 'Attach the proposal PDF here once it\'s drafted, so it\'s one tap away.'}</p>` : ''}
-      ${!files.length && !wantsProposal ? empty('No documents yet. Attach proposals, contracts, plans or photos.') : ''}
-    </section>`;
+  // Thumbnail card used on the Files tab.
+  function fileCard(p, f) {
+    const thumb = isImg(f) || WC.importer.kindOf(f.name, f.type) === 'pdf';
+    return `<div class="plan-card">
+      <button class="plan-thumb" data-action="viewFile" data-project="${p.id}" data-id="${f.id}" ${thumb ? `data-thumb="${f.id}"` : ''} aria-label="Open ${esc(f.name)}">${WC.icon(isImg(f) ? 'image' : 'file')}</button>
+      <div class="plan-meta"><a href="#" data-action="viewFile" data-project="${p.id}" data-id="${f.id}"><strong>${esc(f.name)}</strong></a>
+        <div class="small muted">${esc(f.label)} · ${esc(U.fmtDate(f.addedAt.slice(0, 10)))}</div></div>
+      <button class="btn tiny ghost" data-action="editFile" data-project="${p.id}" data-id="${f.id}">Edit</button>
+    </div>`;
   }
 
   // ======================================================================
@@ -167,7 +168,11 @@
   // ======================================================================
   const views = {};
 
-  // ---------------- Home ----------------
+  // ---------------- Dashboard ----------------
+  const activeJobs = () => S.all('projects').filter((p) => section(p) !== 'closed');
+  // Open jobs with nothing scheduled and no reminder: they need a next step.
+  const stuckJobs = () => activeJobs().filter((p) => !nextEvent(p.id) && !openTasks((x) => x.projectId === p.id).length && !(p.stage === 'ordered' && p.eta));
+
   views.home = () => {
     const t = U.today();
     const hr = new Date().getHours();
@@ -176,94 +181,78 @@
     const projects = S.all('projects');
 
     if (!projects.length && !S.all('contacts').length) {
-      return `<h1>Dashboard</h1>
-        <p class="muted">${greet}${name ? ', ' + esc(name) : ''}</p>
+      return `<h1>${greet}${name ? ', ' + esc(name) : ''}</h1>
         <div class="card welcome">
           <h2>Welcome</h2>
-          <p>This app tracks every job from first phone call, through the sales consult and proposal, ordering, pre-wire, waiting on other trades, install, punch list, and the check-in afterward.</p>
-          <ul>
-            <li><b>Sales</b>: leads, consults, quotes, proposals, follow-ups.</li>
-            <li><b>Installs</b>: products by room, phases for big jobs, who you're waiting on.</li>
-            <li><b>Dashboard</b>: your calendar of sales calls, measures, install days and site meetings, plus follow-ups due.</li>
-            <li><b>Contacts</b>: homeowners, designers, builders, electricians, and other trades.</li>
-          </ul>
+          <p>Track every job from the first referral to the check-in after the install. Each job walks you through the next step:</p>
+          <ol class="flow-list">${C.STAGES.filter((s) => s.section !== 'closed').map((s) => `<li>${esc(s.label)}</li>`).join('')}</ol>
           <div class="row gap wrap">
-            <button class="btn primary" data-action="newLead">+ Add first lead</button>
-            <button class="btn" data-action="loadSample">Load sample data to explore</button>
+            <button class="btn primary" data-action="newLead">${WC.icon('plus')} Add your first lead</button>
+            <button class="btn" data-action="loadSample">Try it with sample jobs</button>
           </div>
         </div>`;
     }
 
-    const tasks = openTasks();
-    const overdue = tasks.filter((x) => x.due < t);
-    const dueToday = tasks.filter((x) => x.due === t);
-    const soon = tasks.filter((x) => x.due > t && x.due <= U.addDays(t, 7));
     const wrap = S.all('events').filter((e) => !e.done && lastDay(e) < t && lastDay(e) >= U.addDays(t, -30)).sort(byWhen);
+    const due = openTasks((x) => x.due <= t);
+    const soon = openTasks((x) => x.due > t && x.due <= U.addDays(t, 7));
+    const stuck = stuckJobs();
+    const todoCount = wrap.length + due.length + stuck.length;
 
-    const salesStages = C.STAGES.filter((s) => s.section === 'sales');
-    const pipeline = salesStages.map((s) => {
-      const ps = projects.filter((p) => p.stage === s.id);
-      const val = ps.reduce((a, p) => a + projectValue(p), 0);
-      return `<a class="stat" href="#/sales" data-action="setFilter" data-key="salesFilter" data-value="${s.id}"><b>${ps.length}</b><span>${esc(s.label)}</span>${val ? `<em>${U.money(val)}</em>` : ''}</a>`;
+    const wrapItem = (e) => {
+      const p = e.projectId && S.get('projects', e.projectId);
+      return `<div class="item todo">
+        <span class="todo-ic">${WC.icon('calendar')}</span>
+        <div class="grow"><b>How did the ${esc(C.eventType(e.type).label.toLowerCase())} go?</b>
+          <div class="small muted">${p ? esc(p.name) + ' · ' : ''}${esc(U.relDate(e.date))}</div></div>
+        <button class="btn tiny primary" data-action="wrapUp" data-id="${e.id}">Add notes</button>
+      </div>`;
+    };
+    const stuckItem = (p) => `<a class="item todo" href="#/project/${p.id}">
+        <span class="todo-ic warn-text">${WC.icon('clock')}</span>
+        <div class="grow"><b>${esc(p.name)}</b><div class="small warn-text">${esc(C.stage(p.stage).label)} · no next step set</div></div>
+        <span class="btn tiny">Open</span>
+      </a>`;
+
+    const steps = C.STAGES.filter((s) => s.section !== 'closed').map((s) => {
+      const n = projects.filter((p) => p.stage === s.id).length;
+      const tab = s.section === 'sales' ? 'sales' : 'installs';
+      return `<a class="stat" href="#/${tab}" data-action="setFilter" data-key="${tab === 'sales' ? 'salesFilter' : 'installFilter'}" data-value="${s.id}"><b>${n}</b><span>${esc(s.label)}</span></a>`;
     }).join('');
-
-    const waiting = projects.filter((p) => section(p) === 'install').map((p) => {
-      const w = p.phases.filter((ph) => ph.status === 'Waiting');
-      return w.length ? { p, w } : null;
-    }).filter(Boolean);
-
-    const cold = projects.filter((p) => section(p) === 'sales'
-      && daysSince(S.lastActivity(p)) >= 10
-      && !openTasks((x) => x.projectId === p.id).length
-      && !nextEvent(p.id));
 
     const lb = S.db.settings.lastBackup;
     const backupNag = projects.length && (!lb || daysSince(lb) >= 7)
-      ? `<div class="banner">${WC.icon('download')} <span>${lb ? `Last backup was ${daysSince(lb)} days ago.` : 'You haven\'t backed up yet.'} Your data lives only on this device. <a href="#" data-action="exportData">Export backup</a></span></div>` : '';
+      ? `<div class="banner">${WC.icon('download')} <span>${lb ? `Last backup was ${daysSince(lb)} days ago.` : 'You haven\'t backed up yet.'} Your data lives only on this device. <a href="#" data-action="exportData">Back up now</a></span></div>` : '';
 
     return `
-      <h1>Dashboard</h1>
-      <p class="muted">${greet}${name ? ', ' + esc(name) : ''} · ${esc(U.fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
-      ${WC.DEMO ? `<div class="banner demo">You're trying a demo filled with sample jobs. Tap around, add leads, and wrap up appointments. Changes stay in this browser only. <a href="#" data-action="resetDemo">Reset demo</a></div>` : backupNag}
+      <h1>${greet}${name ? ', ' + esc(name) : ''}</h1>
+      <p class="muted">${esc(U.fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
+      ${WC.DEMO ? `<div class="banner demo">This demo is filled with sample jobs. Tap around and try things. Changes stay in this browser only. <a href="#" data-action="resetDemo">Reset demo</a></div>` : backupNag}
       ${calendarCard()}
 
-      <div class="quick row gap wrap">
-        <button class="btn primary" data-action="newLead">+ Lead</button>
-        <button class="btn" data-action="newEvent" data-date="${state.calDay}">+ Appointment</button>
-        <button class="btn" data-action="newTask">+ Follow-up</button>
-        <button class="btn" data-action="newLog">+ Call / Note</button>
+      <div class="quick-actions">
+        <button class="qa" data-action="newLead">${WC.icon('plus')}<span>New lead</span></button>
+        <button class="qa" data-action="newEvent" data-date="${state.calDay}">${WC.icon('calendar')}<span>Schedule</span></button>
+        <button class="qa" data-action="newTask">${WC.icon('clock')}<span>Reminder</span></button>
       </div>
 
-      ${wrap.length ? `<section class="panel warn">
-        <h3>Needs wrap-up <span class="count">${wrap.length}</span></h3>
-        <p class="small muted">Past appointments with no notes yet. Record what happened and set the next step.</p>
-        ${wrap.map((e) => eventRow(e, { showDate: true })).join('')}
+      <section class="panel">
+        <h3>To do ${todoCount ? `<span class="count ${due.some((x) => x.due < t) ? 'bad' : ''}">${todoCount}</span>` : ''}</h3>
+        ${wrap.map(wrapItem).join('')}
+        ${due.map((x) => taskRow(x)).join('')}
+        ${stuck.map(stuckItem).join('')}
+        ${todoCount ? '' : empty('You\'re all caught up.')}
+      </section>
+
+      ${soon.length ? `<section class="panel">
+        <h3>Reminders this week</h3>
+        ${soon.map((x) => taskRow(x)).join('')}
       </section>` : ''}
 
       <section class="panel">
-        <h3>Follow-ups ${overdue.length ? `<span class="count bad">${overdue.length} overdue</span>` : ''}</h3>
-        ${overdue.map((x) => taskRow(x)).join('')}
-        ${dueToday.map((x) => taskRow(x)).join('')}
-        ${soon.length ? `<div class="day-label">Next 7 days</div>${soon.map((x) => taskRow(x)).join('')}` : ''}
-        ${!overdue.length && !dueToday.length && !soon.length ? empty('No follow-ups due this week.') : ''}
+        <h3>Jobs by step</h3>
+        <div class="stats step-stats">${steps}</div>
       </section>
-
-      <section class="panel">
-        <h3>Sales pipeline</h3>
-        <div class="stats">${pipeline}</div>
-      </section>
-
-      ${cold.length ? `<section class="panel">
-        <h3>Going cold <span class="count">${cold.length}</span></h3>
-        <p class="small muted">Open sales with no activity in 10+ days and no follow-up set.</p>
-        ${cold.map((p) => projectCard(p)).join('')}
-      </section>` : ''}
-
-      ${waiting.length ? `<section class="panel">
-        <h3>Installs waiting on others</h3>
-        ${waiting.map(({ p, w }) => `<a class="item" href="#/project/${p.id}"><div class="grow"><strong>${esc(p.name)}</strong>
-          <div class="small muted">${w.map((ph) => `${WC.icon('hourglass')} ${esc(ph.name)}${ph.waitingOn ? ` — waiting on <b>${esc(ph.waitingOn)}</b>` : ''}${ph.date ? ` (target ${esc(U.fmtDate(ph.date))})` : ''}`).join('<br>')}</div></div></a>`).join('')}
-      </section>` : ''}
     `;
   };
 
@@ -288,7 +277,7 @@
         const list = ps.filter((p) => p.stage === s.id).sort((a, b) => S.lastActivity(b).localeCompare(S.lastActivity(a)));
         return list.length ? `<div class="group-label">${esc(s.label)} <span class="count">${list.length}</span></div>${list.map((p) => projectCard(p, sec === 'install' ? installProgress(p) : '')).join('')}` : '';
       }).join('');
-      return groups || empty(q ? 'No matches.' : sec === 'sales' ? 'No open sales. Tap “+ New lead” to add one.' : 'No active installs. Jobs show up here once a sale moves to “Sold”.');
+      return groups || empty(q ? 'No matches.' : sec === 'sales' ? 'No open sales. Tap “New lead” to add one.' : 'No jobs here yet. A job moves here when the client says yes and it\'s time for the final measure.');
     }
     ps.sort((a, b) => S.lastActivity(b).localeCompare(S.lastActivity(a)));
     return ps.map((p) => projectCard(p, sec === 'install' ? installProgress(p) : '')).join('') || empty('Nothing here.');
@@ -296,108 +285,197 @@
 
   function installProgress(p) {
     const n = p.items.reduce((a, i) => a + (Number(i.qty) || 1), 0);
+    if (!n || p.stage !== 'install') return '';
     const done = p.items.filter((i) => i.status === 'Installed').reduce((a, i) => a + (Number(i.qty) || 1), 0);
-    const phDone = p.phases.filter((ph) => ph.status === 'Done').length;
-    const waiting = p.phases.find((ph) => ph.status === 'Waiting');
-    const pct = n ? Math.round((done / n) * 100) : 0;
-    return `<div class="progress-wrap small">
-      ${n ? `<div class="progress"><span style="width:${pct}%"></span></div><span class="muted">${done}/${n} installed</span>` : ''}
-      ${p.phases.length ? `<span class="muted">· phases ${phDone}/${p.phases.length}</span>` : ''}
-      ${waiting ? `<div class="waiting">${WC.icon('hourglass')} ${esc(waiting.name)}${waiting.waitingOn ? ` — waiting on ${esc(waiting.waitingOn)}` : ''}</div>` : ''}
-    </div>`;
+    const pct = Math.round((done / n) * 100);
+    return `<div class="progress-wrap small"><div class="progress"><span style="width:${pct}%"></span></div><span class="muted">${done} of ${n} installed</span></div>`;
   }
 
   function chips(filterKey, sec) {
     const stages = C.STAGES.filter((s) => s.section === sec);
-    const opts = [{ id: 'active', label: 'All active' }, ...stages, { id: 'closed', label: sec === 'sales' ? 'Lost' : 'Complete' }];
+    const opts = [{ id: 'active', label: 'All' }, ...stages, { id: 'closed', label: sec === 'sales' ? 'Lost' : 'Done' }];
     return `<div class="chips">${opts.map((o) => `<button class="chip ${state[filterKey] === o.id ? 'on' : ''}" data-action="setFilter" data-key="${filterKey}" data-value="${o.id}">${esc(o.label)}</button>`).join('')}</div>`;
   }
 
   views.sales = () => `
-    <div class="row between"><h1>Sales</h1><button class="btn primary" data-action="newLead">+ New lead</button></div>
-    <input class="search" type="search" placeholder="Search name, address, people…" value="${esc(state.salesSearch)}" data-search="salesSearch" data-target="salesList">
+    <div class="row between"><h1>Sales</h1><button class="btn primary" data-action="newLead">${WC.icon('plus')} New lead</button></div>
+    <input class="search" type="search" placeholder="Search jobs and people…" value="${esc(state.salesSearch)}" data-search="salesSearch" data-target="salesList" aria-label="Search sales">
     ${chips('salesFilter', 'sales')}
     <div id="salesList">${pipelineList('sales', 'salesFilter', 'salesSearch')}</div>`;
 
   views.installs = () => `
-    <div class="row between"><h1>Installs</h1><button class="btn" data-action="newEvent" data-type="install" data-date="${U.today()}">+ Install day</button></div>
-    <input class="search" type="search" placeholder="Search jobs…" value="${esc(state.installSearch)}" data-search="installSearch" data-target="installList">
+    <h1>Installs</h1>
+    <input class="search" type="search" placeholder="Search jobs and people…" value="${esc(state.installSearch)}" data-search="installSearch" data-target="installList" aria-label="Search installs">
     ${chips('installFilter', 'install')}
     <div id="installList">${pipelineList('install', 'installFilter', 'installSearch')}</div>`;
 
-  // ---------------- Project detail ----------------
+  // ---------------- Job page ----------------
+  const STEPS = C.STAGES.filter((s) => s.section !== 'closed');
+
+  function tracker(p) {
+    const idx = STEPS.findIndex((s) => s.id === p.stage);
+    const finished = p.stage === 'complete';
+    return `<ol class="tracker ${p.stage === 'lost' ? 'is-lost' : ''}" aria-label="Job steps">${STEPS.map((s, i) => {
+      const cls = finished || (idx >= 0 && i < idx) ? 'past' : i === idx ? 'now' : '';
+      return `<li class="${cls}" ${cls === 'now' ? 'aria-current="step"' : ''}><span class="tr-dot">${cls === 'past' ? WC.icon('check') : i + 1}</span><span class="tr-label">${esc(s.step)}</span></li>`;
+    }).join('')}</ol>`;
+  }
+
+  // The single next thing to do on a job, based on its step and what's scheduled.
+  function nextStep(p) {
+    const today = U.today();
+    const upcoming = (type) => projectEvents(p.id).find((e) => e.type === type && lastDay(e) >= today);
+    const pastOf = (type) => projectEvents(p.id).filter((e) => e.type === type && lastDay(e) < today);
+    const A = (label, action, extra = '') => ({ label, action, extra });
+    const change = (e) => A('Change appointment', 'editEvent', `data-id="${e.id}"`);
+    const lost = A('Lost the job', 'markLost');
+    const nq = p.quotes.length;
+    switch (p.stage) {
+      case 'lead':
+        return { title: 'Book the first sales call', text: 'Go see what they want and take rough measurements.', main: A('Schedule sales call', 'newEvent', 'data-type="sales"'), more: [lost] };
+      case 'consult': {
+        const e = upcoming('sales');
+        if (e) return { title: `Sales call ${whenText(e)}`, text: 'Afterward, tap “Add notes” on the appointment, then add your quotes here.', main: A('Add a quote', 'addQuote'), more: [change(e), lost] };
+        return { title: 'Put quotes together', text: 'Price out a few options, like different products or price ranges.', main: A('Add a quote', 'addQuote'), more: [A('Schedule another sales call', 'newEvent', 'data-type="sales"'), lost] };
+      }
+      case 'quoted': {
+        const e = upcoming('sales');
+        return {
+          title: e ? `Going over options ${whenText(e)}` : 'Waiting on their decision',
+          text: `${nq} quote${nq === 1 ? '' : 's'} out. Follow up, or meet again to go over the options.`,
+          main: A('They said yes: book final measure', 'acceptJob'),
+          more: [e ? change(e) : A('Schedule another sales call', 'newEvent', 'data-type="sales"'), A('Add another quote', 'addQuote'), lost],
+        };
+      }
+      case 'measure': {
+        const e = upcoming('measure');
+        if (e) return { title: `Final measure ${whenText(e)}`, text: 'Measure every window exactly. Then place the order.', main: A('Measured: place the order', 'markOrdered'), more: [change(e), A('Import order sheet', 'importSheet')] };
+        if (pastOf('measure').length) return { title: 'Place the order', text: 'The final measure is done.', main: A('Mark as ordered', 'markOrdered'), more: [A('Import order sheet', 'importSheet')] };
+        return { title: 'Book the final measure', text: 'Exact measurements before anything is ordered.', main: A('Schedule final measure', 'newEvent', 'data-type="measure"'), more: [A('Already measured: mark as ordered', 'markOrdered')] };
+      }
+      case 'ordered': {
+        const late = p.eta && p.eta < today;
+        return {
+          title: late ? 'Product should be in' : 'Waiting on product',
+          text: p.eta ? `Expected ${U.fmtDate(p.eta, { month: 'long', day: 'numeric' })}.${late ? ' Check on the order if it hasn\'t arrived.' : ''}` : 'Usually takes 1 to 3 months.',
+          main: A('Product is in: schedule install', 'newEvent', 'data-type="install"'),
+          more: [A(p.eta ? 'Change expected date' : 'Set expected date', 'markOrdered')],
+        };
+      }
+      case 'install': {
+        const e = upcoming('install');
+        if (e) return { title: `Install ${whenText(e)}`, text: (e.days || 1) > 1 ? `Booked for ${e.days} days.` : 'Mark the job finished once everything is up and working.', main: A('Job finished', 'markDone'), more: [change(e), A('Add another install day', 'newEvent', 'data-type="install"')] };
+        return { title: 'Install', text: 'Mark the job finished once everything is up and working.', main: A('Job finished', 'markDone'), more: [A('Schedule an install day', 'newEvent', 'data-type="install"')] };
+      }
+      case 'complete':
+        return { title: 'Job finished', text: 'A reminder to check in with the client is set for two weeks after the install.', main: null, more: [A('Reopen job', 'reopen')] };
+      default:
+        return { title: 'Marked as lost', text: '', main: null, more: [A('Reopen job', 'reopen')] };
+    }
+  }
+
+  function nextCard(p) {
+    const n = nextStep(p);
+    const btn = (a, cls) => `<button class="btn ${cls}" data-action="${a.action}" data-project="${p.id}" ${a.extra}>${esc(a.label)}</button>`;
+    return `<section class="next-card">
+      <div class="next-label">Next step</div>
+      <h2>${esc(n.title)}</h2>
+      ${n.text ? `<p>${esc(n.text)}</p>` : ''}
+      ${n.main ? btn(n.main, 'primary big') : ''}
+      ${n.more.length ? `<div class="next-more">${n.more.map((a) => btn(a, 'link')).join('')}</div>` : ''}
+    </section>`;
+  }
+
   views.project = (id, tab) => {
     const p = S.get('projects', id);
     if (!p) return `<p>Job not found. <a href="#/sales">Back to Sales</a></p>`;
     tab = tab || 'overview';
-    const tabs = [['overview', 'Overview'], ['products', `Products (${p.items.length})`], ['plans', `Plans (${p.files.filter(isPlan).length})`], ['phases', `Phases (${p.phases.length})`], ['schedule', 'Schedule'], ['log', `Log (${p.log.length})`]];
-    const stageSel = `<select class="stage-select" data-change="setStage" data-id="${p.id}">${['sales', 'install', 'closed'].map((sec) =>
-      `<optgroup label="${sec === 'sales' ? 'Sales' : sec === 'install' ? 'Install' : 'Closed'}">${C.STAGES.filter((s) => s.section === sec).map((s) => `<option value="${s.id}" ${s.id === p.stage ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</optgroup>`).join('')}</select>`;
-    const body = { overview: projectOverview, products: projectProducts, plans: projectPlans, phases: projectPhases, schedule: projectSchedule, log: projectLog }[tab] || projectOverview;
+    const tabs = [['overview', 'Overview'], ['products', `Products${p.items.length ? ` (${p.items.length})` : ''}`], ['files', `Files${p.files.length ? ` (${p.files.length})` : ''}`], ['notes', `Notes${p.log.length ? ` (${p.log.length})` : ''}`]];
+    const body = { overview: projectOverview, products: projectProducts, files: projectFiles, notes: projectNotes }[tab] || projectOverview;
     const home = section(p) === 'install' || p.stage === 'complete' ? 'installs' : 'sales';
+    const pc = S.primaryContact(p);
     return `
       <a class="back" href="#/${home}">${WC.icon('left')} ${home === 'sales' ? 'Sales' : 'Installs'}</a>
-      <div class="row between wrap gap"><h1>${esc(p.name)}</h1>${stageSel}</div>
-      ${p.address ? `<div class="muted addr">${WC.icon('pin')} ${U.mapLink(p.address)}</div>` : ''}
-      <div class="quick row gap wrap">
-        <button class="btn" data-action="newLog" data-project="${p.id}">+ Call / Note</button>
-        <button class="btn" data-action="newEvent" data-project="${p.id}">+ Appointment</button>
-        <button class="btn" data-action="newTask" data-project="${p.id}">+ Follow-up</button>
-        <button class="btn ghost" data-action="editProject" data-id="${p.id}">Edit job</button>
+      <div class="job-head">
+        <h1>${esc(p.name)}</h1>
+        <button class="icon-btn" data-action="jobMenu" data-project="${p.id}" aria-label="More options">${WC.icon('more')}</button>
+      </div>
+      <div class="job-sub">
+        ${pc ? `<a href="#/contact/${pc.id}" class="job-client">${esc(pc.name)}</a>` : ''}
+        ${p.address ? `<a class="pill" target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(p.address)}">${WC.icon('pin')} ${esc(p.address)}</a>` : ''}
+        ${pc && pc.phone ? `<a class="pill" href="tel:${esc(pc.phone.replace(/[^\d+]/g, ''))}">${WC.icon('phone')} Call</a><a class="pill" href="${esc(sms(pc.phone))}">${WC.icon('message')} Text</a>` : ''}
+      </div>
+      ${tracker(p)}
+      ${nextCard(p)}
+      <div class="quick-actions">
+        <button class="qa" data-action="newLog" data-project="${p.id}">${WC.icon('note')}<span>Note</span></button>
+        <button class="qa" data-action="newEvent" data-project="${p.id}">${WC.icon('calendar')}<span>Schedule</span></button>
+        <button class="qa" data-action="newTask" data-project="${p.id}">${WC.icon('clock')}<span>Reminder</span></button>
+        <button class="qa" data-action="addFile" data-project="${p.id}">${WC.icon('paperclip')}<span>File</span></button>
       </div>
       <nav class="tabs">${tabs.map(([k, l]) => `<a href="#/project/${p.id}/${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</a>`).join('')}</nav>
       ${body(p)}`;
   };
 
+  function quoteRow(p, q) {
+    return `<div class="item quote">
+      <div class="grow">
+        <strong>${esc(q.name)}</strong> ${q.chosen ? '<span class="badge st-install">Chosen</span>' : ''}
+        <div class="small muted">${[q.amount ? U.money(q.amount) : '', q.date ? U.fmtDate(q.date) : '', q.note ? esc(q.note) : ''].filter(Boolean).join(' · ')}</div>
+      </div>
+      ${q.fileId && p.files.some((f) => f.id === q.fileId) ? `<button class="btn tiny" data-action="viewFile" data-project="${p.id}" data-id="${q.fileId}">${WC.icon('file')} Open</button>` : ''}
+      <button class="btn tiny ghost" data-action="editQuote" data-project="${p.id}" data-id="${q.id}">Edit</button>
+    </div>`;
+  }
+
   function projectOverview(p) {
     const pcs = S.projectContacts(p);
+    const evs = projectEvents(p.id).filter((e) => lastDay(e) >= U.today());
     const tasks = openTasks((t) => t.projectId === p.id);
-    const evs = projectEvents(p.id).filter((e) => lastDay(e) >= U.today()).slice(0, 4);
-    const total = itemTotal(p);
+    const pastEvs = projectEvents(p.id).filter((e) => lastDay(e) < U.today()).reverse();
+    const showQuotes = p.quotes.length || ['consult', 'quoted'].includes(p.stage);
+    const val = projectValue(p);
     return `
       <section class="panel">
+        <h3>Coming up</h3>
+        ${evs.map((e) => eventRow(e, { showDate: true, hideProject: true })).join('')}
+        ${tasks.map((t) => taskRow(t, { hideProject: true })).join('')}
+        ${!evs.length && !tasks.length ? empty('Nothing scheduled.') : ''}
+      </section>
+
+      ${showQuotes ? `<section class="panel">
+        <div class="row between"><h3>Quotes ${p.quotes.length ? `<span class="count">${p.quotes.length}</span>` : ''}</h3><button class="btn tiny" data-action="addQuote" data-project="${p.id}">${WC.icon('plus')} Quote</button></div>
+        ${p.quotes.map((q) => quoteRow(p, q)).join('') || empty('No quotes yet. Add each option you price out, with its PDF if you have one.')}
+      </section>` : ''}
+
+      ${p.phases.length ? phasesPanel(p) : ''}
+
+      <section class="panel">
+        <div class="row between"><h3>People</h3><button class="btn tiny" data-action="addPerson" data-project="${p.id}">${WC.icon('plus')} Person</button></div>
+        ${pcs.map((pc) => `<div class="item">
+            <div class="grow"><a href="#/contact/${pc.contact.id}"><strong>${esc(pc.contact.name)}</strong></a>
+              <span class="badge">${esc(pc.role || pc.contact.role || '')}</span>
+              <div class="pills">${contactActions({ ...pc.contact, address: '' })}</div></div>
+            <button class="btn tiny ghost" data-action="removePerson" data-project="${p.id}" data-id="${pc.contactId}" aria-label="Remove ${esc(pc.contact.name)} from this job">${WC.icon('x')}</button>
+          </div>`).join('') || empty('No one added yet.')}
+      </section>
+
+      <section class="panel">
+        <div class="row between"><h3>Details</h3><button class="btn tiny ghost" data-action="editProject" data-id="${p.id}">Edit</button></div>
         <div class="details">
-          <div><span>Type</span>${esc(p.type || '—')}</div>
-          <div><span>Lead source</span>${esc(p.source || '—')}</div>
-          <div><span>Estimate</span>${p.estValue ? U.money(p.estValue) : '—'}</div>
-          <div><span>Products total</span>${total ? U.money(total) : '—'}</div>
-          <div><span>Created</span>${esc(U.fmtDate((p.createdAt || '').slice(0, 10)))}</div>
-          <div><span>Days in stage</span>${daysSince((p.stageHistory[p.stageHistory.length - 1] || {}).at || p.createdAt)}</div>
+          <div><span>Value</span>${val ? U.money(val) : '—'}</div>
+          <div><span>Referred by</span>${esc(p.referredBy || p.source || '—')}</div>
+          <div><span>Started</span>${esc(U.fmtDate((p.createdAt || '').slice(0, 10)))}</div>
+          ${p.eta ? `<div><span>Product expected</span>${esc(U.fmtDate(p.eta))}</div>` : ''}
         </div>
         ${p.notes ? `<div class="notes pre">${esc(p.notes)}</div>` : ''}
       </section>
 
-      ${filesPanel(p)}
-
-      <section class="panel">
-        <div class="row between"><h3>People on this job</h3><button class="btn tiny" data-action="addPerson" data-project="${p.id}">+ Add person</button></div>
-        ${pcs.map((pc) => `<div class="item">
-            <div class="grow"><a href="#/contact/${pc.contact.id}"><strong>${esc(pc.contact.name)}</strong></a>
-              <span class="badge">${esc(pc.role || pc.contact.role || '')}</span>${pc.contact.company ? ` <span class="muted small">${esc(pc.contact.company)}</span>` : ''}
-              <div class="pills">${contactActions({ ...pc.contact, address: '' })}</div></div>
-            <button class="btn tiny ghost" data-action="removePerson" data-project="${p.id}" data-id="${pc.contactId}" title="Remove from job" aria-label="Remove from job">${WC.icon('x')}</button>
-          </div>`).join('') || empty('No one linked yet. Add the homeowner, designer, builder, electrician…')}
-      </section>
-
-      <section class="panel">
-        <div class="row between"><h3>Open follow-ups</h3><button class="btn tiny" data-action="newTask" data-project="${p.id}">+ Follow-up</button></div>
-        ${tasks.map((t) => taskRow(t, { hideProject: true })).join('') || empty('No follow-ups set. Every open job should have a next step.')}
-      </section>
-
-      <section class="panel">
-        <div class="row between"><h3>Upcoming</h3><a class="small" href="#/project/${p.id}/schedule">All appointments →</a></div>
-        ${evs.map((e) => eventRow(e, { showDate: true, hideProject: true })).join('') || empty('Nothing scheduled.')}
-      </section>
-
-      <section class="panel">
-        <div class="row between"><h3>Recent activity</h3><a class="small" href="#/project/${p.id}/log">Full log →</a></div>
-        ${p.log.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3).map((l) => logRow(p, l)).join('') || empty('No calls or notes logged yet.')}
-      </section>
-
-      <section class="panel">
-        <h3>Stage history</h3>
+      <details class="panel history">
+        <summary>History</summary>
         <ol class="timeline">${p.stageHistory.map((h) => `<li><b>${esc(C.stage(h.stage).label)}</b> <span class="muted small">${esc(U.fmtDate(h.at.slice(0, 10)))}</span></li>`).join('')}</ol>
-      </section>`;
+        ${pastEvs.length ? `<div class="group-label">Past appointments</div>${pastEvs.map((e) => eventRow(e, { showDate: true, hideProject: true })).join('')}` : ''}
+      </details>`;
   }
 
   function projectProducts(p) {
@@ -408,30 +486,25 @@
       return n ? `<span class="badge it-${s.toLowerCase()}">${s}: ${n}</span>` : '';
     }).join(' ');
     return `
-      <section class="panel">
-        <div class="row between wrap gap">
-          <div>${counts || '<span class="muted">No products yet.</span>'} ${itemTotal(p) ? `<b class="total">${U.money(itemTotal(p))}</b>` : ''}</div>
-          <div class="row gap wrap">
-            <button class="btn primary tiny" data-action="newItem" data-project="${p.id}">+ Add window / product</button>
-            <button class="btn tiny" data-action="importSheet" data-project="${p.id}">${WC.icon('upload')} Import order sheet</button>
-            ${p.items.length ? `<select class="tiny-select" data-change="bulkStatus" data-project="${p.id}"><option value="">Mark all as…</option>${C.ITEM_STATUSES.map((s) => `<option>${s}</option>`).join('')}</select>
-            <button class="btn tiny" data-action="copyOrder" data-project="${p.id}">Order list</button>` : ''}
-          </div>
+      <div class="row gap wrap tab-actions">
+        <button class="btn primary" data-action="newItem" data-project="${p.id}">${WC.icon('plus')} Add window</button>
+        <button class="btn" data-action="importSheet" data-project="${p.id}">${WC.icon('upload')} Import order sheet</button>
+      </div>
+      ${p.items.length ? `<div class="row between wrap gap products-sum">
+        <div>${counts} ${itemTotal(p) ? `<b class="total">${U.money(itemTotal(p))}</b>` : ''}</div>
+        <div class="row gap">
+          <select class="tiny-select" data-change="bulkStatus" data-project="${p.id}" aria-label="Mark all products as"><option value="">Mark all as…</option>${C.ITEM_STATUSES.map((s) => `<option>${s}</option>`).join('')}</select>
+          <button class="btn tiny" data-action="copyOrder" data-project="${p.id}">Order list</button>
         </div>
-        <p class="small muted">Tap a status to change it. Use “Copy” to add the next window with the same specs, or import the order sheet to fill this list automatically.</p>
-      </section>
-      ${p.files.some(isSheet) ? `<section class="panel">
-        <h3>Order sheets <span class="count">${p.files.filter(isSheet).length}</span></h3>
-        ${p.files.filter(isSheet).map((f) => fileRow(p, f)).join('')}
-      </section>` : ''}
+      </div>` : empty('No windows yet. Add them one at a time, or import the order sheet to fill this in.')}
       ${Object.keys(rooms).sort().map((room) => `
         <section class="panel">
           <h3>${esc(room)} <span class="count">${rooms[room].length}</span></h3>
           ${rooms[room].map((i) => `<div class="item product">
             <div class="grow">
-              <div><strong>${esc(i.location || 'Window')}</strong> · ${esc(i.category || '')}</div>
+              <div><strong>${esc(i.location || 'Window')}</strong>${i.width || i.height ? ` <span class="dim">${esc(i.width || '?')} × ${esc(i.height || '?')}</span>` : ''}</div>
               <div class="small">${[i.brand, i.product, i.color].filter(Boolean).map(esc).join(' · ')}</div>
-              <div class="small muted">${[i.width && i.height ? `${esc(i.width)}″ W × ${esc(i.height)}″ H` : '', i.mount && esc(i.mount + ' mount'), i.control && esc(i.control), (Number(i.qty) || 1) > 1 ? `qty ${esc(i.qty)}` : '', i.price ? U.money(i.price) + ' ea' : ''].filter(Boolean).join(' · ')}</div>
+              <div class="small muted">${[i.mount && esc(i.mount + ' mount'), i.control && esc(i.control), (Number(i.qty) || 1) > 1 ? `qty ${esc(i.qty)}` : '', i.price ? U.money(i.price) + ' ea' : ''].filter(Boolean).join(' · ')}</div>
               ${i.notes ? `<div class="small muted pre">${esc(i.notes)}</div>` : ''}
             </div>
             <div class="col-actions">
@@ -442,73 +515,43 @@
         </section>`).join('')}`;
   }
 
-  function projectPlans(p) {
-    const plans = p.files.filter(isPlan).sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+  const FILE_FILTERS = [['all', 'All'], ['Plans', 'Plans'], ['Quote', 'Quotes'], ['Order sheet', 'Order sheets'], ['Photo', 'Photos'], ['Other', 'Other']];
+
+  function projectFiles(p) {
+    const f = state.fileFilter;
+    const files = p.files.filter((x) => f === 'all' || x.label === f || (f === 'Other' && !['Plans', 'Quote', 'Order sheet', 'Photo'].includes(x.label)))
+      .sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+    const used = new Set(p.files.map((x) => (['Plans', 'Quote', 'Order sheet', 'Photo'].includes(x.label) ? x.label : 'Other')));
     return `
+      <div class="row gap wrap tab-actions">
+        <button class="btn primary" data-action="addFile" data-project="${p.id}">${WC.icon('upload')} Upload</button>
+      </div>
+      ${p.files.length > 1 ? `<div class="chips">${FILE_FILTERS.filter(([k]) => k === 'all' || used.has(k)).map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''}" data-action="setFilter" data-key="fileFilter" data-value="${k}">${l}</button>`).join('')}</div>` : ''}
+      ${files.length ? `<div class="plan-grid">${files.map((x) => fileCard(p, x)).join('')}</div>` : empty(p.files.length ? 'Nothing in this group.' : 'No files yet. Upload plans, quote PDFs, order sheets or photos.')}`;
+  }
+
+  function projectNotes(p) {
+    return `
+      <div class="row gap wrap tab-actions">
+        <button class="btn primary" data-action="newLog" data-project="${p.id}">${WC.icon('note')} Add note</button>
+      </div>
       <section class="panel">
-        <div class="row between wrap gap"><h3>Plans & drawings</h3>
-          <button class="btn primary tiny" data-action="addPlans" data-project="${p.id}">${WC.icon('upload')} Upload plans</button></div>
-        <p class="small muted">Floor plans, elevations, window schedules, electrical plans. Tap one to open it; use Zoom to read the details.</p>
-        ${plans.length ? `<div class="plan-grid">${plans.map((f) => `
-          <div class="plan-card">
-            <button class="plan-thumb" data-action="viewFile" data-project="${p.id}" data-id="${f.id}" data-thumb="${f.id}" aria-label="Open ${esc(f.name)}">${WC.icon((f.type || '').startsWith('image/') ? 'image' : 'file')}</button>
-            <div class="plan-meta"><a href="#" data-action="viewFile" data-project="${p.id}" data-id="${f.id}"><strong>${esc(f.name)}</strong></a>
-              <div class="small muted">${esc(U.fmtDate(f.addedAt.slice(0, 10)))}${f.note ? ' · ' + esc(f.note) : ''}</div></div>
-            <button class="btn tiny ghost" data-action="editFile" data-project="${p.id}" data-id="${f.id}">Edit</button>
-          </div>`).join('')}</div>` : empty('No plans yet. Upload the builder\'s or designer\'s plans so they\'re on hand at the site.')}
+        ${p.log.slice().sort((a, b) => b.date.localeCompare(a.date)).map((l) => logRow(p, l)).join('') || empty('Write down what you talk about: what they want, product decisions, timing with other trades.')}
       </section>`;
   }
 
-  function projectPhases(p) {
-    return `
-      <section class="panel">
-        <div class="row between wrap gap">
-          <h3>Job phases & sequencing</h3>
-          <div class="row gap wrap">
-            <button class="btn tiny primary" data-action="newPhase" data-project="${p.id}">+ Phase</button>
-            <button class="btn tiny" data-action="phaseTemplate" data-project="${p.id}">Add new-construction template</button>
-          </div>
-        </div>
-        <p class="small muted">For jobs that span weeks: pre-wire, wait on framers/drywall, come back to install. Tap a status to change it.</p>
-        ${p.phases.map((ph, idx) => `<div class="item phase ph-${ph.status.toLowerCase().replace(/\s/g, '')}">
-          <div class="ph-num">${idx + 1}</div>
-          <div class="grow">
-            <a href="#" data-action="editPhase" data-project="${p.id}" data-id="${ph.id}"><strong>${esc(ph.name)}</strong></a>
-            <div class="small muted">${[ph.waitingOn && `Depends on: ${esc(ph.waitingOn)}`, ph.date && `Target ${esc(U.fmtDate(ph.date))}`].filter(Boolean).join(' · ')}</div>
-            ${ph.notes ? `<div class="small pre">${esc(ph.notes)}</div>` : ''}
-          </div>
-          <div class="col-actions">
-            <button class="badge ph-badge status-btn" data-action="phaseStatus" data-project="${p.id}" data-id="${ph.id}" aria-label="Status: ${esc(ph.status)}. Change status">${esc(ph.status)}${WC.icon('down')}</button>
-            <div class="row gap"><button class="btn tiny ghost" data-action="movePhase" data-project="${p.id}" data-id="${ph.id}" data-dir="-1" aria-label="Move up">${WC.icon('up')}</button><button class="btn tiny ghost" data-action="movePhase" data-project="${p.id}" data-id="${ph.id}" data-dir="1" aria-label="Move down">${WC.icon('down')}</button></div>
-          </div>
-        </div>`).join('') || empty('No phases yet. Small jobs usually don\'t need them.')}
-      </section>`;
-  }
-
-  function projectSchedule(p) {
-    const evs = projectEvents(p.id);
-    const t = U.today();
-    const fut = evs.filter((e) => lastDay(e) >= t);
-    const past = evs.filter((e) => lastDay(e) < t).reverse();
-    return `
-      <section class="panel">
-        <div class="row between"><h3>Upcoming</h3><button class="btn tiny primary" data-action="newEvent" data-project="${p.id}">+ Appointment</button></div>
-        ${fut.map((e) => eventRow(e, { showDate: true, hideProject: true })).join('') || empty('Nothing scheduled.')}
-      </section>
-      <section class="panel">
-        <h3>Past</h3>
-        ${past.map((e) => eventRow(e, { showDate: true, hideProject: true })).join('') || empty('None yet.')}
-      </section>
-      <section class="panel">
-        <h3>Follow-ups</h3>
-        ${S.all('tasks').filter((x) => x.projectId === p.id).sort(byDue).map((x) => taskRow(x, { hideProject: true })).join('') || empty('None.')}
-      </section>`;
-  }
-
-  function projectLog(p) {
+  // Optional step list for big jobs (pre-wire, waiting on drywall, etc.).
+  function phasesPanel(p) {
     return `<section class="panel">
-      <div class="row between"><h3>Calls, meetings & notes</h3><button class="btn tiny primary" data-action="newLog" data-project="${p.id}">+ Entry</button></div>
-      ${p.log.slice().sort((a, b) => b.date.localeCompare(a.date)).map((l) => logRow(p, l)).join('') || empty('Log every conversation: what was discussed, decisions on products, sequencing with other trades.')}
+      <div class="row between"><h3>Job phases</h3><button class="btn tiny" data-action="newPhase" data-project="${p.id}">${WC.icon('plus')} Phase</button></div>
+      ${p.phases.map((ph, idx) => `<div class="item phase ${phaseClass(ph.status)}">
+        <div class="ph-num">${idx + 1}</div>
+        <div class="grow">
+          <a href="#" data-action="editPhase" data-project="${p.id}" data-id="${ph.id}"><strong>${esc(ph.name)}</strong></a>
+          <div class="small muted">${[ph.waitingOn && `Waiting on ${esc(ph.waitingOn)}`, ph.date && `Target ${esc(U.fmtDate(ph.date))}`].filter(Boolean).join(' · ')}</div>
+        </div>
+        <button class="badge ph-badge status-btn" data-action="phaseStatus" data-project="${p.id}" data-id="${ph.id}" aria-label="Status: ${esc(ph.status)}. Change status">${esc(ph.status)}${WC.icon('down')}</button>
+      </div>`).join('')}
     </section>`;
   }
 
@@ -525,7 +568,7 @@
       if (i % 7 === 0 && i >= 28 && dt.getMonth() !== month) break;
       const evs = eventsOn(d);
       const due = openTasks((x) => x.due === d).length;
-      const label = `${U.fmtDate(d, { weekday: 'long', month: 'long', day: 'numeric' })}: ${evs.length} appointment${evs.length === 1 ? '' : 's'}${due ? `, ${due} follow-up${due === 1 ? '' : 's'}` : ''}`;
+      const label = `${U.fmtDate(d, { weekday: 'long', month: 'long', day: 'numeric' })}: ${evs.length} appointment${evs.length === 1 ? '' : 's'}${due ? `, ${due} reminder${due === 1 ? '' : 's'}` : ''}`;
       cells += `<button class="cal-day${dt.getMonth() !== month ? ' out' : ''}${d === t ? ' today' : ''}${d === state.calDay ? ' sel' : ''}" data-action="calDay" data-date="${d}" aria-label="${esc(label)}">
         <span>${dt.getDate()}</span><i>${evs.slice(0, 3).map((e) => `<b style="background:${C.eventType(e.type).color}"></b>`).join('')}${due ? '<b class="task-dot"></b>' : ''}</i></button>`;
     }
@@ -543,10 +586,10 @@
         </div>
       </div>
       <div class="cal-grid">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="cal-dow">${d}</div>`).join('')}${cells}</div>
-      <div class="cal-legend">${C.EVENT_TYPES.filter((x) => used.has(x.id)).map((x) => `<span>${typeDot(x.id)}${esc(x.label)}</span>`).join('')}<span><span class="dot" style="box-shadow:inset 0 0 0 1px var(--muted)"></span>Follow-up due</span></div>
+      <div class="cal-legend">${C.EVENT_TYPES.filter((x) => used.has(x.id)).map((x) => `<span>${typeDot(x.id)}${esc(x.label)}</span>`).join('')}<span><span class="dot" style="box-shadow:inset 0 0 0 1px var(--muted)"></span>Reminder</span></div>
       <div class="cal-agenda">
         <div class="row between"><h3>${sel === t ? 'Today' : esc(U.fmtDate(sel, { weekday: 'long', month: 'short', day: 'numeric' }))}</h3>
-          <button class="btn tiny" data-action="newEvent" data-date="${sel}">${WC.icon('plus')} Appointment</button></div>
+          <button class="btn tiny" data-action="newEvent" data-date="${sel}">${WC.icon('plus')} Schedule</button></div>
         ${evs.map((e) => eventRow(e, { day: sel })).join('')}
         ${tasks.map((x) => taskRow(x)).join('')}
         ${!evs.length && !tasks.length ? empty(sel === t ? 'Nothing scheduled today.' : 'Nothing scheduled.') : ''}
@@ -795,74 +838,63 @@
   // Forms
   // ======================================================================
   function leadForm(prefill = {}) {
-    const fields = [
-      { name: 'existingContact', label: 'Client', type: 'select', options: contactOptions('+ New person (fill in below)') },
-      { name: 'clientName', label: 'Name', placeholder: 'e.g. Sarah Johnson', half: true },
-      { name: 'clientRole', label: 'They are a…', type: 'select', options: C.CONTACT_ROLES, default: 'Homeowner', half: true },
+    const pre = prefill.contactId && S.get('contacts', prefill.contactId);
+    const people = S.all('contacts').map((c) => c.name).sort();
+    const referrers = [...new Set([...people, ...S.all('companies').map((c) => c.name)])].sort();
+    const fields = prefill.past ? [
+      { name: 'clientName', label: 'Client name', required: true, list: people },
+      { name: 'address', label: 'Address' },
+      { name: 'doneDate', label: 'Finished on', type: 'date', half: true },
+      { name: 'estValue', label: 'Job total ($)', type: 'number', half: true },
+      { name: 'notes', label: 'Notes', type: 'textarea', rows: 2, more: true },
+    ] : [
+      { name: 'clientName', label: 'Client name', required: true, list: people, placeholder: 'e.g. Sarah Johnson' },
       { name: 'phone', label: 'Phone', type: 'tel', half: true },
-      { name: 'email', label: 'Email', type: 'email', half: true },
-      { name: 'company', label: 'Company (designers, builders)' },
-      { name: 'name', label: 'Job name', placeholder: 'Leave blank to use client name, e.g. “Johnson – Lakeview Dr”' },
-      { name: 'address', label: 'Job address' },
-      { name: 'type', label: 'Job type', type: 'select', options: C.PROJECT_TYPES, half: true },
-      { name: 'source', label: 'Lead source', type: 'select', options: ['', ...C.LEAD_SOURCES], half: true },
-      { name: 'referredBy', label: 'Referred by / designer / builder', type: 'select', options: contactOptions() },
-      { name: 'estValue', label: 'Rough budget / estimate ($)', type: 'number', half: true },
-      { name: 'interest', label: 'Interested in', placeholder: 'e.g. motorized shades, shutters, patio screens', half: true },
-      ...(prefill.past
-        ? [{ name: 'startStage', label: 'Status', type: 'select', options: [{ value: 'complete', label: 'Complete' }, { value: 'lost', label: 'Lost' }], half: true },
-          { name: 'doneDate', label: 'Completed / closed on', type: 'date', half: true }]
-        : [{ name: 'consultDate', label: 'Consult date (optional)', type: 'date', half: true },
-          { name: 'consultTime', label: 'Consult time', type: 'time', half: true }]),
-      { name: 'notes', label: 'Notes', type: 'textarea' },
+      { name: 'address', label: 'Address', half: true },
+      { name: 'referredBy', label: 'Referred by', list: referrers, placeholder: 'Designer, builder, past client…' },
+      { name: 'interest', label: 'What are they looking for?', placeholder: 'e.g. motorized shades in the great room' },
+      { name: 'callDate', label: 'First sales call (optional)', type: 'date', half: true },
+      { name: 'callTime', label: 'Time', type: 'time', half: true },
+      { name: 'email', label: 'Email', type: 'email', more: true },
+      { name: 'notes', label: 'Other notes', type: 'textarea', rows: 2, more: true },
     ];
     U.openForm({
-      title: prefill.past ? 'Add previous job' : 'New lead',
+      title: prefill.past ? 'Add a past job' : 'New lead',
       fields,
-      values: { existingContact: prefill.contactId || '', startStage: 'complete', doneDate: U.today() },
-      submitLabel: prefill.past ? 'Save job' : 'Create lead',
-      after(form) {
-        const toggle = () => {
-          const existing = !!form.elements.existingContact.value;
-          ['clientName', 'clientRole', 'phone', 'email', 'company'].forEach((n) => { form.elements[n].closest('.field').style.display = existing ? 'none' : ''; });
-        };
-        form.elements.existingContact.addEventListener('change', toggle);
-        toggle();
-      },
+      values: { clientName: pre ? pre.name : '', phone: pre ? pre.phone : '', address: pre ? pre.address : '', doneDate: U.today() },
+      submitLabel: prefill.past ? 'Save job' : 'Add lead',
       onSubmit(d) {
-        let contact;
-        if (d.existingContact) contact = S.get('contacts', d.existingContact);
-        else {
-          if (!d.clientName) { U.toast('Enter a client name or pick an existing contact'); return false; }
-          contact = S.upsert('contacts', { name: d.clientName, role: d.clientRole, phone: d.phone, email: d.email, company: d.company, address: d.address, notes: '' });
-        }
-        const contacts = [{ contactId: contact.id, role: contact.role }];
-        if (d.referredBy && d.referredBy !== contact.id) {
-          const r = S.get('contacts', d.referredBy);
-          contacts.push({ contactId: r.id, role: r.role });
-        }
-        const p = S.upsert('projects', {
-          name: d.name || `${contact.name}${d.address ? ' – ' + d.address.split(',')[0] : ''}`,
-          stage: 'lead', type: d.type, source: d.source, address: d.address || contact.address || '',
-          estValue: d.estValue, notes: [d.interest && `Interested in: ${d.interest}`, d.notes].filter(Boolean).join('\n'),
-          contacts, items: [], phases: [], log: [], files: [], stageHistory: [{ stage: 'lead', at: new Date().toISOString() }],
-        });
-        if (prefill.past) {
-          const at = d.doneDate ? new Date(U.parse(d.doneDate).getTime() + 43200000).toISOString() : new Date().toISOString();
-          p.stage = d.startStage;
-          p.stageHistory = [{ stage: d.startStage, at }];
-          S.touch(p);
-          U.toast('Previous job saved');
-          go(`#/project/${p.id}`);
-          return;
-        }
-        if (d.consultDate) {
-          S.upsert('events', { title: `Consult – ${p.name}`, type: 'sales', projectId: p.id, date: d.consultDate, start: d.consultTime, end: '', days: 1, location: p.address, notes: '', done: false });
-          S.setStage(p, 'consult');
+        const key = d.clientName.toLowerCase();
+        let contact = pre && pre.name.toLowerCase() === key ? pre : S.all('contacts').find((c) => c.name.toLowerCase() === key);
+        if (contact) {
+          const patch = {};
+          ['phone', 'email', 'address'].forEach((k) => { if (d[k] && !contact[k]) patch[k] = d[k]; });
+          if (Object.keys(patch).length) contact = S.upsert('contacts', { ...patch, id: contact.id });
         } else {
-          S.upsert('tasks', { title: 'Call to schedule consult', due: U.addDays(U.today(), 1), projectId: p.id, contactId: contact.id, done: false });
+          contact = S.upsert('contacts', { name: d.clientName, role: 'Homeowner', phone: d.phone || '', email: d.email || '', address: d.address || '', company: '', notes: '' });
         }
-        U.toast(d.consultDate ? 'Lead created and consult scheduled' : 'Lead created with a follow-up for tomorrow');
+        const contacts = [{ contactId: contact.id, role: contact.role || 'Homeowner' }];
+        const refKey = (d.referredBy || '').toLowerCase();
+        const refPerson = refKey && S.all('contacts').find((c) => c.name.toLowerCase() === refKey && c.id !== contact.id);
+        if (refPerson) contacts.push({ contactId: refPerson.id, role: refPerson.role || 'Referral' });
+        const street = (d.address || contact.address || '').split(',')[0];
+        const stage = prefill.past ? 'complete' : 'lead';
+        const at = prefill.past && d.doneDate ? new Date(U.parse(d.doneDate).getTime() + 43200000).toISOString() : new Date().toISOString();
+        const p = S.upsert('projects', {
+          name: `${contact.name}${street ? ' – ' + street : ''}`,
+          stage, address: d.address || contact.address || '', referredBy: d.referredBy || '', source: d.referredBy ? 'Referral' : '',
+          estValue: d.estValue || '', notes: [d.interest && `Looking for: ${d.interest}`, d.notes].filter(Boolean).join('\n'),
+          contacts, items: [], phases: [], log: [], files: [], quotes: [], stageHistory: [{ stage, at }],
+        });
+        if (prefill.past) { U.toast('Past job saved'); go(`#/project/${p.id}`); return; }
+        if (d.callDate) {
+          S.upsert('events', { title: `Sales call – ${p.name}`, type: 'sales', projectId: p.id, date: d.callDate, start: d.callTime, end: '', days: 1, location: p.address, notes: '', done: false });
+          S.setStage(p, 'consult');
+          U.toast('Lead added and sales call scheduled');
+        } else {
+          S.upsert('tasks', { title: `Call ${firstName(contact)} to book a sales call`, due: U.addDays(U.today(), 1), projectId: p.id, contactId: contact.id, done: false, forStage: 'lead' });
+          U.toast('Lead added. Reminder set for tomorrow to book the sales call.');
+        }
         go(`#/project/${p.id}`);
       },
     });
@@ -871,11 +903,10 @@
   function projectForm(p) {
     const fields = [
       { name: 'name', label: 'Job name', required: true },
-      { name: 'address', label: 'Job address' },
-      { name: 'type', label: 'Job type', type: 'select', options: C.PROJECT_TYPES, half: true },
-      { name: 'source', label: 'Lead source', type: 'select', options: ['', ...C.LEAD_SOURCES], half: true },
-      { name: 'estValue', label: 'Estimate ($)', type: 'number' },
-      { name: 'notes', label: 'Notes', type: 'textarea', rows: 5 },
+      { name: 'address', label: 'Address' },
+      { name: 'estValue', label: 'Job value ($)', type: 'number', half: true },
+      { name: 'referredBy', label: 'Referred by', half: true },
+      { name: 'notes', label: 'Notes', type: 'textarea', rows: 4 },
     ];
     U.openForm({
       title: 'Edit job', fields, values: p,
@@ -933,7 +964,7 @@
       ['person', 'users', 'Person', 'Client, designer, builder, electrician…'],
       ['company', 'briefcase', 'Company', 'Design firm, builder, supplier…'],
       ['job', 'plus', 'New job / lead', 'Starts in Sales'],
-      ['past', 'file', 'Previous job', 'Record a job you already finished'],
+      ['past', 'file', 'Past job', 'A job you already finished'],
     ];
     U.openInfo('Add to records', `<div class="chooser">${opts.map(([k, ic, l, sub]) => `<button class="chooser-btn" data-pick="${k}">${WC.icon(ic)}<span><b>${l}</b><em>${sub}</em></span></button>`).join('')}</div>`);
     document.querySelectorAll('[data-pick]').forEach((btn) => btn.addEventListener('click', () => {
@@ -944,12 +975,12 @@
 
   function addPersonForm(p) {
     const fields = [
-      { name: 'contactId', label: 'Person', type: 'select', options: contactOptions('+ New person (fill in below)') },
+      { name: 'contactId', label: 'Person', type: 'select', options: contactOptions('Someone new (fill in below)') },
       { name: 'name', label: 'Name', half: true },
-      { name: 'company', label: 'Company', half: true },
       { name: 'phone', label: 'Phone', type: 'tel', half: true },
-      { name: 'email', label: 'Email', type: 'email', half: true },
       { name: 'role', label: 'Role on this job', type: 'select', options: C.CONTACT_ROLES },
+      { name: 'company', label: 'Company', half: true, more: true },
+      { name: 'email', label: 'Email', type: 'email', half: true, more: true },
     ];
     U.openForm({
       title: 'Add person to job', fields, values: { role: 'Interior Designer' },
@@ -975,74 +1006,99 @@
     });
   }
 
+  // Moving a job forward automatically when you schedule the matching appointment.
+  const STAGE_FOR_EVENT = { sales: ['consult', ['lead']], measure: ['measure', ['lead', 'consult', 'quoted']], install: ['install', ['lead', 'consult', 'quoted', 'measure', 'ordered']] };
+
   function eventForm(e = {}, defaults = {}) {
     const isNew = !e.id;
     const p0 = S.get('projects', e.projectId || defaults.projectId || '');
+    const fixedJob = isNew && p0;
     const fields = [
-      { name: 'type', label: 'Type', type: 'select', options: C.EVENT_TYPES.map((t) => ({ value: t.id, label: t.label })), half: true },
-      { name: 'projectId', label: 'Job', type: 'select', options: projectOptions(e.projectId), half: true },
-      { name: 'title', label: 'Title', placeholder: 'Leave blank to auto-name, e.g. “Install – Johnson”' },
-      { name: 'date', label: 'Date', type: 'date', required: true, half: true },
-      { name: 'days', label: 'Number of days', type: 'number', step: 1, half: true },
-      { name: 'start', label: 'Start time', type: 'time', half: true },
-      { name: 'end', label: 'End time', type: 'time', half: true },
-      { name: 'location', label: 'Location' },
-      { name: 'notes', label: 'Notes (who will be there, what to bring, what to cover)', type: 'textarea' },
-      ...(isNew ? [] : [{ name: 'done', label: 'Done / wrapped up', type: 'checkbox' }]),
+      { name: 'type', label: 'What', type: 'chips', options: C.EVENT_TYPES.filter((t) => t.pick || t.id === e.type).map((t) => [t.id, t.label]) },
+      ...(fixedJob ? [] : [{ name: 'projectId', label: 'Job', type: 'select', options: projectOptions(e.projectId) }]),
+      { name: 'date', label: 'Day', type: 'date', required: true, half: true },
+      { name: 'start', label: 'Time (optional)', type: 'time', half: true },
+      { name: 'days', label: 'How many days?', type: 'number', step: 1, half: true, cls: 'install-only' },
+      { name: 'notes', label: 'Notes (optional)', type: 'textarea', rows: 2, placeholder: 'e.g. Bring samples. The designer will be there.' },
     ];
-    const sec = p0 ? section(p0) : 'sales';
-    const values = isNew
-      ? { type: defaults.type || (sec === 'install' ? 'install' : 'sales'), projectId: p0 ? p0.id : '', date: defaults.date || U.today(), days: 1, location: p0 ? p0.address : '' }
-      : e;
+    const defaultType = defaults.type || (p0 ? ({ lead: 'sales', consult: 'sales', quoted: 'sales', measure: 'measure', ordered: 'install', install: 'install' }[p0.stage] || 'other') : 'sales');
+    const values = isNew ? { type: defaultType, projectId: p0 ? p0.id : '', date: defaults.date || U.today(), days: 1 } : e;
+    const tools = !isNew && !WC.DEMO ? `<button type="button" class="btn tiny" id="icsBtn">${WC.icon('calendarPlus')} Add to phone calendar</button>` : '';
     U.openForm({
-      title: isNew ? 'New appointment' : 'Edit appointment', fields, values,
+      title: isNew ? 'Schedule' : 'Appointment',
+      intro: `${fixedJob ? `<p class="form-context">For <b>${esc(p0.name)}</b></p>` : ''}${tools}`,
+      fields, values,
+      submitLabel: isNew ? 'Schedule' : 'Save',
       after(form) {
-        form.elements.projectId.addEventListener('change', () => {
-          const p = S.get('projects', form.elements.projectId.value);
-          if (p && !form.elements.location.value) form.elements.location.value = p.address || '';
-        });
+        const daysField = form.querySelector('.install-only');
+        const sync = () => { daysField.style.display = form.elements.type.value === 'install' ? '' : 'none'; };
+        form.querySelectorAll('input[name="type"]').forEach((r) => r.addEventListener('change', sync));
+        sync();
+        const ics = form.querySelector('#icsBtn');
+        if (ics) ics.addEventListener('click', () => U.download(`${e.title.replace(/[^\w-]+/g, '_')}.ics`, icsFor(e), 'text/calendar'));
       },
       onSubmit(d) {
+        d.type = d.type || e.type || 'other';
+        d.projectId = fixedJob ? p0.id : d.projectId;
         const p = S.get('projects', d.projectId);
-        d.days = Math.max(1, Math.round(Number(d.days) || 1));
-        if (!d.title) d.title = `${C.eventType(d.type).label}${p ? ' – ' + p.name : ''}`;
+        d.days = d.type === 'install' ? Math.max(1, Math.round(Number(d.days) || 1)) : 1;
+        d.title = `${C.eventType(d.type).label}${p ? ' – ' + p.name : ''}`;
+        d.location = p ? p.address : (e.location || '');
+        d.end = e.end || '';
         if (isNew) d.done = false;
         S.upsert('events', isNew ? d : { ...d, id: e.id });
-        if (isNew && p && p.stage === 'lead' && (d.type === 'sales' || d.type === 'measure')) {
-          S.setStage(p, 'consult');
-          U.toast('Scheduled — job moved to “Consult Scheduled”');
-        } else U.toast('Saved');
+        let msg = isNew ? 'Scheduled' : 'Saved';
+        const rule = STAGE_FOR_EVENT[d.type];
+        if (isNew && p && rule && rule[1].includes(p.stage)) {
+          S.setStage(p, rule[0]);
+          msg += `. Job moved to “${C.stage(rule[0]).label}”.`;
+        }
+        U.toast(msg);
         render();
       },
       onDelete: isNew ? null : () => { S.remove('events', e.id); render(); },
     });
   }
 
-  const logTypeFor = { sales: 'Meeting', measure: 'Site visit', install: 'Site visit', prewire: 'Site visit', service: 'Site visit', meeting: 'Meeting', other: 'Note' };
-
+  // After an appointment: what happened, and what's next.
   function wrapUpForm(e) {
     const p = S.get('projects', e.projectId);
+    const NEXT = {
+      sales: [['quotes', 'Put quotes together'], ['again', 'Meet again'], ['yes', 'They said yes'], ['lost', 'Not interested']],
+      measure: [['order', 'Ready to order'], ['again', 'Need to come back']],
+      install: [['done', 'Job finished'], ['again', 'Need another day']],
+    }[e.type] || [];
     const fields = [
-      { name: 'summary', label: 'What happened? (decisions, products discussed, measurements, next steps)', type: 'textarea', rows: 5, required: true },
-      ...(p ? [{ name: 'stage', label: 'Move job to', type: 'select', options: C.STAGES.map((s) => ({ value: s.id, label: s.label })) }] : []),
-      { name: 'followDate', label: 'Next follow-up date', type: 'date', half: true },
-      { name: 'followTitle', label: 'Follow-up', placeholder: 'e.g. Send proposal', half: true },
+      { name: 'summary', label: 'What happened?', type: 'textarea', rows: 4, placeholder: e.type === 'sales' ? 'What they want, rooms, rough measurements, budget…' : 'Anything worth remembering' },
+      ...(p && NEXT.length ? [{ name: 'next', label: 'What\'s next?', type: 'chips', options: NEXT }] : []),
+      { name: 'remind', label: 'Remind me to follow up', type: 'chips', options: [['', 'No'], ['2', 'In 2 days'], ['7', 'In a week'], ['14', 'In 2 weeks']] },
     ];
-    const suggested = p && p.stage === 'consult' && e.type === 'sales' ? 'quoting' : p && p.stage;
+    const defNext = { sales: p && p.quotes.length ? 'again' : 'quotes', measure: 'order', install: 'done' }[e.type] || '';
     U.openForm({
-      title: `Wrap up: ${e.title}`, fields,
-      values: { stage: suggested, followDate: U.addDays(U.today(), 2), followTitle: p && section(p) === 'sales' ? 'Send proposal / follow up' : 'Follow up' },
-      submitLabel: 'Save & close out',
+      title: `How did the ${C.eventType(e.type).label.toLowerCase()} go?`,
+      intro: p ? `<p class="form-context">${esc(p.name)} · ${esc(U.relDate(e.date))}</p>` : '',
+      fields,
+      values: { next: defNext, remind: e.type === 'sales' ? '2' : '' },
+      submitLabel: 'Save',
       onSubmit(d) {
         e.done = true;
         S.upsert('events', e);
-        if (p) {
-          p.log.push({ id: S.uid(), date: e.date, type: logTypeFor[e.type] || 'Note', contactId: '', summary: `[${e.title}] ${d.summary}` });
-          S.setStage(p, d.stage);
-          S.touch(p);
+        if (p && d.summary) p.log.push({ id: S.uid(), date: e.date, type: e.type === 'sales' ? 'Visit' : 'Note', contactId: '', summary: `${C.eventType(e.type).label}: ${d.summary}` });
+        if (p) S.touch(p);
+        const client = p && S.primaryContact(p);
+        if (d.remind) {
+          const title = d.next === 'quotes' ? `Send quotes to ${firstName(client) || 'client'}` : `Follow up with ${firstName(client) || 'client'}`;
+          S.upsert('tasks', { title, due: U.addDays(U.today(), Number(d.remind)), projectId: e.projectId || '', contactId: client ? client.id : '', done: false, forStage: p ? (d.next === 'quotes' && p.stage === 'lead' ? 'consult' : p.stage) : '' });
         }
-        if (d.followDate) S.upsert('tasks', { title: d.followTitle || 'Follow up', due: d.followDate, projectId: e.projectId || '', contactId: '', done: false });
-        U.toast('Wrapped up');
+        if (p) {
+          if (d.next === 'quotes' && p.stage === 'lead') S.setStage(p, 'consult');
+          if (d.next === 'lost') S.setStage(p, 'lost');
+          if (d.next === 'done') finishJob(p);
+          if (d.next === 'again') later(() => eventForm({}, { projectId: p.id, type: e.type, date: U.addDays(U.today(), 7) }));
+          if (d.next === 'yes') { S.setStage(p, 'measure'); later(() => eventForm({}, { projectId: p.id, type: 'measure', date: U.addDays(U.today(), 3) })); }
+          if (d.next === 'order') later(() => orderedForm(p));
+        }
+        U.toast('Saved');
         render();
       },
     });
@@ -1050,24 +1106,24 @@
 
   function taskForm(t = {}, defaults = {}) {
     const isNew = !t.id;
+    const pid = t.projectId || defaults.projectId;
+    const p0 = pid && S.get('projects', pid);
     const fields = [
-      { name: 'title', label: 'What needs to happen?', required: true, placeholder: 'e.g. Call designer about fabric samples' },
-      { name: 'due', label: 'Due', type: 'date', required: true, half: true },
-      { name: 'projectId', label: 'Job', type: 'select', options: projectOptions(t.projectId), half: true },
-      { name: 'contactId', label: 'Person', type: 'select', options: contactOptions() },
-      { name: 'notes', label: 'Notes', type: 'textarea', rows: 2 },
-      ...(isNew ? [] : [{ name: 'done', label: 'Done', type: 'checkbox' }]),
+      { name: 'title', label: 'What do you need to do?', required: true, placeholder: 'e.g. Call Sarah about fabric samples' },
+      ...(p0 ? [] : [{ name: 'projectId', label: 'Job (optional)', type: 'select', options: projectOptions(t.projectId) }]),
+      { name: 'due', label: 'When', type: 'date', required: true, quick: [['Tomorrow', 1], ['In 3 days', 3], ['Next week', 7], ['In 2 weeks', 14], ['In a month', 30]] },
     ];
-    const quick = `<div class="row gap wrap quick-dates">${[['Tomorrow', 1], ['3 days', 3], ['1 week', 7], ['2 weeks', 14], ['1 month', 30]].map(([l, n]) => `<button type="button" class="chip" data-days="${n}">${l}</button>`).join('')}</div>`;
     U.openForm({
-      title: isNew ? 'New follow-up' : 'Edit follow-up', fields, intro: quick,
-      values: isNew ? { due: U.addDays(U.today(), 2), projectId: defaults.projectId || '', contactId: defaults.contactId || '' } : t,
-      after(form) {
-        form.querySelectorAll('.quick-dates [data-days]').forEach((b) => b.addEventListener('click', () => { form.elements.due.value = U.addDays(U.today(), Number(b.dataset.days)); }));
-      },
+      title: isNew ? 'Reminder' : 'Edit reminder',
+      intro: p0 ? `<p class="form-context">For <b>${esc(p0.name)}</b></p>` : '',
+      fields,
+      values: isNew ? { due: U.addDays(U.today(), 1), projectId: '' } : t,
+      submitLabel: isNew ? 'Set reminder' : 'Save',
       onSubmit(d) {
-        if (isNew) d.done = false;
+        if (p0) d.projectId = p0.id;
+        if (isNew) { d.done = false; d.contactId = defaults.contactId || ''; }
         S.upsert('tasks', isNew ? d : { ...d, id: t.id });
+        U.toast(isNew ? `Reminder set for ${relIn(d.due)}` : 'Saved');
         render();
       },
       onDelete: isNew ? null : () => { S.remove('tasks', t.id); render(); },
@@ -1076,68 +1132,182 @@
 
   function logForm(p, l = {}) {
     const isNew = !l.id;
-    const pcs = p ? S.projectContacts(p) : [];
-    const people = [{ value: '', label: '— none —' }, ...pcs.map((pc) => ({ value: pc.contact.id, label: `${pc.contact.name} (${pc.role || pc.contact.role || ''})` })),
-      ...S.all('contacts').filter((c) => !pcs.some((pc) => pc.contact.id === c.id)).sort(byName).map((c) => ({ value: c.id, label: c.name }))];
     const fields = [
       ...(p ? [] : [{ name: 'projectId', label: 'Job', type: 'select', options: projectOptions(), required: true }]),
-      { name: 'type', label: 'Type', type: 'select', options: C.LOG_TYPES, half: true },
-      { name: 'date', label: 'Date', type: 'date', required: true, half: true },
-      { name: 'contactId', label: 'With', type: 'select', options: people },
-      { name: 'summary', label: 'Summary (what was discussed / decided)', type: 'textarea', rows: 5, required: true },
-      ...(isNew ? [{ name: 'followDate', label: 'Follow-up date (optional)', type: 'date', half: true }, { name: 'followTitle', label: 'Follow-up', half: true }] : []),
+      { name: 'type', label: 'Type', type: 'chips', options: [...C.LOG_TYPES, ...(l.type && !C.LOG_TYPES.includes(l.type) ? [l.type] : [])] },
+      { name: 'summary', label: 'Note', type: 'textarea', rows: 5, required: true, placeholder: 'What was discussed or decided?' },
+      ...(isNew ? [] : [{ name: 'date', label: 'Date', type: 'date' }]),
     ];
     U.openForm({
-      title: isNew ? 'Log call / note' : 'Edit entry', fields,
-      values: isNew ? { type: 'Call', date: U.today(), contactId: pcs[0] ? pcs[0].contact.id : '' } : l,
+      title: isNew ? 'Add note' : 'Edit note',
+      intro: p ? `<p class="form-context">For <b>${esc(p.name)}</b></p>` : '',
+      fields,
+      values: isNew ? { type: 'Note' } : l,
       onSubmit(d) {
         const proj = p || S.get('projects', d.projectId);
         if (!proj) { U.toast('Pick a job'); return false; }
-        const entry = { id: l.id || S.uid(), date: d.date, type: d.type, contactId: d.contactId, summary: d.summary };
+        const entry = { id: l.id || S.uid(), date: d.date || l.date || U.today(), type: d.type || l.type || 'Note', contactId: l.contactId || '', summary: d.summary };
         if (isNew) proj.log.push(entry);
         else Object.assign(proj.log.find((x) => x.id === l.id), entry);
-        if (isNew && d.followDate) S.upsert('tasks', { title: d.followTitle || 'Follow up', due: d.followDate, projectId: proj.id, contactId: d.contactId, done: false });
         S.touch(proj);
+        U.toast('Note saved');
         render();
       },
       onDelete: isNew ? null : () => { p.log = p.log.filter((x) => x.id !== l.id); S.touch(p); render(); },
     });
   }
 
+  // A quote option (Option A, B…) with an optional PDF.
+  function quoteForm(p, q = {}) {
+    const isNew = !q.id;
+    const fields = [
+      { name: 'name', label: 'Option name', required: true, placeholder: 'e.g. Option A – Duette with battery motors' },
+      { name: 'amount', label: 'Price ($)', type: 'number', half: true },
+      ...(isNew ? [{ name: 'file', label: 'Quote PDF (optional)', type: 'file', accept: 'application/pdf,image/*', half: true }] : []),
+      { name: 'note', label: 'Note (optional)', more: true },
+      ...(isNew ? [] : [{ name: 'chosen', label: 'This is the option they picked', type: 'checkbox' }]),
+    ];
+    U.openForm({
+      title: isNew ? 'Add a quote' : 'Edit quote',
+      intro: `<p class="form-context">For <b>${esc(p.name)}</b></p>`,
+      fields,
+      values: isNew ? { name: `Option ${String.fromCharCode(65 + Math.min(p.quotes.length, 25))}` } : q,
+      submitLabel: isNew ? 'Add quote' : 'Save',
+      onSubmit(d) {
+        const save = (fileId) => {
+          if (isNew) p.quotes.push({ id: S.uid(), name: d.name, amount: d.amount, note: d.note, fileId: fileId || '', date: U.today(), chosen: false });
+          else {
+            Object.assign(q, { name: d.name, amount: d.amount, note: d.note, chosen: d.chosen });
+            if (d.chosen) { p.quotes.forEach((x) => { if (x !== q) x.chosen = false; }); if (d.amount) p.estValue = d.amount; }
+          }
+          let msg = isNew ? 'Quote added' : 'Saved';
+          if (isNew && ['lead', 'consult'].includes(p.stage)) {
+            const t = S.setStage(p, 'quoted');
+            msg += `. Job moved to “Quotes out”${t ? `. Reminder to check in ${relIn(t.due)}` : ''}.`;
+          }
+          S.touch(p); render(); U.toast(msg);
+        };
+        if (isNew && d.file) {
+          const fileId = S.uid();
+          WC.files.put(fileId, d.file).then(() => {
+            p.files.push({ id: fileId, name: d.file.name, label: 'Quote', type: d.file.type || 'application/pdf', size: d.file.size, addedAt: new Date().toISOString(), note: d.name });
+            save(fileId);
+          }).catch(() => { save(''); U.toast('Quote added, but the PDF could not be saved on this device'); });
+        } else save('');
+      },
+      onDelete: isNew ? null : () => { p.quotes = p.quotes.filter((x) => x.id !== q.id); S.touch(p); render(); },
+    });
+  }
+
+  // "They said yes": note which quote they picked, then book the final measure.
+  function acceptJob(p) {
+    const proceed = () => {
+      S.setStage(p, 'measure');
+      render();
+      later(() => eventForm({}, { projectId: p.id, type: 'measure', date: U.addDays(U.today(), 3) }));
+    };
+    if (p.quotes.length < 2) {
+      if (p.quotes[0]) { p.quotes[0].chosen = true; if (p.quotes[0].amount) p.estValue = p.quotes[0].amount; }
+      proceed();
+      return;
+    }
+    U.openInfo('Which option did they pick?', `<div class="chooser">${p.quotes.map((q) => `<button class="chooser-btn" data-quote="${q.id}"><span><b>${esc(q.name)}</b><em>${q.amount ? U.money(q.amount) : ''}</em></span></button>`).join('')}
+      <button class="chooser-btn" data-quote=""><span><b>A mix / not sure yet</b></span></button></div>`);
+    document.querySelectorAll('#modal [data-quote]').forEach((b) => b.addEventListener('click', () => {
+      p.quotes.forEach((q) => { q.chosen = q.id === b.dataset.quote; if (q.chosen && q.amount) p.estValue = q.amount; });
+      U.close();
+      proceed();
+    }));
+  }
+
+  // Ordered: when should it arrive? Sets a reminder for that day to schedule the install.
+  function orderedForm(p) {
+    U.openForm({
+      title: 'Order placed',
+      intro: `<p class="form-context">For <b>${esc(p.name)}</b>. Products usually take 1 to 3 months. You'll get a reminder that day to schedule the install.</p>`,
+      fields: [{ name: 'eta', label: 'When should it arrive?', type: 'date', required: true, quick: [['4 weeks', 28], ['6 weeks', 42], ['8 weeks', 56], ['12 weeks', 84]] }],
+      values: { eta: p.eta || U.addDays(U.today(), 42) },
+      submitLabel: 'Save',
+      onSubmit(d) {
+        p.eta = d.eta;
+        if (['lead', 'consult', 'quoted', 'measure'].includes(p.stage)) S.setStage(p, 'ordered');
+        p.items.forEach((i) => { if (!i.status || i.status === 'Quoted') i.status = 'Ordered'; });
+        S.all('tasks').filter((t) => t.projectId === p.id && t.auto === 'eta' && !t.done).forEach((t) => S.remove('tasks', t.id));
+        S.upsert('tasks', { title: 'Product should be in: schedule the install', due: d.eta, projectId: p.id, contactId: '', done: false, auto: 'eta', forStage: 'ordered' });
+        S.touch(p);
+        U.toast(`Marked as ordered. Reminder set for ${U.fmtDate(d.eta)}.`);
+        render();
+      },
+    });
+  }
+
+  function finishJob(p) {
+    S.setStage(p, 'complete');
+    p.items.forEach((i) => { if (i.status !== 'Issue') i.status = 'Installed'; });
+    S.touch(p);
+  }
+
+  function jobMenu(p) {
+    const opts = [
+      ['edit', 'Edit job details'],
+      ['person', 'Add a person'],
+      ['step', 'Move to a different step'],
+      ['phases', p.phases.length ? 'Add a job phase' : 'Track phases (big jobs)'],
+      ...(section(p) !== 'closed' ? [['lost', 'Mark as lost']] : []),
+    ];
+    U.openInfo(p.name, `<div class="chooser">${opts.map(([k, l]) => `<button class="chooser-btn" data-pick="${k}"><span><b>${l}</b></span></button>`).join('')}</div>`);
+    document.querySelectorAll('#modal [data-pick]').forEach((b) => b.addEventListener('click', () => {
+      U.close();
+      ({
+        edit: () => projectForm(p),
+        person: () => addPersonForm(p),
+        step: () => statusPicker('Move to step', C.STAGES.map((s) => s.label), C.stage(p.stage).label, () => 'st-sales', (label) => {
+          const st = C.STAGES.find((s) => s.label === label);
+          if (st.id === 'complete') finishJob(p); else S.setStage(p, st.id);
+          render(); U.toast(`Moved to “${label}”`);
+        }),
+        phases: () => {
+          if (p.phases.length) { phaseForm(p); return; }
+          C.PHASE_TEMPLATE.forEach((ph) => p.phases.push({ id: S.uid(), name: ph.name, waitingOn: ph.waitingOn, status: 'To do', date: '', notes: '' }));
+          S.touch(p); go(`#/project/${p.id}`); render(); U.toast('Phases added to the Overview. Delete any that don\'t apply.');
+        },
+        lost: () => actions.markLost({ project: p.id }),
+      })[b.dataset.pick]();
+    }));
+  }
+
   function itemForm(p, i = {}) {
     const isNew = !i.id;
     const rooms = [...new Set(p.items.map((x) => x.room).filter(Boolean))];
-    const roomList = [...new Set([...rooms, 'Living Room', 'Kitchen', 'Dining', 'Primary Bedroom', 'Primary Bath', 'Bedroom 2', 'Bedroom 3', 'Office', 'Family Room', 'Great Room', 'Laundry', 'Patio', 'Lanai'])];
+    const roomList = [...new Set([...rooms, 'Living Room', 'Kitchen', 'Dining', 'Primary Bedroom', 'Primary Bath', 'Bedroom 2', 'Bedroom 3', 'Office', 'Family Room', 'Great Room', 'Laundry', 'Patio'])];
+    const products = [...new Set(S.all('projects').flatMap((x) => x.items.map((it) => it.product)).filter(Boolean))].sort();
+    const brands = [...new Set(Object.values(S.db.settings.brands).flat())].sort();
+    const mounts = ['Inside', 'Outside', 'Ceiling', ...(i.mount && !['Inside', 'Outside', 'Ceiling'].includes(i.mount) ? [i.mount] : [])];
     const fields = [
       { name: 'room', label: 'Room', list: roomList, half: true, required: true },
-      { name: 'location', label: 'Window / location', placeholder: 'e.g. Left of sink, Slider', half: true },
-      { name: 'category', label: 'Category', type: 'select', options: C.CATEGORIES, half: true },
-      { name: 'brand', label: 'Brand', list: [], half: true },
-      { name: 'product', label: 'Product / line', placeholder: 'e.g. Duette, Silhouette, Palm Beach', half: true },
+      { name: 'location', label: 'Window', placeholder: 'e.g. Left of sink', half: true },
+      { name: 'width', label: 'Width (inches)', placeholder: '34 3/8', half: true },
+      { name: 'height', label: 'Height (inches)', placeholder: '60 1/4', half: true },
+      { name: 'product', label: 'Product', list: products, placeholder: 'e.g. Duette, shutters', half: true },
       { name: 'color', label: 'Fabric / color', half: true },
-      { name: 'width', label: 'Width (in)', placeholder: '34 3/8', half: true },
-      { name: 'height', label: 'Height (in)', placeholder: '60 1/4', half: true },
-      { name: 'mount', label: 'Mount', type: 'select', options: ['', ...C.MOUNTS, ...(i.mount && !C.MOUNTS.includes(i.mount) ? [i.mount] : [])], half: true },
-      { name: 'control', label: 'Control / power', type: 'select', options: ['', ...C.CONTROLS, ...(i.control && !C.CONTROLS.includes(i.control) ? [i.control] : [])], half: true },
-      { name: 'qty', label: 'Qty', type: 'number', step: 1, half: true },
-      { name: 'price', label: 'Price each ($)', type: 'number', half: true },
-      { name: 'status', label: 'Status', type: 'select', options: C.ITEM_STATUSES },
-      { name: 'notes', label: 'Notes (stack direction, obstructions, wiring location…)', type: 'textarea', rows: 2 },
+      { name: 'mount', label: 'Mount', type: 'chips', options: mounts },
+      { name: 'control', label: 'Control', type: 'select', options: ['', ...C.CONTROLS, ...(i.control && !C.CONTROLS.includes(i.control) ? [i.control] : [])] },
+      { name: 'brand', label: 'Brand', list: brands, half: true, more: true },
+      { name: 'category', label: 'Category', type: 'select', options: C.CATEGORIES, half: true, more: true },
+      { name: 'qty', label: 'Quantity', type: 'number', step: 1, half: true, more: true },
+      { name: 'price', label: 'Price each ($)', type: 'number', half: true, more: true },
+      { name: 'notes', label: 'Notes (stack side, obstructions, wiring…)', type: 'textarea', rows: 2, more: true },
     ];
     const last = p.items[p.items.length - 1];
     U.openForm({
-      title: isNew ? 'Add window / product' : 'Edit product', fields,
-      values: isNew ? { qty: 1, status: 'Quoted', category: last ? last.category : 'Shades', room: last ? last.room : '', brand: last ? last.brand : '', product: last ? last.product : '', mount: last ? last.mount : '', control: last ? last.control : '' } : i,
-      after(form) {
-        const dl = form.querySelector('#dl_brand');
-        const fill = () => { dl.innerHTML = (S.db.settings.brands[form.elements.category.value] || []).map((b) => `<option value="${esc(b)}">`).join(''); };
-        form.elements.category.addEventListener('change', fill);
-        fill();
-      },
+      title: isNew ? 'Add window' : 'Edit window', fields,
+      values: isNew ? { qty: 1, room: last ? last.room : '', product: last ? last.product : '', brand: last ? last.brand : '', color: last ? last.color : '', mount: last ? last.mount : 'Inside', control: last ? last.control : '', category: last ? last.category : 'Shades' } : i,
+      submitLabel: isNew ? 'Add' : 'Save',
       onSubmit(d) {
-        if (isNew) p.items.push({ ...d, id: S.uid() });
+        if (isNew && (!last || d.category === last.category)) d.category = WC.importer.categoryOf(`${d.brand} ${d.product}`) || d.category;
+        if (isNew) p.items.push({ ...d, id: S.uid(), status: section(p) === 'sales' ? 'Quoted' : 'Ordered' });
         else Object.assign(p.items.find((x) => x.id === i.id), d);
-        S.touch(p); render();
+        S.touch(p); render(); U.toast(isNew ? 'Window added' : 'Saved');
       },
       onDelete: isNew ? null : () => { p.items = p.items.filter((x) => x.id !== i.id); S.touch(p); render(); },
     });
@@ -1164,36 +1334,32 @@
   }
 
   function fileForm(p, opts = {}) {
-    const early = !opts.label && ['lead', 'consult', 'quoting'].includes(p.stage);
+    const def = opts.label || (state.fileFilter !== 'all' ? state.fileFilter : section(p) === 'sales' ? 'Quote' : 'Plans');
     const fields = [
-      { name: 'file', label: opts.multiple ? 'Files (PDF or photos, pick several at once)' : 'File (PDF or photo)', type: 'file', accept: 'application/pdf,image/*', required: true, multiple: !!opts.multiple },
-      { name: 'label', label: 'Type', type: 'select', options: C.DOC_LABELS, half: true },
-      ...(opts.multiple ? [] : [{ name: 'title', label: 'Name (optional)', placeholder: 'Uses the file name', half: true }]),
-      { name: 'note', label: 'Note', type: 'textarea', rows: 2, placeholder: 'e.g. Option B with motorized great room' },
-      ...(early ? [{ name: 'markSent', label: 'Move job to “Proposal Sent” and set a 3-day follow-up', type: 'checkbox' }] : []),
+      { name: 'file', label: 'Choose files (PDFs or photos)', type: 'file', accept: 'application/pdf,image/*,.csv,.xlsx,.xls', required: true, multiple: true },
+      { name: 'label', label: 'What is it?', type: 'chips', options: C.DOC_LABELS },
+      { name: 'note', label: 'Note (optional)', more: true },
     ];
     U.openForm({
-      title: opts.title || 'Attach to ' + p.name, fields, submitLabel: opts.multiple ? 'Upload' : 'Attach',
-      values: { label: opts.label || (section(p) === 'sales' ? 'Proposal' : 'Other'), markSent: early },
-      after(form) {
-        const box = form.elements.markSent && form.elements.markSent.closest('.field');
-        if (box) form.elements.label.addEventListener('change', () => { box.style.display = form.elements.label.value === 'Proposal' ? '' : 'none'; });
-      },
+      title: opts.title || 'Upload files',
+      intro: `<p class="form-context">For <b>${esc(p.name)}</b></p>`,
+      fields, values: { label: def }, submitLabel: 'Upload',
       onSubmit(d) {
         const files = [].concat(d.file || []);
-        if (!files.length) { U.toast('Choose a file to attach'); return false; }
+        const label = d.label || def;
+        if (!files.length) { U.toast('Choose a file'); return false; }
         if (files.some((f) => f.size > 50 * 1048576)) { U.toast('A file is over 50 MB. Try a smaller PDF.'); return false; }
         Promise.all(files.map((file) => {
           const id = S.uid();
           return WC.files.put(id, file).then(() => {
-            p.files.push({ id, name: (files.length === 1 && d.title) || file.name, label: d.label, type: file.type || 'application/pdf', size: file.size, addedAt: new Date().toISOString(), note: d.note });
+            p.files.push({ id, name: file.name, label, type: file.type || 'application/pdf', size: file.size, addedAt: new Date().toISOString(), note: d.note });
+            // An uploaded quote also shows in the job's Quotes list.
+            if (label === 'Quote') p.quotes.push({ id: S.uid(), name: file.name.replace(/\.[^.]+$/, ''), amount: '', note: d.note, fileId: id, date: U.today(), chosen: false });
           });
         })).then(() => {
-          let msg = files.length > 1 ? `${files.length} files uploaded` : 'Attached';
-          if (d.markSent && d.label === 'Proposal') {
-            const t = S.setStage(p, 'proposal');
-            if (t) msg += ` · moved to Proposal Sent, follow-up ${U.relDate(t.due).toLowerCase()}`;
-          }
+          let msg = files.length > 1 ? `${files.length} files uploaded` : 'Uploaded';
+          if (label === 'Quote' && ['lead', 'consult'].includes(p.stage)) { S.setStage(p, 'quoted'); msg += '. Job moved to “Quotes out”.'; }
+          state.fileFilter = 'all';
           S.touch(p); render(); U.toast(msg);
         }).catch((e) => U.toast('Could not save the file: ' + ((e && e.message) || 'storage unavailable')));
       },
@@ -1438,42 +1604,58 @@
     const pattCo = S.all('companies').find((x) => x.id === mike.companyId);
     S.upsert('companies', { ...pattCo, phone: '(555) 330-1000', notes: 'Custom builder. Wants pre-wire done before insulation.' });
 
-    const proj = (o) => S.upsert('projects', { items: [], phases: [], log: [], files: [], notes: '', estValue: '', ...o });
-    const p1 = proj({ name: 'Johnson – Lakeview Dr', stage: 'consult', type: 'Existing home', source: 'Interior designer', address: '42 Lakeview Dr',
-      contacts: [{ contactId: sarah.id, role: 'Homeowner' }, { contactId: dana.id, role: 'Interior Designer' }],
-      notes: 'Interested in: motorized shades for great room, shutters in bedrooms', estValue: 8500,
-      stageHistory: [{ stage: 'lead', at: iso(-5) }, { stage: 'consult', at: iso(-4) }],
-      log: [{ id: S.uid(), date: U.addDays(t, -5), type: 'Call', contactId: dana.id, summary: 'Dana referred Sarah. Great room has 6 tall windows facing west.' }] });
-    S.upsert('events', { title: 'Consult – Johnson', type: 'sales', projectId: p1.id, date: U.addDays(t, 1), start: '10:00', end: '11:30', days: 1, location: p1.address, notes: 'Bring Duette & shutter samples. Dana will join.', done: false });
+    const linh = c({ name: 'Linh Nguyen', role: 'Homeowner', phone: '(555) 388-2290', address: '310 Elm St' });
+    const jordan = c({ name: 'Jordan Brooks', role: 'Homeowner', phone: '(555) 912-6631', address: '5 Pine Ave' });
+    const hist = (...steps) => steps.map(([stage, d]) => ({ stage, at: iso(d) }));
+    const proj = (o) => S.upsert('projects', { items: [], phases: [], log: [], files: [], quotes: [], notes: '', estValue: '', referredBy: '', ...o });
 
-    const p2 = proj({ name: 'Greene – Harbor Ct', stage: 'proposal', type: 'Existing home', source: 'Referral', address: '9 Harbor Ct',
+    // New lead: referral from a designer, needs a sales call booked.
+    const p6 = proj({ name: 'Jordan Brooks – 5 Pine Ave', stage: 'lead', address: '5 Pine Ave', referredBy: 'Dana Ruiz', source: 'Referral',
+      contacts: [{ contactId: jordan.id, role: 'Homeowner' }, { contactId: dana.id, role: 'Interior Designer' }],
+      notes: 'Looking for: blackout shades in bedrooms, something nice for the living room', stageHistory: hist(['lead', 0]) });
+    S.upsert('tasks', { title: 'Call Jordan to book a sales call', due: t, projectId: p6.id, contactId: jordan.id, done: false, forStage: 'lead' });
+
+    // Sales calls: first visit is tomorrow.
+    const p1 = proj({ name: 'Johnson – Lakeview Dr', stage: 'consult', address: '42 Lakeview Dr', referredBy: 'Dana Ruiz', source: 'Referral',
+      contacts: [{ contactId: sarah.id, role: 'Homeowner' }, { contactId: dana.id, role: 'Interior Designer' }],
+      notes: 'Looking for: motorized shades for the great room, shutters in bedrooms', estValue: 8500,
+      stageHistory: hist(['lead', -5], ['consult', -4]),
+      log: [{ id: S.uid(), date: U.addDays(t, -5), type: 'Call', contactId: dana.id, summary: 'Dana referred Sarah. Great room has 6 tall windows facing west.' }] });
+    S.upsert('events', { title: 'Sales call – Johnson – Lakeview Dr', type: 'sales', projectId: p1.id, date: U.addDays(t, 1), start: '10:00', end: '', days: 1, location: p1.address, notes: 'Bring Duette & shutter samples. Dana will join.', done: false });
+
+    // Quotes out: two options sent, checking in.
+    const p2 = proj({ name: 'Greene – Harbor Ct', stage: 'quoted', address: '9 Harbor Ct', referredBy: 'Past client', source: 'Referral',
       contacts: [{ contactId: tom.id, role: 'Homeowner' }], estValue: 4200,
-      stageHistory: [{ stage: 'lead', at: iso(-20) }, { stage: 'quoting', at: iso(-12) }, { stage: 'proposal', at: iso(-9) }],
+      stageHistory: hist(['lead', -20], ['consult', -16], ['quoted', -9]),
       items: [
         { id: S.uid(), room: 'Patio', location: 'South opening', category: 'Outdoor Screens & Shades', brand: 'Phantom Screens', product: 'Executive', color: 'Charcoal 90%', width: '144', height: '96', mount: 'Outside', control: 'Motorized – hardwired', qty: 1, price: 3200, status: 'Quoted', notes: '' },
         { id: S.uid(), room: 'Kitchen', location: 'Over sink', category: 'Shades', brand: 'Hunter Douglas', product: 'Vignette', color: 'Linen', width: '36 1/2', height: '48', mount: 'Inside', control: 'Cordless', qty: 1, price: 1000, status: 'Quoted', notes: '' },
       ],
-      log: [{ id: S.uid(), date: U.addDays(t, -9), type: 'Email', contactId: tom.id, summary: 'Sent proposal. They want to think about the patio screen color.' }] });
-    S.upsert('tasks', { title: 'Follow up on proposal', due: U.addDays(t, -2), projectId: p2.id, contactId: tom.id, done: false });
+      log: [{ id: S.uid(), date: U.addDays(t, -16), type: 'Visit', contactId: tom.id, summary: 'Sales call: they want shade on the patio in the afternoon and something simple for the kitchen. Rough sizes taken.' }] });
+    S.upsert('tasks', { title: 'Check in on the quotes', due: U.addDays(t, -2), projectId: p2.id, contactId: tom.id, done: false, forStage: 'quoted' });
     const pdfId = S.uid();
     const pdf = samplePdf([
-      ['PROPOSAL', 22], ['Window treatments for Tom & Lisa Greene', 13], ['9 Harbor Ct', 11], [`Prepared ${U.fmtDate(U.addDays(t, -9), { month: 'long', day: 'numeric', year: 'numeric' })}`, 11], ['', 11],
+      ['QUOTE - OPTION A', 22], ['Window treatments for Tom & Lisa Greene', 13], ['9 Harbor Ct', 11], [`Prepared ${U.fmtDate(U.addDays(t, -9), { month: 'long', day: 'numeric', year: 'numeric' })}`, 11], ['', 11],
       ['Patio - south opening', 13], ['Phantom Screens Executive retractable screen, Charcoal 90%', 11], ['Motorized, hardwired. 144 in W x 96 in H, outside mount            $3,200', 11], ['', 11],
       ['Kitchen - over sink', 13], ['Hunter Douglas Vignette modern roman shade, Linen', 11], ['Cordless. 36 1/2 in W x 48 in H, inside mount                        $1,000', 11], ['', 11],
       ['Total (installed)                                                    $4,200', 13], ['', 11],
       ['Sample document created for the demo.', 9],
     ]);
-    p2.files.push({ id: pdfId, name: 'Greene proposal.pdf', label: 'Proposal', type: 'application/pdf', size: pdf.size, addedAt: iso(-9), note: 'Option A: motorized patio screen' });
+    p2.files.push({ id: pdfId, name: 'Greene quote - Option A.pdf', label: 'Quote', type: 'application/pdf', size: pdf.size, addedAt: iso(-9), note: '' });
+    p2.quotes.push({ id: S.uid(), name: 'Option A – Motorized patio screen', amount: 4200, note: 'Includes kitchen Vignette', fileId: pdfId, date: U.addDays(t, -9), chosen: false });
+    p2.quotes.push({ id: S.uid(), name: 'Option B – Manual patio screen', amount: 3100, note: 'Crank operation, same kitchen shade', fileId: '', date: U.addDays(t, -9), chosen: false });
     S.touch(p2);
     WC.files.put(pdfId, pdf).catch(() => {});
+    S.upsert('events', { title: 'Sales call – Greene – Harbor Ct', type: 'sales', projectId: p2.id, date: U.addDays(t, -3), start: '13:00', end: '', days: 1, location: p2.address, notes: 'Go over Option A vs B', done: false });
 
-    const p3 = proj({ name: 'Patterson Homes – Lot 14', stage: 'waiting', type: 'New construction', source: 'Builder / contractor', address: '1400 Ridge Rd',
+    // Final measure: big new-construction job waiting on drywall (uses job phases).
+    const p3 = proj({ name: 'Patterson Homes – Lot 14', stage: 'measure', address: '1400 Ridge Rd', referredBy: 'Patterson Homes', source: 'Referral',
       contacts: [{ contactId: mike.id, role: 'Builder / GC' }, { contactId: dana.id, role: 'Interior Designer' }, { contactId: ed.id, role: 'Electrician' }], estValue: 38000,
-      stageHistory: [{ stage: 'lead', at: iso(-60) }, { stage: 'sold', at: iso(-40) }, { stage: 'prewire', at: iso(-30) }, { stage: 'waiting', at: iso(-14) }],
-      phases: C.PHASE_TEMPLATE.map((ph, i) => ({ id: S.uid(), name: ph.name, waitingOn: ph.waitingOn, notes: '', date: i === 3 ? U.addDays(t, 18) : '', status: i < 3 ? 'Done' : i === 3 ? 'Waiting' : 'To do' })),
+      stageHistory: hist(['lead', -60], ['consult', -55], ['quoted', -48], ['measure', -40]),
+      phases: C.PHASE_TEMPLATE.slice(0, 6).map((ph, i) => ({ id: S.uid(), name: ph.name, waitingOn: ph.waitingOn, notes: '', date: i === 3 ? U.addDays(t, 18) : '', status: i < 3 ? 'Done' : i === 3 ? 'Waiting' : 'To do' })),
       items: ['Great Room', 'Great Room', 'Primary Bedroom', 'Primary Bath', 'Office'].map((room, i) => ({ id: S.uid(), room, location: `Window ${i + 1}`, category: 'Shades', brand: 'Lutron', product: 'Sivoia QS Roller', color: 'Basketweave 3%', width: '', height: '', mount: 'Pocket', control: 'Motorized – hardwired', qty: 1, price: 1800, status: 'Quoted', notes: 'Wire pulled to left side' })),
-      log: [{ id: S.uid(), date: U.addDays(t, -30), type: 'Site visit', contactId: ed.id, summary: 'Ran low-voltage to all 5 shade pockets with Ed. Marked headers for blocking.' },
-        { id: S.uid(), date: U.addDays(t, -7), type: 'Call', contactId: mike.id, summary: 'Mike says drywall starts in ~2 weeks. Will call when paint is done.' }] });
+      log: [{ id: S.uid(), date: U.addDays(t, -30), type: 'Visit', contactId: ed.id, summary: 'Ran low-voltage to all 5 shade pockets with Ed. Marked headers for blocking.' },
+        { id: S.uid(), date: U.addDays(t, -7), type: 'Call', contactId: mike.id, summary: 'Mike says drywall starts in about 2 weeks. He will call when paint is done so we can do the final measure.' }] });
     // Simple floor plan sheet: room outlines with window marks.
     const plan = samplePdf([
       ['LOT 14 - FIRST FLOOR PLAN', 16, 40, 560], ['Patterson Homes  |  Window treatment layout  |  Scale 1/8 in = 1 ft', 9, 40, 544],
@@ -1483,7 +1665,7 @@
     ], '0.15 0.2 0.3 RG 2 w 60 80 m 700 80 l 700 470 l 60 470 h S 1 w 360 80 m 360 470 l S 60 270 m 700 270 l S 420 80 m 420 270 l S '
       + '0.35 0.55 0.8 RG 5 w 80 470 m 150 470 l S 210 470 m 280 470 l S 500 470 m 590 470 l S 700 290 m 700 360 l S 60 140 m 60 200 l S', [792, 612]);
     const planId = S.uid();
-    p3.files.push({ id: planId, name: 'Lot 14 first floor plan.pdf', label: 'Plans / drawings', type: 'application/pdf', size: plan.size, addedAt: iso(-45), note: 'From Patterson Homes, rev B' });
+    p3.files.push({ id: planId, name: 'Lot 14 first floor plan.pdf', label: 'Plans', type: 'application/pdf', size: plan.size, addedAt: iso(-45), note: 'From Patterson Homes, rev B' });
     WC.files.put(planId, plan).catch(() => {});
     const sheetCsv = 'Room,Window,Width,Height,Qty,Brand,Product,Fabric / Color,Mount,Control,Price\n'
       + p3.items.map((i) => [i.room, i.location, '', '', 1, i.brand, i.product, i.color, i.mount, i.control, i.price].join(',')).join('\n') + '\n';
@@ -1493,20 +1675,27 @@
     WC.files.put(sheetId, sheet).catch(() => {});
     S.touch(p3);
 
-    S.upsert('events', { title: 'Site meeting – Patterson Lot 14', type: 'meeting', projectId: p3.id, date: U.addDays(t, 3), start: '08:00', end: '09:00', days: 1, location: p3.address, notes: 'Walk with Mike & Dana, confirm pocket sizes.', done: false });
+    S.upsert('events', { title: 'Site visit – Patterson Homes – Lot 14', type: 'meeting', projectId: p3.id, date: U.addDays(t, 3), start: '08:00', end: '09:00', days: 1, location: p3.address, notes: 'Walk with Mike & Dana, confirm pocket sizes.', done: false });
     S.upsert('tasks', { title: 'Check with Mike on drywall schedule', due: U.addDays(t, 7), projectId: p3.id, contactId: mike.id, done: false });
 
-    proj({ name: 'Alvarez – Oak Ln', stage: 'complete', type: 'Existing home', source: 'Interior designer', address: '18 Oak Ln',
+    proj({ name: 'Alvarez – Oak Ln', stage: 'complete', address: '18 Oak Ln', referredBy: 'Dana Ruiz', source: 'Referral',
       contacts: [{ contactId: maria.id, role: 'Homeowner' }, { contactId: dana.id, role: 'Interior Designer' }], estValue: 6200,
-      stageHistory: [{ stage: 'lead', at: iso(-150) }, { stage: 'sold', at: iso(-130) }, { stage: 'complete', at: iso(-110) }],
+      stageHistory: hist(['lead', -150], ['consult', -146], ['quoted', -140], ['measure', -134], ['ordered', -130], ['install', -111], ['complete', -110]),
       items: ['Living Room', 'Living Room', 'Dining', 'Primary Bedroom'].map((room, i) => ({ id: S.uid(), room, location: `Window ${i + 1}`, category: 'Shades', brand: 'Hunter Douglas', product: 'Silhouette', color: 'Opal', width: '42', height: '66', mount: 'Inside', control: 'Motorized – battery', qty: 1, price: 1550, status: 'Installed', notes: '' })),
-      log: [{ id: S.uid(), date: U.addDays(t, -110), type: 'Site visit', contactId: maria.id, summary: 'Install complete. Programmed PowerView scenes for morning and evening. Maria very happy.' }] });
+      log: [{ id: S.uid(), date: U.addDays(t, -110), type: 'Visit', contactId: maria.id, summary: 'Install complete. Programmed PowerView scenes for morning and evening. Maria very happy.' }] });
 
-    const p4 = proj({ name: 'Kim – Maple St', stage: 'install', type: 'Existing home', source: 'Website', address: '77 Maple St',
-      contacts: [], estValue: 2600, stageHistory: [{ stage: 'lead', at: iso(-25) }, { stage: 'sold', at: iso(-18) }, { stage: 'install', at: iso(0) }],
+    // Ordered: waiting on product.
+    const p5 = proj({ name: 'Linh Nguyen – 310 Elm St', stage: 'ordered', address: '310 Elm St', referredBy: 'Website', eta: U.addDays(t, 20),
+      contacts: [{ contactId: linh.id, role: 'Homeowner' }], estValue: 5400,
+      stageHistory: hist(['lead', -70], ['consult', -66], ['quoted', -60], ['measure', -45], ['ordered', -40]),
+      items: ['Living Room', 'Living Room', 'Living Room', 'Den'].map((room, i) => ({ id: S.uid(), room, location: ['Left', 'Center', 'Right', 'Window'][i], category: 'Shades', brand: 'Hunter Douglas', product: 'Pirouette', color: 'Snow', width: ['30 1/4', '60 1/2', '30 1/4', '36'][i], height: '64', mount: 'Inside', control: 'Cordless', qty: 1, price: 1350, status: 'Ordered', notes: '' })) });
+    S.upsert('tasks', { title: 'Product should be in: schedule the install', due: U.addDays(t, 20), projectId: p5.id, contactId: '', done: false, auto: 'eta', forStage: 'ordered' });
+
+    // Install: two-day install starting today.
+    const p4 = proj({ name: 'Kim – Maple St', stage: 'install', address: '77 Maple St',
+      contacts: [], estValue: 2600, stageHistory: hist(['lead', -90], ['consult', -86], ['quoted', -80], ['measure', -74], ['ordered', -70], ['install', -1]),
       items: ['Living Room', 'Living Room', 'Bedroom 2'].map((room, i) => ({ id: S.uid(), room, location: `Window ${i + 1}`, category: 'Shutters', brand: 'Norman', product: 'Woodlore', color: 'Pure White', width: '30', height: '54', mount: 'Inside', control: '', qty: 1, price: 850, status: i === 0 ? 'Installed' : 'Received', notes: '' })) });
-    S.upsert('events', { title: 'Install – Kim', type: 'install', projectId: p4.id, date: t, start: '09:00', end: '15:00', days: 2, location: p4.address, notes: '', done: false });
-    S.upsert('events', { title: 'Measure – Greene patio', type: 'measure', projectId: p2.id, date: U.addDays(t, -3), start: '13:00', end: '14:00', days: 1, location: p2.address, notes: '', done: false });
+    S.upsert('events', { title: 'Install – Kim – Maple St', type: 'install', projectId: p4.id, date: t, start: '09:00', end: '15:00', days: 2, location: p4.address, notes: '', done: false });
     if (quiet !== true) U.toast('Sample data loaded');
     go('#/home');
   }
@@ -1530,7 +1719,26 @@
     newTask: (ds) => taskForm({}, { projectId: ds.project, contactId: ds.contact }),
     editTask: (ds) => taskForm(S.get('tasks', ds.id)),
     toggleTask: (ds) => { const t = S.get('tasks', ds.id); t.done = !t.done; t.doneAt = t.done ? new Date().toISOString() : null; S.save(); setTimeout(render, 250); },
-    snooze: (ds) => { const t = S.get('tasks', ds.id); t.due = U.addDays(t.due < U.today() ? U.today() : t.due, Number(ds.days)); S.save(); render(); U.toast(`Moved to ${U.relDate(t.due)}`); },
+
+    addQuote: (ds) => quoteForm(proj(ds)),
+    editQuote: (ds) => { const p = proj(ds); quoteForm(p, p.quotes.find((q) => q.id === ds.id)); },
+    acceptJob: (ds) => acceptJob(proj(ds)),
+    markOrdered: (ds) => orderedForm(proj(ds)),
+    markDone: (ds) => {
+      const p = proj(ds);
+      U.ask('Mark this job as finished?', () => { finishJob(p); render(); U.toast('Job finished. A check-in reminder is set for two weeks from now.'); }, 'Job finished');
+    },
+    markLost: (ds) => {
+      const p = proj(ds);
+      U.ask('Mark this job as lost? You can reopen it later.', () => { S.setStage(p, 'lost'); render(); U.toast('Marked as lost'); }, 'Mark as lost');
+    },
+    reopen: (ds) => {
+      const p = proj(ds);
+      const prev = p.stageHistory.slice().reverse().find((h) => C.stage(h.stage).section !== 'closed');
+      S.setStage(p, prev ? prev.stage : 'consult');
+      render(); U.toast(`Reopened at “${C.stage(p.stage).label}”`);
+    },
+    jobMenu: (ds) => jobMenu(proj(ds)),
 
     newLog: (ds) => logForm(ds.project ? proj(ds) : null),
     editLog: (ds) => { const p = proj(ds); logForm(p, p.log.find((l) => l.id === ds.id)); },
@@ -1560,6 +1768,7 @@
     },
 
     addFile: (ds) => fileForm(proj(ds)),
+    setFileFilter: (ds) => { state.fileFilter = ds.value; render(); },
     viewFile: (ds) => { const p = proj(ds); viewFile(p, p.files.find((f) => f.id === ds.id)); },
     editFile: (ds) => { const p = proj(ds); fileEditForm(p, p.files.find((f) => f.id === ds.id)); },
 
@@ -1614,13 +1823,6 @@
   };
 
   const changes = {
-    setStage: (el) => {
-      const p = S.get('projects', el.dataset.id);
-      const task = S.setStage(p, el.value);
-      const hint = el.value === 'proposal' && !p.files.some((f) => f.label === 'Proposal') ? ' Attach the proposal PDF under Documents.' : '';
-      U.toast((task ? `Stage updated. Added follow-up: “${task.title}”.` : 'Stage updated.') + hint);
-      render();
-    },
     bulkStatus: (el) => {
       const status = el.value;
       el.value = '';

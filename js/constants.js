@@ -2,21 +2,21 @@
 window.WC = window.WC || {};
 
 WC.C = {
-  // Every job moves through one pipeline, from first contact to after the final install.
-  // `section` decides whether it shows under Sales, Installs, or Closed.
+  // A job's steps, in order, matching how a typical job goes: referral → sales call(s) →
+  // quotes → final measure → order (1–3 months) → install. `section` puts it under Sales or Installs.
   STAGES: [
-    { id: 'lead',     label: 'New Lead',              section: 'sales' },
-    { id: 'consult',  label: 'Consult Scheduled',     section: 'sales' },
-    { id: 'quoting',  label: 'Measure / Quoting',     section: 'sales' },
-    { id: 'proposal', label: 'Proposal Sent',         section: 'sales' },
-    { id: 'sold',     label: 'Sold – Ordering',       section: 'install' },
-    { id: 'prewire',  label: 'Pre-wire / Rough-in',   section: 'install' },
-    { id: 'waiting',  label: 'Waiting on Trades',     section: 'install' },
-    { id: 'install',  label: 'Installing',            section: 'install' },
-    { id: 'punch',    label: 'Punch List / Service',  section: 'install' },
-    { id: 'complete', label: 'Complete',              section: 'closed' },
-    { id: 'lost',     label: 'Lost',                  section: 'closed' },
+    { id: 'lead',     label: 'New lead',      step: 'Lead',          section: 'sales' },
+    { id: 'consult',  label: 'Sales calls',   step: 'Sales calls',   section: 'sales' },
+    { id: 'quoted',   label: 'Quotes out',    step: 'Quotes',        section: 'sales' },
+    { id: 'measure',  label: 'Final measure', step: 'Final measure', section: 'install' },
+    { id: 'ordered',  label: 'Ordered',       step: 'Ordered',       section: 'install' },
+    { id: 'install',  label: 'Install',       step: 'Install',       section: 'install' },
+    { id: 'complete', label: 'Done',          step: 'Done',          section: 'closed' },
+    { id: 'lost',     label: 'Lost',          step: 'Lost',          section: 'closed' },
   ],
+
+  // Older versions of the app used more steps; this maps them onto the current ones.
+  OLD_STAGES: { quoting: 'consult', proposal: 'quoted', sold: 'measure', prewire: 'measure', waiting: 'measure', punch: 'install' },
 
   CATEGORIES: ['Shades', 'Blinds', 'Shutters', 'Drapery', 'Outdoor Screens & Shades', 'Motorization / Controls', 'Hardware / Other'],
 
@@ -50,19 +50,21 @@ WC.C = {
 
   LEAD_SOURCES: ['Referral', 'Interior designer', 'Builder / contractor', 'Website', 'Showroom', 'Repeat customer', 'Home show', 'Phone call', 'Other'],
 
+  // `pick` types are the choices when scheduling; the rest only show on older appointments.
   EVENT_TYPES: [
-    { id: 'sales',   label: 'Sales call',      color: '#5b6f86' },
-    { id: 'measure', label: 'Measure',         color: '#8a7896' },
-    { id: 'install', label: 'Install',         color: '#5f8466' },
+    { id: 'sales',   label: 'Sales call',       color: '#5b6f86', pick: true },
+    { id: 'measure', label: 'Final measure',    color: '#8a7896', pick: true },
+    { id: 'install', label: 'Install',          color: '#5f8466', pick: true },
+    { id: 'meeting', label: 'Site visit',       color: '#5f8a8b', pick: true },
+    { id: 'other',   label: 'Other',            color: '#9a948c', pick: true },
     { id: 'prewire', label: 'Pre-wire / drill', color: '#b38a47' },
     { id: 'service', label: 'Service / repair', color: '#ad5d52' },
-    { id: 'meeting', label: 'Site meeting',    color: '#5f8a8b' },
-    { id: 'other',   label: 'Other',           color: '#9a948c' },
   ],
 
-  DOC_LABELS: ['Proposal', 'Signed contract', 'Quote / estimate', 'Order sheet', 'Invoice', 'Plans / drawings', 'Photo', 'Spec sheet', 'Other'],
+  DOC_LABELS: ['Plans', 'Quote', 'Order sheet', 'Photo', 'Contract', 'Other'],
+  OLD_DOC_LABELS: { 'Proposal': 'Quote', 'Quote / estimate': 'Quote', 'Plans / drawings': 'Plans', 'Signed contract': 'Contract', 'Invoice': 'Other', 'Spec sheet': 'Other' },
 
-  LOG_TYPES: ['Call', 'Text', 'Email', 'Meeting', 'Site visit', 'Note'],
+  LOG_TYPES: ['Note', 'Call', 'Text', 'Email', 'Visit'],
 
   ITEM_STATUSES: ['Quoted', 'Ordered', 'Received', 'Installed', 'Issue'],
 
@@ -84,12 +86,12 @@ WC.C = {
     { name: 'Walkthrough & punch list', waitingOn: '' },
   ],
 
-  // Follow-ups created automatically when a job enters a stage. days = offset from today.
+  // Reminders created automatically when a job reaches a step. days = from today.
   STAGE_AUTOTASKS: {
-    proposal: { title: 'Follow up on proposal', days: 3 },
-    sold:     { title: 'Place product orders', days: 1 },
-    complete: { title: 'Post-install check-in (happy? referrals? review?)', days: 14 },
+    quoted:   { title: 'Check in on the quotes', days: 4 },
+    complete: { title: 'Check in after install (happy? referrals? review?)', days: 14 },
   },
+
 };
 
 WC.C.stage = (id) => WC.C.STAGES.find((s) => s.id === id) || WC.C.STAGES[0];

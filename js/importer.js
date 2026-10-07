@@ -319,5 +319,5 @@
     + 'Living Room,Right of fireplace,34 3/8,60,1,Hunter Douglas,Duette,Alabaster,Inside,Cordless,650,\n'
     + 'Primary Bedroom,Slider,96,84,1,Hunter Douglas,Luminette,Pearl,Outside,Motorized – battery,2100,Stack left\n';
 
-  WC.importer = { FIELDS, analyze, rowsToItems, readGrid, kindOf, TEMPLATE, normMount, normControl };
+  WC.importer = { FIELDS, analyze, rowsToItems, readGrid, kindOf, TEMPLATE, normMount, normControl, categoryOf };
 })();
