@@ -54,6 +54,8 @@ Add a reminder from the Dashboard or from any day on the calendar, with an optio
 
 It then opens full screen like a regular app, works offline, and updates itself when new changes are pushed.
 
+The same site also hosts **Life Tracker** (work, congregation, recreation and fitness) at **https://benjaminbarber236-hue.github.io/Custom-Concepts/life/**. See `life/README.md`.
+
 ### On a computer
 Open `index.html` directly in a browser, or run `python3 -m http.server` in this folder and go to http://localhost:8000.
 

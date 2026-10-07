@@ -477,3 +477,10 @@ dialog.confirm-dlg p { margin: 0 0 16px; }
   .goal-num { width: 140px; }
   .item.ev .ev-time { width: 50px; font-size: .8rem; }
 }
+
+/* Install on home screen */
+.panel.install { box-shadow: inset 3px 0 0 var(--info); }
+.panel.install h3 { margin: 0; color: var(--info); }
+.panel.install .hint { margin: 4px 0 8px; }
+.steps { margin: 6px 0 0; padding-left: 1.3rem; display: grid; gap: 6px; }
+.steps .ic { width: 16px; height: 16px; }

@@ -1,8 +1,8 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
-const CACHE = 'life-tracker-v1';
+const CACHE = 'life-tracker-v2';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'js/icons.js', 'js/constants.js', 'js/ui.js', 'js/store.js', 'js/sample.js', 'js/app.js',
-  'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
+  'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (e) => {

@@ -346,6 +346,32 @@
   }
 
   // ---------------------------------------------------------------- dashboard
+  // "Add to Home Screen": Android/desktop Chrome offer a one-tap prompt; iPhone needs Safari's Share menu.
+  let installPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; if (!document.getElementById('modal').open) render(); });
+  window.addEventListener('appinstalled', () => { installPrompt = null; U.toast('Installed. Open it from your home screen'); render(); });
+  const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isPhone = () => isIOS() || /android/i.test(navigator.userAgent);
+
+  function installSteps() {
+    if (installPrompt) return `<button type="button" class="btn primary" data-install>${I('download')} Install the app</button>`;
+    if (isIOS()) {
+      const safari = /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
+      return `<ol class="steps">${safari ? '' : '<li>Open this page in <b>Safari</b>.</li>'}<li>Tap the <b>Share</b> button ${I('share')} at the bottom of the screen.</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>.</li></ol>`;
+    }
+    return '<ol class="steps"><li>Open this page in <b>Chrome</b>.</li><li>Tap the <b>⋮</b> menu.</li><li>Tap <b>Install app</b> (or <b>Add to Home screen</b>).</li></ol>';
+  }
+
+  function installBanner() {
+    if (LT.DEMO || isInstalled() || !isPhone() || S.db.settings.installHintHidden) return '';
+    return `<section class="panel install">
+      <div class="row between"><h3>${I('download')} Put Life Tracker on your home screen</h3><button type="button" class="icon-btn" data-hideinstall aria-label="Hide">${I('x')}</button></div>
+      <p class="small muted hint">It opens full screen like a regular app and works without internet.</p>
+      ${installSteps()}
+    </section>`;
+  }
+
   function viewHome() {
     const td = today();
     const db = S.db;
@@ -359,6 +385,7 @@
     html += `<div class="page-head"><h1>${esc(fmtDate(td, { weekday: 'long', month: 'long', day: 'numeric' }))}</h1>
       <p class="muted">${hasData ? `${todayN ? plural(todayN, 'thing') + ' today' : 'Nothing scheduled today'}${overdue.length ? ` · <span class="overdue">${overdue.length} overdue</span>` : ''}` : 'Welcome. Let’s get everything in one place.'}</p></div>`;
 
+    html += installBanner();
     html += quickAdd({});
 
     if (!hasData) html += welcome();
@@ -712,6 +739,10 @@
         <button type="button" class="btn" data-editarea="">${I('plus')} Add an area</button>
       </section>
 
+      ${LT.DEMO ? '' : `<section class="panel"><h3>Home screen</h3>
+        ${isInstalled() ? '<p class="small muted hint">Life Tracker is installed on this device.</p>' : `<p class="small muted hint">Add Life Tracker to your home screen so it opens like an app.</p>${installSteps()}`}
+      </section>`}
+
       <section class="panel"><h3>Fitness goal</h3>
         <form id="goalForm" class="form-grid">
           <label class="field half"><span>Workouts per week</span><input name="perWeek" type="number" min="0" step="1" inputmode="numeric" value="${esc(st.goal.perWeek)}"></label>
@@ -829,7 +860,7 @@
 
   // ---------------------------------------------------------------- events
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-task],[data-event],[data-note],[data-workout],[data-add],[data-day],[data-cal],[data-calfilter],[data-resched],[data-snooze],[data-showpast],[data-moreworkouts],[data-ics-area],[data-editarea],[data-move],[data-theme-set],[data-export],[data-sample],[data-erase]');
+    const el = e.target.closest('[data-task],[data-event],[data-note],[data-workout],[data-add],[data-day],[data-cal],[data-calfilter],[data-resched],[data-snooze],[data-showpast],[data-moreworkouts],[data-ics-area],[data-editarea],[data-move],[data-theme-set],[data-export],[data-sample],[data-erase],[data-install],[data-hideinstall]');
     if (!el) return;
     const ds = el.dataset;
     if ('task' in ds) { e.preventDefault(); const t = S.get('items', ds.task); if (t) taskForm(t); }
@@ -884,6 +915,15 @@
     } else if ('sample' in ds) {
       const go = () => { S.loadSample(); U.toast('Sample data loaded'); location.hash = '#/home'; render(); };
       if (S.db.items.length || S.db.notes.length || S.db.workouts.length) U.ask('Replace everything with sample data?', go, 'Replace'); else go();
+    } else if ('install' in ds) {
+      if (!installPrompt) return;
+      installPrompt.prompt();
+      installPrompt.userChoice.finally(() => { installPrompt = null; render(); });
+    } else if ('hideinstall' in ds) {
+      S.db.settings.installHintHidden = true;
+      S.save();
+      U.toast('Hidden. Settings has the steps any time');
+      render();
     } else if ('erase' in ds) {
       U.ask('Erase all to-dos, events, notes and workouts on this device?', () => { S.reset(); applyTheme(); U.toast('Everything erased'); location.hash = '#/home'; render(); }, 'Erase');
     }

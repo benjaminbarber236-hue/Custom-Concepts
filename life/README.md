@@ -24,11 +24,16 @@ The app can't send notifications by itself. To get alerts, open an event and tap
 
 ## Using it
 
-### On your phone (recommended): GitHub Pages
-1. On GitHub, open the repo → **Settings → Pages**.
-2. Choose **Deploy from a branch**, pick this branch and the `/ (root)` folder, then **Save**.
-3. After about a minute, open `https://<user>.github.io/<repo>/life/` on your phone.
-4. Add it to your home screen: **iPhone (Safari)** Share → **Add to Home Screen**. **Android (Chrome)** ⋮ → **Install app**.
+### On your phone (recommended)
+Life Tracker is published with GitHub Pages alongside the Job Tracker, from the same branch (`claude/window-covering-scheduler-qfe9s1`).
+
+1. If GitHub Pages isn't on yet: open https://github.com/benjaminbarber236-hue/Custom-Concepts/settings/pages, set **Source** to **Deploy from a branch**, pick `claude/window-covering-scheduler-qfe9s1` and `/ (root)`, then tap **Save**. Wait about a minute.
+2. On your phone, open **https://benjaminbarber236-hue.github.io/Custom-Concepts/life/**
+3. Add it to your home screen (the Dashboard shows these steps too, and Settings → Home screen keeps them):
+   - **iPhone:** in **Safari**, tap the **Share** button, then **Add to Home Screen**, then **Add**.
+   - **Android:** in **Chrome**, tap **Install the app** on the Dashboard, or **⋮** → **Install app**.
+
+It then opens full screen like a regular app, works offline, and updates itself when new changes are pushed.
 
 ### On a computer
 Run `python3 -m http.server` in this folder and go to http://localhost:8000.
