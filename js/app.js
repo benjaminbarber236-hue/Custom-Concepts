@@ -174,6 +174,19 @@
   const views = {};
 
   // ---------------- Dashboard ----------------
+  // "Add to Home Screen" tip, shown on phones until the app is installed (or the tip is hidden).
+  let installPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; if (!document.getElementById('modal').open) render(); });
+  function installHint() {
+    const installed = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+    const phone = /iphone|ipad|ipod|android/i.test(navigator.userAgent);
+    if (WC.DEMO || installed || !phone || S.db.settings.installHintHidden) return '';
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const how = ios ? 'In Safari, tap the Share button, then <b>Add to Home Screen</b>.'
+      : installPrompt ? '<a href="#" data-action="installApp">Install the app</a>' : 'In Chrome, tap the ⋮ menu, then <b>Install app</b>.';
+    return `<div class="banner install">${WC.icon('download')}<span><b>Put this app on your home screen.</b> ${how} <a href="#" data-action="hideInstall">Hide</a></span></div>`;
+  }
+
   const activeJobs = () => S.all('projects').filter((p) => section(p) !== 'closed');
   // Open jobs with nothing scheduled and no reminder: they need a next step.
   const stuckJobs = () => activeJobs().filter((p) => !nextEvent(p.id) && !openTasks((x) => x.projectId === p.id).length && !(p.stage === 'ordered' && p.eta));
@@ -187,6 +200,7 @@
 
     if (!projects.length && !S.all('contacts').length) {
       return `<h1>${greet}${name ? ', ' + esc(name) : ''}</h1>
+        ${installHint()}
         <div class="card welcome">
           <h2>Welcome</h2>
           <p>Track every job from the first referral to the check-in after the install. Each job walks you through the next step:</p>
@@ -227,13 +241,14 @@
     }).join('');
 
     const lb = S.db.settings.lastBackup;
+    const hint = installHint();
     const backupNag = projects.length && (!lb || daysSince(lb) >= 7)
       ? `<div class="banner">${WC.icon('download')} <span>${lb ? `Last backup was ${daysSince(lb)} days ago.` : 'You haven\'t backed up yet.'} Your data lives only on this device. <a href="#" data-action="exportData">Back up now</a></span></div>` : '';
 
     return `
       <h1>${greet}${name ? ', ' + esc(name) : ''}</h1>
       <p class="muted">${esc(U.fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
-      ${WC.DEMO ? `<div class="banner demo">This demo is filled with sample jobs. Tap around and try things. Changes stay in this browser only. <a href="#" data-action="resetDemo">Reset demo</a></div>` : backupNag}
+      ${WC.DEMO ? `<div class="banner demo">This demo is filled with sample jobs. Tap around and try things. Changes stay in this browser only. <a href="#" data-action="resetDemo">Reset demo</a></div>` : hint + backupNag}
       ${calendarCard()}
 
       <div class="quick-actions">
@@ -1790,6 +1805,8 @@
       render(); U.toast(`Reopened at “${C.stage(p.stage).label}”`);
     },
     jobMenu: (ds) => jobMenu(proj(ds)),
+    installApp: () => { if (installPrompt) { installPrompt.prompt(); installPrompt.userChoice.finally(() => { installPrompt = null; render(); }); } },
+    hideInstall: () => { S.db.settings.installHintHidden = true; S.save(); render(); },
 
     newLog: (ds) => logForm(ds.project ? proj(ds) : null),
     editLog: (ds) => { const p = proj(ds); logForm(p, p.log.find((l) => l.id === ds.id)); },
