@@ -1,0 +1,1374 @@
+<title>Job Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one narrow column like a phone app, fixed tab bar at the bottom, sheets slide up for every form.
+   Look: cool stone neutrals with a deep fabric-teal accent; the job's progress is drawn as window slats. */
+:root {
+  --bg: #eef1ef;
+  --surface: #ffffff;
+  --sunk: #e3e8e5;
+  --ink: #17201d;
+  --muted: #5a6762;
+  --line: #d3dbd7;
+  --accent: #1d6a5b;
+  --accent-ink: #ffffff;
+  --accent-soft: #d6e9e3;
+  --warn: #a8571f;
+  --warn-soft: #f6e4d6;
+  --danger: #b03a32;
+  --ev-sales: #4f6d8f;
+  --ev-measure: #82699a;
+  --ev-install: #3f8256;
+  --ev-meeting: #3d8590;
+  --ev-other: #8c867c;
+  --ev-prewire: #a8822f;
+  --ev-service: #a9524a;
+  --shadow: 0 1px 2px rgba(20, 35, 30, .06), 0 6px 20px rgba(20, 35, 30, .06);
+  --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 14px;
+  --r-sm: 9px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1412; --surface: #182019; --sunk: #121815; --ink: #e4ebe7; --muted: #95a39d; --line: #2a3430;
+    --accent: #5cbfa6; --accent-ink: #08201a; --accent-soft: #1b3830; --warn: #e39a62; --warn-soft: #3a2719; --danger: #ec7a70;
+    --ev-sales: #7f9fc4; --ev-measure: #b29bcb; --ev-install: #73b98a; --ev-meeting: #6fb7c1; --ev-other: #aaa498; --ev-prewire: #d1ab5b; --ev-service: #d58479;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1412; --surface: #182019; --sunk: #121815; --ink: #e4ebe7; --muted: #95a39d; --line: #2a3430;
+  --accent: #5cbfa6; --accent-ink: #08201a; --accent-soft: #1b3830; --warn: #e39a62; --warn-soft: #3a2719; --danger: #ec7a70;
+  --ev-sales: #7f9fc4; --ev-measure: #b29bcb; --ev-install: #73b98a; --ev-meeting: #6fb7c1; --ev-other: #aaa498; --ev-prewire: #d1ab5b; --ev-service: #d58479;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.num { font-variant-numeric: tabular-nums; }
+
+#app { max-width: 680px; margin: 0 auto; padding-block: 18px 110px; display: flex; flex-direction: column; gap: 22px; }
+
+/* Top status line */
+.topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
+.brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--ink); letter-spacing: -.01em; }
+.brand svg { width: 22px; height: 22px; }
+.sync { display: inline-flex; align-items: center; gap: 6px; }
+.sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.sync.saving i { background: var(--warn); }
+.sync.off i { background: var(--muted); }
+
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(28px, 7vw, 36px); line-height: 1.08; font-weight: 700; }
+h2 { font-size: 19px; font-weight: 700; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+p { margin: 0; }
+
+.section { display: flex; flex-direction: column; gap: 10px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.section-head .count { font-size: 14px; color: var(--muted); font-weight: 500; font-family: var(--font-body); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.list > * + * { border-top: 1px solid var(--line); }
+.empty { padding: 18px; color: var(--muted); font-size: 15px; background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; color: var(--ink); white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.big { min-height: 52px; font-size: 16px; padding: 0 22px; width: 100%; }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--danger); }
+.btn.sm { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.link-btn { background: none; border: 0; padding: 4px 0; color: var(--accent); font-weight: 600; font-size: 15px; cursor: pointer; }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: inline-grid; place-items: center; cursor: pointer; color: var(--ink); flex: none; }
+.icon-btn svg { width: 18px; height: 18px; }
+
+.quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.quick .btn { padding: 0 8px; font-size: 14px; }
+
+/* Week strip */
+.week { display: flex; flex-direction: column; gap: 10px; }
+.week-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.week-nav strong { font-family: var(--font-display); font-size: 17px; }
+.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.day { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 7px; border-radius: 12px; border: 1px solid transparent; background: none; cursor: pointer; min-width: 0; }
+.day .dw { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.day .dn { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.day .dots { display: flex; gap: 3px; height: 6px; }
+.day .dots i { width: 6px; height: 6px; border-radius: 50%; display: block; }
+.day.today .dn { color: var(--accent); }
+.day.sel { background: var(--surface); border-color: var(--line); box-shadow: var(--shadow); }
+.day.sel.today { background: var(--accent); border-color: var(--accent); }
+.day.sel.today .dn, .day.sel.today .dw { color: var(--accent-ink); }
+
+/* Agenda rows */
+.row { display: flex; align-items: flex-start; gap: 12px; padding: 13px 14px; width: 100%; text-align: left; background: none; border: 0; cursor: pointer; color: inherit; text-decoration: none; }
+.row:hover { background: var(--sunk); }
+.row .when { width: 52px; flex: none; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; padding-top: 1px; }
+.row .when small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; }
+.row .bar { width: 4px; align-self: stretch; border-radius: 4px; flex: none; }
+.row .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row .t { font-weight: 600; overflow-wrap: anywhere; }
+.row .s { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.row .end { flex: none; align-self: center; color: var(--muted); }
+.row.done .t { text-decoration: line-through; color: var(--muted); font-weight: 500; }
+.check { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--muted); background: none; flex: none; display: grid; place-items: center; cursor: pointer; margin-top: 1px; color: var(--accent-ink); padding: 0; }
+.check.on { background: var(--accent); border-color: var(--accent); }
+.check svg { width: 14px; height: 14px; }
+.tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--sunk); color: var(--muted); white-space: nowrap; }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.ok { background: var(--accent-soft); color: var(--accent); }
+
+/* Jobs list */
+.search { position: relative; }
+.search input { width: 100%; min-height: 48px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 16px 0 44px; font-size: 16px; }
+.search svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 14px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.job-row .slats-mini { flex: none; align-self: center; }
+.stage-group { display: flex; flex-direction: column; gap: 8px; }
+.stage-group h3 { font-size: 15px; font-family: var(--font-body); font-weight: 600; color: var(--muted); display: flex; justify-content: space-between; }
+
+/* Slats: a job's progress drawn as six window slats */
+.slats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; background: none; border: 0; padding: 0; width: 100%; cursor: pointer; }
+.slats span { height: 12px; border-radius: 3px; background: var(--sunk); border: 1px solid var(--line); position: relative; }
+.slats span.on { background: var(--accent); border-color: var(--accent); }
+.slats span.now { background: repeating-linear-gradient(-55deg, var(--accent) 0 5px, var(--accent-soft) 5px 9px); border-color: var(--accent); }
+.slats-mini { display: grid; grid-template-rows: repeat(6, 3px); gap: 2px; width: 22px; }
+.slats-mini i { display: block; border-radius: 1px; background: var(--line); }
+.slats-mini i.on { background: var(--accent); }
+.stage-labels { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; font-size: 11px; color: var(--muted); text-align: center; }
+.stage-labels .now { color: var(--accent); font-weight: 700; }
+
+/* Job page */
+.back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-weight: 600; text-decoration: none; font-size: 15px; }
+.back svg { width: 18px; height: 18px; }
+.job-head { display: flex; flex-direction: column; gap: 8px; }
+.job-head .addr { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.next { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.next .why { font-size: 14px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; padding: 14px; font-size: 15px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.note-entry { padding: 13px 14px; display: flex; flex-direction: column; gap: 3px; }
+.note-entry .meta { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.note-entry .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
+.money { font-weight: 700; font-variant-numeric: tabular-nums; }
+.room-head { padding: 9px 14px; font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: var(--sunk); }
+.file-thumb { width: 44px; height: 44px; border-radius: 8px; flex: none; object-fit: cover; background: var(--sunk); display: grid; place-items: center; color: var(--muted); font-size: 11px; font-weight: 700; border: 1px solid var(--line); }
+.person-line { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; color: var(--muted); }
+.copy { background: none; border: 0; color: var(--accent); font-weight: 600; cursor: pointer; padding: 0; font-size: 14px; }
+
+.banner { padding: 14px 16px; border-radius: var(--r); background: var(--accent-soft); color: var(--ink); font-size: 15px; display: flex; flex-direction: column; gap: 8px; }
+.banner.warn { background: var(--warn-soft); }
+
+/* Tab bar */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.tabbar nav { max-width: 680px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+.tabbar a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; font-size: 12px; font-weight: 600; color: var(--muted); text-decoration: none; border-radius: 10px; }
+.tabbar a svg { width: 22px; height: 22px; }
+.tabbar a[aria-current="page"] { color: var(--accent); }
+
+/* Sheet (all forms) */
+dialog#sheet { border: 0; padding: 0; background: var(--surface); color: var(--ink); width: min(560px, 100%); max-width: 100%; max-height: 92dvh; border-radius: 20px 20px 0 0; margin: auto auto 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, .2); }
+@media (min-width: 640px) { dialog#sheet { border-radius: 20px; margin: auto; } }
+dialog#sheet::backdrop { background: rgba(10, 18, 15, .45); }
+.sheet-in { display: flex; flex-direction: column; max-height: 92dvh; }
+.sheet-head { padding: 18px 20px 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.sheet-head h2 { font-size: 21px; }
+.sheet-body { padding: 4px 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.sheet-foot { padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+.sheet-foot .btn { flex: 1; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field label, .field .lbl { font-size: 14px; font-weight: 600; }
+.field input, .field select, .field textarea { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); padding: 10px 12px; font-size: 16px; }
+.field textarea { min-height: 90px; resize: vertical; }
+.field .hint { font-size: 13px; color: var(--muted); }
+.fields-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.radios { display: flex; flex-wrap: wrap; gap: 6px; }
+.radios input { position: absolute; opacity: 0; pointer-events: none; }
+.radios label { min-height: 38px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid var(--line); font-weight: 600; font-size: 14px; cursor: pointer; background: var(--bg); }
+.radios input:checked + label { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.radios input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.choices { display: flex; flex-direction: column; gap: 8px; }
+.choices .btn { justify-content: flex-start; white-space: normal; text-align: left; min-height: 50px; border-radius: 12px; }
+.choices .btn small { display: block; color: var(--muted); font-weight: 500; }
+.sheet-context { color: var(--muted); font-size: 15px; }
+
+#toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; max-width: calc(100% - 32px); text-align: center; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.progress { height: 6px; border-radius: 6px; background: var(--sunk); overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="app" aria-live="polite"></div>
+<div class="tabbar"><nav aria-label="Main">
+  <a href="#today" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 3v3M16 3v3"/><circle cx="12" cy="15" r="1.6" fill="currentColor"/></svg>Today</a>
+  <a href="#jobs" data-tab="jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M3 8h18M3 12.5h18M3 17h18"/></svg>Jobs</a>
+  <a href="#more" data-tab="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg>More</a>
+</nav></div>
+<dialog id="sheet"></dialog>
+<div id="toast" role="status"></div>
+
+<script>
+(function () {
+'use strict';
+
+// ---------- Constants ----------
+const STAGES = [
+  { id: 'lead', label: 'New lead', short: 'Lead', sec: 'sales' },
+  { id: 'consult', label: 'Sales calls', short: 'Sales', sec: 'sales' },
+  { id: 'quoted', label: 'Quotes out', short: 'Quotes', sec: 'sales' },
+  { id: 'measure', label: 'Final measure', short: 'Measure', sec: 'install' },
+  { id: 'ordered', label: 'Ordered', short: 'Ordered', sec: 'install' },
+  { id: 'install', label: 'Install', short: 'Install', sec: 'install' },
+  { id: 'complete', label: 'Done', short: 'Done', sec: 'closed' },
+  { id: 'lost', label: 'Lost', short: 'Lost', sec: 'closed' },
+];
+const OLD_STAGES = { quoting: 'consult', proposal: 'quoted', sold: 'measure', prewire: 'measure', waiting: 'measure', punch: 'install' };
+const STEP_IDS = STAGES.slice(0, 6).map((s) => s.id);
+const stage = (id) => STAGES.find((s) => s.id === id) || STAGES[0];
+const stageIdx = (id) => (id === 'complete' ? 6 : STEP_IDS.indexOf(id));
+
+const EVENT_TYPES = [
+  { id: 'sales', label: 'Sales call', pick: true },
+  { id: 'measure', label: 'Final measure', pick: true },
+  { id: 'install', label: 'Install', pick: true },
+  { id: 'meeting', label: 'Site visit', pick: true },
+  { id: 'other', label: 'Other', pick: true },
+  { id: 'prewire', label: 'Pre-wire / drill' },
+  { id: 'service', label: 'Service / repair' },
+];
+const evType = (id) => EVENT_TYPES.find((t) => t.id === id) || EVENT_TYPES[4];
+const evColor = (id) => `var(--ev-${evType(id).id})`;
+// Booking one of these moves the job forward to that step.
+const EVENT_STAGE = { sales: 'consult', measure: 'measure', install: 'install' };
+
+const NOTE_TYPES = ['Note', 'Call', 'Text', 'Email', 'Visit'];
+const ROLES = ['Homeowner', 'Interior Designer', 'Builder / GC', 'Contractor', 'Architect', 'Electrician', 'Low-voltage / AV', 'Property Manager', 'Vendor / Rep', 'Other'];
+const SOURCES = ['Referral', 'Interior designer', 'Builder / contractor', 'Website', 'Showroom', 'Repeat customer', 'Home show', 'Phone call', 'Other'];
+const CATEGORIES = ['Shades', 'Blinds', 'Shutters', 'Drapery', 'Outdoor Screens & Shades', 'Motorization / Controls', 'Hardware / Other'];
+const BRANDS = ['Hunter Douglas', 'Lutron', 'Norman', 'Graber', 'Levolor', 'Alta', 'Lafayette', 'Draper', 'MechoShade', 'Bali', 'Sunburst', 'Polywood', 'Kirsch', 'Phantom Screens', 'Insolroll', 'Somfy', 'Hunter Douglas PowerView', 'Control4', 'Savant', 'Custom Workroom'];
+const MOUNTS = ['Inside', 'Outside', 'Ceiling', 'Wall', 'Pocket'];
+const CONTROLS = ['Cordless', 'Cord', 'Wand', 'Chain / loop', 'Motorized – hardwired', 'Motorized – battery', 'Motorized – plug-in', 'Manual crank'];
+const ITEM_STATUSES = ['Quoted', 'Ordered', 'Received', 'Installed', 'Issue'];
+const FILE_LABELS = ['Plans', 'Quote', 'Order sheet', 'Photo', 'Contract', 'Other'];
+const AUTO_TASKS = { quoted: { title: 'Check in on the quotes', days: 4 }, complete: { title: 'Check in after install (happy? referrals? review?)', days: 14 } };
+
+// ---------- Small helpers ----------
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const nowISO = () => new Date().toISOString();
+const clone = (o) => JSON.parse(JSON.stringify(o ?? null));
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseDay = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const today = () => ymd(new Date());
+const addDays = (s, n) => { const d = parseDay(s); d.setDate(d.getDate() + n); return ymd(d); };
+const dayDiff = (a, b) => Math.round((parseDay(b) - parseDay(a)) / 86400000);
+const fmtDay = (s, o = { weekday: 'short', month: 'short', day: 'numeric' }) => (s ? parseDay(s).toLocaleDateString(undefined, o) : '');
+const relDay = (s) => {
+  if (!s) return '';
+  const n = dayDiff(today(), s);
+  if (n === 0) return 'Today';
+  if (n === 1) return 'Tomorrow';
+  if (n === -1) return 'Yesterday';
+  if (n > 1 && n < 7) return parseDay(s).toLocaleDateString(undefined, { weekday: 'long' });
+  return fmtDay(s, { month: 'short', day: 'numeric', year: parseDay(s).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined });
+};
+const fmtTime = (t) => {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const ap = h >= 12 ? 'pm' : 'am';
+  const hh = h % 12 || 12;
+  return m ? `${hh}:${pad(m)}${ap}` : `${hh}${ap}`;
+};
+const money = (n) => (n === '' || n == null || isNaN(Number(n)) ? '' : Number(n).toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
+const firstName = (name) => String(name || '').split(/[\s&]/)[0] || '';
+const fmtSize = (b) => (b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');
+
+const ICON = {
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  logo: '<svg viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="4" stroke="currentColor" stroke-width="2"/><path d="M6 7.5h12M6 11h12M6 14.5h12" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round"/><path d="M12 14.5V19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+};
+
+// ---------- Data ----------
+// Collections: jobs, events, tasks (one document each) and meta/contacts (people from the old app).
+const S = { jobs: new Map(), events: new Map(), tasks: new Map(), meta: {}, loaded: false, stale: false, mode: 'connecting', db: null, assets: null, downloads: null };
+const chains = new Map();
+let pending = 0;
+
+function write(path, fn) {
+  pending++; syncBadge();
+  const prev = chains.get(path) || Promise.resolve();
+  const p = prev.then(fn).catch(async (e) => {
+    if (e && e.code === 'unavailable') { await new Promise((r) => setTimeout(r, 800 + Math.random() * 800)); return fn(); }
+    throw e;
+  }).catch((e) => {
+    console.error(e);
+    toast(e && e.code === 'quota_exceeded' ? 'Storage is full. Delete old files or jobs to make room.' : 'That change did not save. Check your connection and try again.');
+  }).finally(() => { pending--; syncBadge(); if (chains.get(path) === p) chains.delete(path); });
+  chains.set(path, p);
+  return p;
+}
+function put(coll, obj) {
+  if (!obj.id) { obj.id = uid(); obj.createdAt = nowISO(); }
+  obj.updatedAt = nowISO();
+  const body = clone(obj);
+  S[coll].set(obj.id, body);
+  schedule();
+  if (S.db) write(`${coll}/${obj.id}`, () => S.db.collection(coll).doc(obj.id).set(body));
+  return obj;
+}
+function del(coll, id) {
+  S[coll].delete(id);
+  schedule();
+  if (S.db) write(`${coll}/${id}`, () => S.db.collection(coll).doc(id).delete());
+}
+const get = (coll, id) => clone(S[coll].get(id));
+const all = (coll) => [...S[coll].values()];
+
+function setStage(job, to) {
+  if (job.stage === to) return;
+  job.stage = to;
+  job.stageHistory = job.stageHistory || [];
+  job.stageHistory.push({ stage: to, at: nowISO() });
+  // Reminders the app made for an earlier step are finished once the job moves on.
+  all('tasks').forEach((t) => {
+    if (t.jobId === job.id && !t.done && t.forStage && t.forStage !== to) put('tasks', { ...clone(t), done: true, doneAt: nowISO() });
+  });
+  const auto = AUTO_TASKS[to];
+  if (auto) put('tasks', { title: auto.title, due: addDays(today(), auto.days), jobId: job.id, done: false, auto: true, forStage: to });
+  put('jobs', job);
+}
+const jobEvents = (id) => all('events').filter((e) => e.jobId === id);
+const jobTasks = (id) => all('tasks').filter((t) => t.jobId === id);
+const evEnd = (e) => addDays(e.date, Math.max(1, Number(e.days) || 1) - 1);
+const isActive = (j) => stage(j.stage).sec !== 'closed';
+const client = (j) => (j.people || [])[0];
+
+// The next thing that will happen on a job: an upcoming appointment or an open reminder.
+function nextThing(j) {
+  const t = today();
+  const ev = jobEvents(j.id).filter((e) => evEnd(e) >= t && !e.done).sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')))[0];
+  const tk = jobTasks(j.id).filter((x) => !x.done).sort((a, b) => (a.due || '').localeCompare(b.due || ''))[0];
+  if (tk && (!ev || tk.due <= ev.date)) return { kind: 'task', due: tk.due, text: tk.title, late: tk.due < t };
+  if (ev) return { kind: 'event', due: ev.date, text: `${evType(ev.type).label}${ev.start ? ' ' + fmtTime(ev.start) : ''}`, late: false };
+  return null;
+}
+
+// ---------- Rendering ----------
+const V = { route: 'today', jobId: '', weekStart: '', sel: today(), filter: 'active', q: '' };
+let raf = 0;
+function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
+
+function syncBadge() {
+  const el = $('#sync');
+  if (!el) return;
+  if (S.mode === 'preview') { el.className = 'sync off'; el.innerHTML = '<i></i>Preview'; return; }
+  if (S.mode !== 'live') { el.className = 'sync off'; el.innerHTML = '<i></i>Connecting'; return; }
+  el.className = 'sync' + (pending ? ' saving' : '');
+  el.innerHTML = `<i></i>${pending ? 'Saving' : S.stale ? 'May be out of date' : 'Synced'}`;
+}
+
+function parseHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (h.startsWith('job-')) { V.route = 'job'; V.jobId = h.slice(4); }
+  else V.route = ['jobs', 'more'].includes(h) ? h : 'today';
+}
+function go(h) { if (location.hash !== '#' + h) location.hash = h; else render(); }
+
+function render() {
+  const app = $('#app');
+  const keepScroll = render.last === location.hash;
+  const y = window.scrollY;
+  const head = `<div class="topline"><span class="brand">${ICON.logo}Job Tracker</span><span id="sync" class="sync off"><i></i></span></div>`;
+  let body = '';
+  if (V.route === 'job') body = viewJob();
+  else if (V.route === 'jobs') body = viewJobs();
+  else if (V.route === 'more') body = viewMore();
+  else body = viewToday();
+  // Keep the search box (and what's typed in it) when the list re-renders.
+  const search = $('#q');
+  const hadFocus = search && document.activeElement === search;
+  const caret = search ? search.selectionStart : 0;
+  app.innerHTML = head + body;
+  if (hadFocus && $('#q')) { $('#q').focus(); try { $('#q').setSelectionRange(caret, caret); } catch (e) {} }
+  document.querySelectorAll('.tabbar a').forEach((a) => a.setAttribute('aria-current', a.dataset.tab === (V.route === 'job' ? 'jobs' : V.route) ? 'page' : 'false'));
+  syncBadge();
+  if (keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
+  render.last = location.hash;
+}
+
+function loadingNote() {
+  if (S.mode === 'connecting' || (S.mode === 'live' && !S.loaded)) {
+    return S.stale
+      ? `<div class="banner warn"><strong>Can't reach your saved jobs yet.</strong><span>Check your connection. This page will fill in by itself once it connects.</span></div>`
+      : `<div class="banner"><span>Loading your jobs…</span></div>`;
+  }
+  if (S.mode === 'preview') return `<div class="banner"><strong>Preview with example jobs</strong><span>Open this page from your Claude account to see and save your own jobs. Nothing here is saved.</span></div>`;
+  return '';
+}
+
+// ----- Today -----
+function dayItems(day) {
+  const evs = all('events').filter((e) => e.date <= day && evEnd(e) >= day).sort((a, b) => (a.start || '99').localeCompare(b.start || '99'));
+  const tks = all('tasks').filter((t) => t.due === day).sort((a, b) => (a.done - b.done) || (a.time || '99').localeCompare(b.time || '99'));
+  return { evs, tks };
+}
+
+function evRow(e, day) {
+  const j = e.jobId && S.jobs.get(e.jobId);
+  const n = Number(e.days) || 1;
+  const dayNo = day ? dayDiff(e.date, day) + 1 : 0;
+  const when = e.start ? fmtTime(e.start) : 'All day';
+  const sub = [j ? j.name : '', n > 1 && day ? `Day ${dayNo} of ${n}` : '', e.location && (!j || e.location !== j.address) ? e.location : ''].filter(Boolean).join(' · ');
+  return `<button class="row${e.done ? ' done' : ''}" data-act="event" data-id="${e.id}">
+    <span class="when">${esc(when)}${e.end ? `<small>to ${esc(fmtTime(e.end))}</small>` : ''}</span>
+    <span class="bar" style="background:${evColor(e.type)}"></span>
+    <span class="body"><span class="t">${esc(j ? evType(e.type).label : e.title || evType(e.type).label)}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ''}</span>
+  </button>`;
+}
+function taskRow(t, showDue, hideJob) {
+  const j = !hideJob && t.jobId && S.jobs.get(t.jobId);
+  const late = !t.done && t.due && t.due < today();
+  const sub = [showDue ? (late ? `Due ${relDay(t.due)}` : relDay(t.due)) : '', t.time ? fmtTime(t.time) : '', j ? j.name : ''].filter(Boolean).join(' · ');
+  return `<div class="row${t.done ? ' done' : ''}" data-act="task" data-id="${t.id}" role="button" tabindex="0">
+    <button class="check${t.done ? ' on' : ''}" data-act="tick" data-id="${t.id}" aria-label="${t.done ? 'Mark not done' : 'Mark done'}">${t.done ? ICON.check : ''}</button>
+    <span class="body"><span class="t">${esc(t.title)}</span>${sub ? `<span class="s">${late ? `<span class="tag warn">Overdue</span> ` : ''}${esc(sub)}</span>` : ''}</span>
+  </div>`;
+}
+
+function viewToday() {
+  const t = today();
+  if (!V.weekStart) V.weekStart = addDays(t, -parseDay(t).getDay());
+  const days = Array.from({ length: 7 }, (_, i) => addDays(V.weekStart, i));
+  const ws = parseDay(days[0]), we = parseDay(days[6]);
+  const range = ws.getMonth() === we.getMonth()
+    ? `${ws.toLocaleDateString(undefined, { month: 'long' })} ${ws.getDate()}–${we.getDate()}`
+    : `${fmtDay(days[0], { month: 'short', day: 'numeric' })} – ${fmtDay(days[6], { month: 'short', day: 'numeric' })}`;
+  const strip = days.map((d) => {
+    const { evs, tks } = dayItems(d);
+    const dots = evs.slice(0, 3).map((e) => `<i style="background:${evColor(e.type)}"></i>`).join('') + (tks.some((x) => !x.done) ? '<i style="background:var(--muted)"></i>' : '');
+    const dt = parseDay(d);
+    return `<button class="day${d === t ? ' today' : ''}${d === V.sel ? ' sel' : ''}" data-act="pick-day" data-day="${d}" aria-label="${esc(fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' }))}">
+      <span class="dw">${dt.toLocaleDateString(undefined, { weekday: 'narrow' })}</span><span class="dn">${dt.getDate()}</span><span class="dots">${dots}</span></button>`;
+  }).join('');
+
+  // What needs attention
+  const overdue = all('tasks').filter((x) => !x.done && x.due && x.due < t).sort((a, b) => a.due.localeCompare(b.due));
+  const unnoted = all('events').filter((e) => !e.done && evEnd(e) < t && e.jobId && S.jobs.has(e.jobId)).sort((a, b) => b.date.localeCompare(a.date));
+  const stuck = all('jobs').filter((j) => isActive(j) && !nextThing(j));
+  let needs = '';
+  if (overdue.length || unnoted.length || stuck.length) {
+    needs = `<section class="section"><div class="section-head"><h2>Needs you</h2><span class="count">${overdue.length + unnoted.length + stuck.length}</span></div><div class="list">
+      ${unnoted.map((e) => `<button class="row" data-act="how" data-id="${e.id}"><span class="bar" style="background:${evColor(e.type)}"></span><span class="body"><span class="t">How did the ${esc(evType(e.type).label.toLowerCase())} go?</span><span class="s">${esc(S.jobs.get(e.jobId).name)} · ${esc(relDay(e.date))}</span></span><span class="end">${ICON.chev}</span></button>`).join('')}
+      ${overdue.map((x) => taskRow(x, true)).join('')}
+      ${stuck.slice(0, 4).map((j) => `<a class="row" href="#job-${j.id}"><span class="bar" style="background:var(--warn)"></span><span class="body"><span class="t">${esc(j.name)}</span><span class="s"><span class="tag warn">No next step</span> ${esc(stage(j.stage).label)}</span></span><span class="end">${ICON.chev}</span></a>`).join('')}
+      ${stuck.length > 4 ? `<a class="row" href="#jobs"><span class="body"><span class="s">${stuck.length - 4} more jobs with no next step</span></span><span class="end">${ICON.chev}</span></a>` : ''}
+    </div></section>`;
+  }
+
+  const { evs, tks } = dayItems(V.sel);
+  const selLabel = V.sel === t ? 'Today' : relDay(V.sel);
+  const dayList = evs.length || tks.length
+    ? `<div class="list">${evs.map((e) => evRow(e, V.sel)).join('')}${tks.map((x) => taskRow(x, false)).join('')}</div>`
+    : `<div class="empty">Nothing on ${V.sel === t ? 'today' : esc(fmtDay(V.sel, { weekday: 'long', month: 'long', day: 'numeric' }))}.</div>`;
+
+  let ahead = '';
+  if (V.sel === t) {
+    const groups = [];
+    for (let i = 1; i <= 7; i++) {
+      const d = addDays(t, i);
+      const it = dayItems(d);
+      const evStart = it.evs.filter((e) => e.date === d);
+      const tOpen = it.tks.filter((x) => !x.done);
+      if (evStart.length || tOpen.length) groups.push(`<div class="room-head">${esc(relDay(d))} · ${esc(fmtDay(d, { month: 'short', day: 'numeric' }))}</div>${evStart.map((e) => evRow(e, d)).join('')}${tOpen.map((x) => taskRow(x, false)).join('')}`);
+    }
+    ahead = `<section class="section"><div class="section-head"><h2>Next 7 days</h2></div>${groups.length ? `<div class="list">${groups.join('')}</div>` : '<div class="empty">Nothing booked for the coming week.</div>'}</section>`;
+  }
+
+  const firstRun = S.loaded && !S.jobs.size && S.mode === 'live'
+    ? `<div class="banner"><strong>Start here</strong><span>Add your first job, or bring in everything from the old app.</span><div class="btn-row"><button class="btn primary sm" data-act="new-job">${ICON.plus}New job</button><a class="btn sm" href="#more">Bring in old data</a></div></div>` : '';
+
+  return `${loadingNote()}${firstRun}
+  <header><p class="eyebrow">${esc(parseDay(t).toLocaleDateString(undefined, { weekday: 'long' }))}</p><h1>${esc(fmtDay(t, { month: 'long', day: 'numeric' }))}</h1></header>
+  <div class="quick">
+    <button class="btn primary" data-act="new-job">${ICON.plus}Job</button>
+    <button class="btn" data-act="new-event">${ICON.plus}Appointment</button>
+    <button class="btn" data-act="new-task">${ICON.plus}Reminder</button>
+  </div>
+  ${needs}
+  <section class="week">
+    <div class="week-nav"><button class="icon-btn" data-act="week" data-n="-7" aria-label="Previous week">${ICON.prev}</button><strong>${esc(range)}</strong><button class="icon-btn" data-act="week" data-n="7" aria-label="Next week">${ICON.next}</button></div>
+    <div class="days">${strip}</div>
+  </section>
+  <section class="section"><div class="section-head"><h2>${esc(selLabel)}</h2>${V.sel !== t ? `<button class="link-btn" data-act="go-today">Back to today</button>` : ''}</div>${dayList}</section>
+  ${ahead}`;
+}
+
+// ----- Jobs list -----
+function slatsMini(j) {
+  const n = stageIdx(j.stage);
+  return `<span class="slats-mini" aria-hidden="true">${STEP_IDS.map((_, i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
+}
+function jobRow(j) {
+  const nt = isActive(j) ? nextThing(j) : null;
+  const c = client(j);
+  const sub = [c && c.name !== j.name ? c.name : '', j.address].filter(Boolean).join(' · ');
+  const next = !isActive(j) ? `<span class="tag">${esc(stage(j.stage).label)}</span>`
+    : nt ? `<span class="tag ${nt.late ? 'warn' : 'ok'}">${esc(relDay(nt.due))}</span> ${esc(nt.text)}`
+    : `<span class="tag warn">No next step</span>`;
+  return `<a class="row job-row" href="#job-${j.id}">${slatsMini(j)}<span class="body"><span class="t">${esc(j.name)}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ''}<span class="s">${next}</span></span><span class="end">${ICON.chev}</span></a>`;
+}
+function searchText(j) {
+  return [j.name, j.address, j.about, j.referredBy, j.source,
+    ...(j.people || []).flatMap((p) => [p.name, p.company, p.phone, p.email, p.role]),
+    ...(j.log || []).map((l) => l.text), ...(j.quotes || []).map((q) => q.name + ' ' + (q.note || '')),
+    ...(j.items || []).flatMap((i) => [i.room, i.brand, i.product, i.color]), ...(j.files || []).map((f) => f.name)].join(' ').toLowerCase();
+}
+function viewJobs() {
+  const jobs = all('jobs');
+  const q = V.q.trim().toLowerCase();
+  const counts = { active: jobs.filter(isActive).length, complete: jobs.filter((j) => j.stage === 'complete').length, lost: jobs.filter((j) => j.stage === 'lost').length };
+  let list = '';
+  if (q) {
+    const hits = jobs.filter((j) => searchText(j).includes(q)).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    const people = (S.meta.contacts || []).filter((c) => [c.name, c.company, c.phone, c.email, c.role].join(' ').toLowerCase().includes(q)).slice(0, 20);
+    list = (hits.length ? `<div class="list">${hits.map(jobRow).join('')}</div>` : `<div class="empty">No jobs match “${esc(V.q)}”.</div>`)
+      + (people.length ? `<section class="section"><h2>Contacts</h2><div class="list">${people.map(contactRow).join('')}</div></section>` : '');
+  } else if (V.filter === 'active') {
+    const groups = STAGES.slice(0, 6).map((s) => {
+      const js = jobs.filter((j) => j.stage === s.id).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      return js.length ? `<div class="stage-group"><h3><span>${esc(s.label)}</span><span>${js.length}</span></h3><div class="list">${js.map(jobRow).join('')}</div></div>` : '';
+    }).join('');
+    list = groups || `<div class="empty">No active jobs. Tap <strong>New job</strong> to add one.</div>`;
+  } else {
+    const js = jobs.filter((j) => j.stage === V.filter).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    list = js.length ? `<div class="list">${js.map(jobRow).join('')}</div>` : `<div class="empty">Nothing here yet.</div>`;
+  }
+  const chip = (id, label) => `<button class="chip" data-act="filter" data-f="${id}" aria-pressed="${V.filter === id && !q}">${label} <span class="muted num">${counts[id]}</span></button>`;
+  return `${loadingNote()}
+  <header class="section-head"><h1>Jobs</h1><button class="btn primary sm" data-act="new-job">${ICON.plus}New job</button></header>
+  <div class="search">${ICON.search}<input id="q" type="search" placeholder="Search names, addresses, notes, products" value="${esc(V.q)}" autocomplete="off" aria-label="Search jobs"></div>
+  <div class="chips">${chip('active', 'Active')}${chip('complete', 'Done')}${chip('lost', 'Lost')}</div>
+  <div class="section" id="job-list">${list}</div>`;
+}
+function contactRow(c) {
+  return `<div class="note-entry"><strong>${esc(c.name)}</strong><span class="person-line">${[c.role, c.company].filter(Boolean).map(esc).join(' · ')}</span>
+    <span class="person-line">${c.phone ? `<span class="num">${esc(c.phone)}</span><button class="copy" data-act="copy" data-v="${esc(c.phone)}">Copy</button>` : ''}${c.email ? `<span>${esc(c.email)}</span><button class="copy" data-act="copy" data-v="${esc(c.email)}">Copy</button>` : ''}</span>
+    ${c.notes ? `<span class="small muted">${esc(c.notes)}</span>` : ''}</div>`;
+}
+
+// ----- Job page -----
+const NEXT = {
+  lead: { why: 'Book a visit to see the windows and talk options.', main: ['book-sales', 'Book a sales call'] },
+  consult: { why: 'Put together pricing. Add one quote per option.', main: ['add-quote', 'Add a quote'] },
+  quoted: { why: 'Waiting to hear back on the quotes.', main: ['said-yes', 'They said yes'], alt: [['add-quote', 'Add another quote'], ['mark-lost', 'They passed']] },
+  measure: { why: 'Measure every window, then place the order.', main: ['ordered', 'Measured, order placed'], alt: [['book-measure', 'Book the final measure']] },
+  ordered: { why: 'Waiting on product from the manufacturer.', main: ['book-install', 'Product is in: book install'] },
+  install: { why: 'Install, program any motors, walk through with the client.', main: ['finish', 'Job finished'], alt: [['book-install', 'Book another install day']] },
+  complete: { why: 'This job is finished.', main: ['reopen', 'Reopen job'] },
+  lost: { why: 'This job didn’t go ahead.', main: ['reopen', 'Reopen job'] },
+};
+function viewJob() {
+  const j = S.jobs.get(V.jobId);
+  if (!j) return `${loadingNote()}<a class="back" href="#jobs">${ICON.back}Jobs</a>${S.loaded || S.mode === 'preview' ? '<div class="empty">This job was deleted or the link is wrong.</div>' : ''}`;
+  const n = stageIdx(j.stage);
+  const st = stage(j.stage);
+  const since = (j.stageHistory || []).filter((h) => h.stage === j.stage).pop();
+  const nx = NEXT[j.stage] || NEXT.lead;
+  const t = today();
+
+  const evs = jobEvents(j.id).sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')));
+  const upcoming = evs.filter((e) => evEnd(e) >= t || !e.done);
+  const tks = jobTasks(j.id).filter((x) => !x.done).sort((a, b) => (a.due || '').localeCompare(b.due || ''));
+  const coming = upcoming.map((e) => {
+    const past = evEnd(e) < t;
+    return past ? `<button class="row" data-act="how" data-id="${e.id}"><span class="when">${esc(fmtDay(e.date, { month: 'short', day: 'numeric' }))}</span><span class="bar" style="background:${evColor(e.type)}"></span><span class="body"><span class="t">${esc(evType(e.type).label)}</span><span class="s"><span class="tag warn">Add how it went</span></span></span></button>`
+      : `<button class="row" data-act="event" data-id="${e.id}"><span class="when">${esc(relDay(e.date) === 'Today' ? 'Today' : fmtDay(e.date, { month: 'short', day: 'numeric' }))}<small>${esc(e.start ? fmtTime(e.start) : 'All day')}</small></span><span class="bar" style="background:${evColor(e.type)}"></span><span class="body"><span class="t">${esc(evType(e.type).label)}${Number(e.days) > 1 ? ` · ${e.days} days` : ''}</span>${e.notes ? `<span class="s">${esc(e.notes)}</span>` : ''}</span></button>`;
+  }).join('') + tks.map((x) => taskRow(x, true, true)).join('');
+
+  const log = (j.log || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const quotes = j.quotes || [];
+  const items = j.items || [];
+  const rooms = [...new Set(items.map((i) => i.room || 'No room'))];
+  const itemsTotal = items.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.qty) || 1), 0);
+  const files = (j.files || []).slice().sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
+  const people = j.people || [];
+
+  return `${loadingNote()}
+  <a class="back" href="#jobs">${ICON.back}Jobs</a>
+  <header class="job-head">
+    <div class="section-head"><h1>${esc(j.name)}</h1><button class="icon-btn" data-act="job-menu" aria-label="More actions">${ICON.dots}</button></div>
+    ${j.address ? `<div class="addr"><span>${esc(j.address)}</span><button class="copy" data-act="copy" data-v="${esc(j.address)}">Copy</button></div>` : ''}
+  </header>
+
+  <section class="section" aria-label="Progress">
+    ${j.stage === 'lost' ? '' : `<button class="slats" data-act="change-stage" aria-label="Step: ${esc(st.label)}. Change step">${STEP_IDS.map((_, i) => `<span class="${i < n || n === 6 ? 'on' : i === n ? 'now' : ''}"></span>`).join('')}</button>
+    <div class="stage-labels" aria-hidden="true">${STAGES.slice(0, 6).map((s, i) => `<span class="${i === n ? 'now' : ''}">${esc(s.short)}</span>`).join('')}</div>`}
+    <div class="card next">
+      <p class="eyebrow">${esc(st.label)}${since ? ` · since ${esc(fmtDay(since.at.slice(0, 10), { month: 'short', day: 'numeric' }))}` : ''}</p>
+      <p class="why">${esc(nx.why)}</p>
+      <button class="btn primary big" data-act="${nx.main[0]}">${esc(nx.main[1])}</button>
+      ${nx.alt ? `<div class="btn-row">${nx.alt.map(([a, l]) => `<button class="btn sm" data-act="${a}">${esc(l)}</button>`).join('')}</div>` : ''}
+    </div>
+  </section>
+
+  <section class="section"><div class="section-head"><h2>Coming up</h2><button class="btn sm" data-act="add-coming">${ICON.plus}Add</button></div>
+    ${coming ? `<div class="list">${coming}</div>` : '<div class="empty">Nothing booked. Add an appointment or a reminder so this job doesn’t slip.</div>'}</section>
+
+  <section class="section"><div class="section-head"><h2>Notes <span class="count">${log.length || ''}</span></h2><button class="btn sm" data-act="add-note">${ICON.plus}Note</button></div>
+    ${log.length ? `<div class="list">${log.map((l) => `<button class="row note-entry" data-act="edit-note" data-id="${l.id}" style="display:flex"><span class="meta"><span class="tag">${esc(l.type || 'Note')}</span>${esc(relDay(l.date))}${l.who ? ` · ${esc(l.who)}` : ''}</span><span class="txt">${esc(l.text)}</span></button>`).join('')}</div>`
+      : '<div class="empty">What you talked about and decided goes here.</div>'}</section>
+
+  <section class="section"><div class="section-head"><h2>Quotes <span class="count">${quotes.length || ''}</span></h2><button class="btn sm" data-act="add-quote">${ICON.plus}Quote</button></div>
+    ${quotes.length ? `<div class="list">${quotes.map((q) => `<button class="row" data-act="edit-quote" data-id="${q.id}"><span class="body"><span class="t">${esc(q.name)} ${q.chosen ? '<span class="tag ok">Chosen</span>' : ''}</span><span class="s">${[q.note, q.fileId ? 'PDF attached' : '', q.date ? relDay(q.date) : ''].filter(Boolean).map(esc).join(' · ')}</span></span><span class="money">${esc(money(q.amount))}</span></button>`).join('')}</div>`
+      : '<div class="empty">No quotes yet. Add one per option or price range, with its PDF.</div>'}</section>
+
+  <section class="section"><div class="section-head"><h2>Products <span class="count">${items.length ? `${items.length} · ${money(itemsTotal)}` : ''}</span></h2><button class="btn sm" data-act="add-item">${ICON.plus}Product</button></div>
+    ${items.length ? `<div class="list">${rooms.map((r) => `<div class="room-head">${esc(r)}</div>${items.filter((i) => (i.room || 'No room') === r).map((i) => `<button class="row" data-act="edit-item" data-id="${i.id}"><span class="body"><span class="t">${esc([i.location, [i.brand, i.product].filter(Boolean).join(' ')].filter(Boolean).join(' · ') || 'Window')}</span><span class="s num">${esc([i.color, i.width || i.height ? `${i.width || '?'}″ × ${i.height || '?'}″` : '', i.mount ? i.mount + ' mount' : '', i.control, Number(i.qty) > 1 ? `×${i.qty}` : ''].filter(Boolean).join(' · '))}</span></span><span class="tag ${i.status === 'Issue' ? 'warn' : i.status === 'Installed' ? 'ok' : ''}">${esc(i.status || 'Quoted')}</span></button>`).join('')}`).join('')}</div>`
+      : '<div class="empty">Windows by room: size, product, color, mount, and control.</div>'}</section>
+
+  <section class="section"><div class="section-head"><h2>People</h2><button class="btn sm" data-act="add-person">${ICON.plus}Person</button></div>
+    ${people.length ? `<div class="list">${people.map((p, i) => `<div class="note-entry"><div class="section-head"><strong>${esc(p.name)}</strong><button class="link-btn" data-act="edit-person" data-i="${i}">Edit</button></div>
+      <span class="person-line">${[p.role, p.company].filter(Boolean).map(esc).join(' · ')}</span>
+      <span class="person-line">${p.phone ? `<span class="num">${esc(p.phone)}</span><button class="copy" data-act="copy" data-v="${esc(p.phone)}">Copy</button>` : ''}${p.email ? `<span>${esc(p.email)}</span><button class="copy" data-act="copy" data-v="${esc(p.email)}">Copy</button>` : ''}</span>
+      ${p.notes ? `<span class="small muted">${esc(p.notes)}</span>` : ''}</div>`).join('')}</div>`
+      : '<div class="empty">Homeowner, designer, builder: anyone on this job.</div>'}</section>
+
+  <section class="section"><div class="section-head"><h2>Files <span class="count">${files.length || ''}</span></h2><button class="btn sm" data-act="add-file">${ICON.plus}File</button></div>
+    ${files.length ? `<div class="list">${files.map(fileRow).join('')}</div>` : '<div class="empty">Plans, quote PDFs, order sheets, and photos.</div>'}</section>
+
+  <section class="section"><div class="section-head"><h2>Details</h2><button class="link-btn" data-act="edit-job">Edit</button></div>
+    <dl class="card kv">
+      ${j.source ? `<dt>Found you</dt><dd>${esc(j.source)}</dd>` : ''}
+      ${j.referredBy ? `<dt>Referred by</dt><dd>${esc(j.referredBy)}</dd>` : ''}
+      ${j.value ? `<dt>Est. value</dt><dd class="num">${esc(money(j.value))}</dd>` : ''}
+      ${j.about ? `<dt>About</dt><dd style="white-space:pre-wrap">${esc(j.about)}</dd>` : ''}
+      <dt>Added</dt><dd>${esc(fmtDay((j.createdAt || nowISO()).slice(0, 10), { month: 'short', day: 'numeric', year: 'numeric' }))}</dd>
+    </dl></section>`;
+}
+const blobUrl = (id) => '/_blob/' + encodeURIComponent(id);
+function fileRow(f) {
+  const isImg = /^image\//.test(f.type || '');
+  const ext = (f.name.split('.').pop() || 'file').slice(0, 4).toUpperCase();
+  const thumb = f.missing ? `<span class="file-thumb">—</span>` : isImg && f.assetId ? `<img class="file-thumb" src="${blobUrl(f.assetId)}" alt="" loading="lazy">` : `<span class="file-thumb">${esc(ext)}</span>`;
+  const open = f.assetId && !f.missing ? `<a class="btn sm" href="${blobUrl(f.assetId)}" target="_blank" rel="noopener">Open</a>` : '';
+  return `<div class="row" style="cursor:default">${thumb}<span class="body"><span class="t">${esc(f.name)}</span><span class="s">${[f.label, f.size ? fmtSize(f.size) : '', f.note, f.missing ? 'Not brought over from the old app' : ''].filter(Boolean).map(esc).join(' · ')}</span></span>${open}<button class="icon-btn" data-act="file-menu" data-id="${f.id}" aria-label="File options">${ICON.dots}</button></div>`;
+}
+
+// ----- More -----
+function viewMore() {
+  const contacts = S.meta.contacts || [];
+  const live = S.mode === 'live';
+  return `${loadingNote()}<header><h1>More</h1></header>
+  <section class="section"><h2>Your data</h2>
+    <div class="card next">
+      <p>${live ? 'Your jobs are saved to your Claude account. Open this page on your phone or computer and you’ll see the same thing, updated live.' : 'Open this page from your Claude account to save your jobs there.'}</p>
+      <p class="small muted">${all('jobs').length} jobs · ${all('events').length} appointments · ${all('tasks').length} reminders${S.meta.lastBackup ? ` · last backup ${esc(relDay(S.meta.lastBackup.slice(0, 10)))}` : ''}</p>
+    </div></section>
+  <section class="section"><h2>Bring in old data</h2>
+    <div class="card next">
+      <p>Choose the backup file from the old Job Tracker (<strong>Settings → Export backup</strong> there). Jobs, people, appointments, reminders, notes, quotes, products, and attached files all come over. Doing it twice won’t make duplicates.</p>
+      <div id="import-progress" hidden><div class="progress"><i></i></div><p class="small muted" id="import-msg"></p></div>
+      <label class="btn primary big" for="import-file" ${live ? '' : 'aria-disabled="true" style="opacity:.5;pointer-events:none"'}>Choose backup file</label>
+      <input id="import-file" type="file" accept=".json,application/json" hidden ${live ? '' : 'disabled'}>
+    </div></section>
+  <section class="section"><h2>Back up</h2>
+    <div class="card next">
+      <p>Save a copy of everything (not the files themselves) to your phone or computer.</p>
+      <button class="btn big" data-act="export" ${S.downloads ? '' : 'disabled'}>Save a backup file</button>
+    </div></section>
+  ${contacts.length ? `<section class="section"><div class="section-head"><h2>Contacts from the old app</h2><span class="count">${contacts.length}</span></div><p class="small muted">Search finds these too.</p><div class="list">${contacts.slice().sort((a, b) => a.name.localeCompare(b.name)).map(contactRow).join('')}</div></section>` : ''}
+  ${live && S.jobs.size ? `<section class="section"><h2>Start over</h2><button class="btn danger" data-act="erase">Erase all jobs…</button></section>` : ''}`;
+}
+
+// ---------- Sheets (forms, choices, confirmations) ----------
+const sheetEl = $('#sheet');
+let sheetDone = null;
+function closeSheet(v) { const f = sheetDone; sheetDone = null; if (sheetEl.open) sheetEl.close(); if (f) f(v); }
+sheetEl.addEventListener('close', () => { if (sheetDone) closeSheet(null); });
+sheetEl.addEventListener('click', (e) => { if (e.target === sheetEl) closeSheet(null); });
+
+function fieldHtml(f, v) {
+  const id = 'f-' + f.name;
+  const val = v ?? f.value ?? '';
+  const lbl = `<label for="${id}">${esc(f.label)}</label>`;
+  const hint = f.hint ? `<span class="hint">${esc(f.hint)}</span>` : '';
+  if (f.type === 'textarea') return `<div class="field">${lbl}<textarea id="${id}" name="${f.name}" rows="${f.rows || 3}" placeholder="${esc(f.placeholder || '')}">${esc(val)}</textarea>${hint}</div>`;
+  if (f.type === 'select') return `<div class="field">${lbl}<select id="${id}" name="${f.name}">${f.options.map((o) => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}"${String(ov) === String(val) ? ' selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>${hint}</div>`;
+  if (f.type === 'radios') return `<div class="field"><span class="lbl">${esc(f.label)}</span><div class="radios" role="radiogroup">${f.options.map((o, i) => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<input type="radio" id="${id}-${i}" name="${f.name}" value="${esc(ov)}"${String(ov) === String(val) ? ' checked' : ''}><label for="${id}-${i}">${esc(ol)}</label>`; }).join('')}</div>${hint}</div>`;
+  if (f.type === 'file') return `<div class="field">${lbl}<input id="${id}" name="${f.name}" type="file" accept="${esc(f.accept || '')}">${hint}</div>`;
+  const list = f.list ? ` list="${id}-list"` : '';
+  const dl = f.list ? `<datalist id="${id}-list">${f.list.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>` : '';
+  return `<div class="field">${lbl}<input id="${id}" name="${f.name}" type="${f.type || 'text'}" value="${esc(val)}" placeholder="${esc(f.placeholder || '')}"${f.required ? ' required' : ''}${f.type === 'number' ? ' inputmode="decimal" step="any"' : ''}${list} autocomplete="off">${dl}${hint}</div>`;
+}
+
+// Opens a form in the sheet. Resolves with the values, or null if closed.
+function form({ title, intro = '', fields = [], values = {}, submit = 'Save', extra = [] }) {
+  if (sheetDone) closeSheet(null);
+  const rows = fields.map((f) => (Array.isArray(f) ? `<div class="fields-2">${f.map((x) => fieldHtml(x, values[x.name])).join('')}</div>` : fieldHtml(f, values[f.name]))).join('');
+  sheetEl.innerHTML = `<form class="sheet-in" novalidate>
+    <div class="sheet-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${ICON.close}</button></div>
+    <div class="sheet-body">${intro}${rows}</div>
+    <div class="sheet-foot">${extra.map(([k, l, cls]) => `<button type="button" class="btn ${cls || ''}" data-extra="${k}">${esc(l)}</button>`).join('')}${submit ? `<button type="submit" class="btn primary">${esc(submit)}</button>` : ''}</div>
+  </form>`;
+  return new Promise((resolve) => {
+    sheetDone = resolve;
+    const fm = $('form', sheetEl);
+    fm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const req = [...fm.querySelectorAll('[required]')].find((el) => !el.value.trim());
+      if (req) { req.focus(); toast('Please fill in ' + (fm.querySelector(`label[for="${req.id}"]`)?.textContent || 'the required field').toLowerCase()); return; }
+      const out = {};
+      fields.flat().forEach((f) => {
+        if (f.type === 'file') out[f.name] = fm.elements[f.name].files[0] || null;
+        else if (f.type === 'radios') out[f.name] = (fm.querySelector(`[name="${f.name}"]:checked`) || {}).value ?? '';
+        else out[f.name] = (fm.elements[f.name].value || '').trim();
+      });
+      closeSheet(out);
+    });
+    $('[data-close]', sheetEl).addEventListener('click', () => closeSheet(null));
+    sheetEl.querySelectorAll('[data-extra]').forEach((b) => b.addEventListener('click', () => closeSheet({ _extra: b.dataset.extra })));
+    sheetEl.showModal();
+    const first = fm.querySelector('input:not([type=radio]):not([type=file]), textarea');
+    if (first && !first.value && matchMedia('(pointer:fine)').matches) first.focus();
+  });
+}
+const ask = (title, text, ok = 'OK', danger = false) => form({ title, intro: `<p class="sheet-context">${text}</p>`, submit: '', extra: [['no', 'Cancel'], ['yes', ok, danger ? 'danger' : 'primary']] }).then((r) => r && r._extra === 'yes');
+const choose = (title, options, intro = '') => {
+  if (sheetDone) closeSheet(null);
+  sheetEl.innerHTML = `<div class="sheet-in"><div class="sheet-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close">${ICON.close}</button></div>
+    <div class="sheet-body">${intro}<div class="choices">${options.map((o, i) => `<button class="btn ${o.cls || ''}" data-i="${i}"><span>${esc(o.label)}${o.hint ? `<small>${esc(o.hint)}</small>` : ''}</span></button>`).join('')}</div></div></div>`;
+  return new Promise((resolve) => {
+    sheetDone = resolve;
+    $('[data-close]', sheetEl).addEventListener('click', () => closeSheet(null));
+    sheetEl.querySelectorAll('[data-i]').forEach((b) => b.addEventListener('click', () => closeSheet(options[b.dataset.i].value)));
+    sheetEl.showModal();
+  });
+};
+
+let toastT = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+
+function copyText(v) {
+  try { navigator.clipboard.writeText(v).then(() => toast('Copied'), () => toast(v)); } catch (e) { toast(v); }
+}
+
+// ---------- Actions ----------
+const jobOptions = () => [['', 'No job'], ...all('jobs').filter(isActive).sort((a, b) => a.name.localeCompare(b.name)).map((j) => [j.id, j.name])];
+const curJob = () => (V.route === 'job' ? get('jobs', V.jobId) : null);
+
+async function newJob() {
+  const d = await form({
+    title: 'New job',
+    fields: [
+      { name: 'client', label: 'Client name', required: true, placeholder: 'e.g. Sarah Johnson' },
+      [{ name: 'phone', label: 'Phone', type: 'tel' }, { name: 'email', label: 'Email', type: 'email' }],
+      { name: 'address', label: 'Job address', placeholder: 'Street address' },
+      [{ name: 'source', label: 'How they found you', type: 'select', options: ['', ...SOURCES] }, { name: 'referredBy', label: 'Referred by', placeholder: 'Name' }],
+      { name: 'about', label: 'What they’re looking for', type: 'textarea', rows: 2, placeholder: 'e.g. Blackout shades in bedrooms, motorized in the great room' },
+    ],
+    submit: 'Add job',
+  });
+  if (!d) return;
+  const street = d.address.split(',')[0].trim();
+  const last = d.client.split(' ').filter(Boolean).pop() || d.client;
+  const job = put('jobs', {
+    name: street ? `${last} – ${street}` : d.client, stage: 'lead', address: d.address, source: d.source, referredBy: d.referredBy, about: d.about, value: '',
+    people: [{ name: d.client, role: 'Homeowner', phone: d.phone, email: d.email, company: '', notes: '' }],
+    log: [], quotes: [], items: [], files: [], stageHistory: [{ stage: 'lead', at: nowISO() }],
+  });
+  put('tasks', { title: `Call ${firstName(d.client)} to book a sales call`, due: today(), jobId: job.id, done: false, forStage: 'lead' });
+  go('job-' + job.id);
+  toast('Job added');
+}
+
+async function editJob(j) {
+  const d = await form({
+    title: 'Job details', values: j,
+    fields: [
+      { name: 'name', label: 'Job name', required: true },
+      { name: 'address', label: 'Address' },
+      [{ name: 'source', label: 'How they found you', type: 'select', options: ['', ...SOURCES, ...(j.source && !SOURCES.includes(j.source) ? [j.source] : [])] }, { name: 'referredBy', label: 'Referred by' }],
+      { name: 'value', label: 'Estimated value ($)', type: 'number' },
+      { name: 'about', label: 'About this job', type: 'textarea' },
+    ],
+  });
+  if (!d) return;
+  Object.assign(j, d, { value: d.value === '' ? '' : Number(d.value) });
+  put('jobs', j);
+  toast('Saved');
+}
+
+async function eventForm(e = {}, defaults = {}) {
+  const isNew = !e.id;
+  const v = { type: 'sales', date: today(), days: 1, ...defaults, ...e };
+  const j0 = v.jobId && S.jobs.get(v.jobId);
+  const types = EVENT_TYPES.filter((t) => t.pick || t.id === v.type).map((t) => [t.id, t.label]);
+  const d = await form({
+    title: isNew ? 'New appointment' : 'Appointment', values: { ...v, location: v.location ?? (j0 ? j0.address : '') },
+    fields: [
+      { name: 'type', label: 'What', type: 'radios', options: types },
+      { name: 'jobId', label: 'Job', type: 'select', options: [...jobOptions(), ...(j0 && !isActive(j0) ? [[j0.id, j0.name]] : [])] },
+      [{ name: 'date', label: 'Date', type: 'date', required: true }, { name: 'days', label: 'Days', type: 'number', hint: 'For installs that run long' }],
+      [{ name: 'start', label: 'Start', type: 'time' }, { name: 'end', label: 'End', type: 'time' }],
+      { name: 'location', label: 'Where', placeholder: 'Uses the job address if blank' },
+      { name: 'notes', label: 'Notes', type: 'textarea', rows: 2, placeholder: 'e.g. Bring samples. The designer will be there.' },
+    ],
+    extra: isNew ? [] : [['delete', 'Delete', 'danger'], ...(e.done ? [] : [['how', 'Add how it went']])],
+  });
+  if (!d) return;
+  if (d._extra === 'delete') { if (await ask('Delete appointment?', 'This removes it from the calendar.', 'Delete', true)) { del('events', e.id); toast('Deleted'); } return; }
+  if (d._extra === 'how') return howItWent(e);
+  const j = d.jobId && get('jobs', d.jobId);
+  const ev = put('events', { ...e, ...d, days: Math.max(1, Number(d.days) || 1), location: d.location || (j ? j.address : ''), title: `${evType(d.type).label}${j ? ' – ' + j.name : ''}`, done: e.done || false });
+  // Booking a sales call, final measure or install moves the job to that step.
+  const to = EVENT_STAGE[ev.type];
+  if (j && to && isActive(j) && stageIdx(to) > stageIdx(j.stage)) setStage(j, to);
+  toast(isNew ? 'Booked' : 'Saved');
+}
+
+async function howItWent(e) {
+  const j = e.jobId && get('jobs', e.jobId);
+  const NEXT_OPTS = {
+    sales: [['quotes', 'Put quotes together'], ['again', 'Meet again'], ['yes', 'They said yes'], ['lost', 'Not interested']],
+    measure: [['order', 'Ready to order'], ['again', 'Need to come back']],
+    install: [['done', 'Job finished'], ['again', 'Need another day']],
+  }[e.type] || [];
+  const d = await form({
+    title: `How did the ${evType(e.type).label.toLowerCase()} go?`,
+    intro: `<p class="sheet-context">${j ? esc(j.name) + ' · ' : ''}${esc(relDay(e.date))}</p>`,
+    values: { next: { sales: j && (j.quotes || []).length ? 'again' : 'quotes', measure: 'order', install: 'done' }[e.type] || '', remind: e.type === 'sales' ? '2' : '' },
+    fields: [
+      { name: 'summary', label: 'What happened?', type: 'textarea', rows: 4, placeholder: e.type === 'sales' ? 'What they want, rooms, rough sizes, budget…' : 'Anything worth remembering' },
+      ...(j && NEXT_OPTS.length ? [{ name: 'next', label: 'What’s next?', type: 'radios', options: NEXT_OPTS }] : []),
+      { name: 'remind', label: 'Remind me to follow up', type: 'radios', options: [['', 'No'], ['2', 'In 2 days'], ['7', 'In a week'], ['14', 'In 2 weeks']] },
+    ],
+  });
+  if (!d) return;
+  put('events', { ...e, done: true, summary: d.summary });
+  if (j) {
+    if (d.summary) { j.log = j.log || []; j.log.push({ id: uid(), date: e.date, type: e.type === 'sales' ? 'Visit' : 'Note', text: `${evType(e.type).label}: ${d.summary}` }); }
+    put('jobs', j);
+    const c = client(j);
+    if (d.remind) put('tasks', { title: d.next === 'quotes' ? `Send quotes to ${firstName(c && c.name) || 'client'}` : `Follow up with ${firstName(c && c.name) || 'client'}`, due: addDays(today(), Number(d.remind)), jobId: j.id, done: false, forStage: d.next === 'quotes' && j.stage === 'lead' ? 'consult' : j.stage });
+    if (d.next === 'quotes' && j.stage === 'lead') setStage(j, 'consult');
+    if (d.next === 'lost') setStage(j, 'lost');
+    if (d.next === 'done') setStage(j, 'complete');
+    if (d.next === 'again') return eventForm({}, { jobId: j.id, type: e.type, date: addDays(today(), 7) });
+    if (d.next === 'yes') { setStage(j, 'measure'); return eventForm({}, { jobId: j.id, type: 'measure', date: addDays(today(), 3) }); }
+    if (d.next === 'order') return orderedFlow(get('jobs', j.id));
+  } else if (d.remind) put('tasks', { title: `Follow up: ${e.title || evType(e.type).label}`, due: addDays(today(), Number(d.remind)), jobId: '', done: false });
+  toast('Saved');
+}
+
+async function taskForm(t = {}, defaults = {}) {
+  const isNew = !t.id;
+  const v = { due: today(), ...defaults, ...t };
+  const d = await form({
+    title: isNew ? 'New reminder' : 'Reminder', values: v,
+    fields: [
+      { name: 'title', label: 'Remind me to', required: true, placeholder: 'e.g. Call Dana about fabric samples' },
+      [{ name: 'due', label: 'Date', type: 'date', required: true }, { name: 'time', label: 'Time (optional)', type: 'time' }],
+      { name: 'jobId', label: 'Job', type: 'select', options: jobOptions() },
+      { name: 'notes', label: 'Notes', type: 'textarea', rows: 3, placeholder: 'What you talked about. Saved to the job’s notes when you mark it done.' },
+    ],
+    extra: isNew ? [] : [['delete', 'Delete', 'danger'], [t.done ? 'undone' : 'done', t.done ? 'Not done' : 'Mark done']],
+    submit: 'Save',
+  });
+  if (!d) return;
+  if (d._extra === 'delete') { if (await ask('Delete reminder?', esc(t.title), 'Delete', true)) { del('tasks', t.id); toast('Deleted'); } return; }
+  if (d._extra === 'done' || d._extra === 'undone') return tick(t.id);
+  const saved = put('tasks', { ...t, ...d, done: t.done || false });
+  if (saved.done) noteFromTask(saved);
+  toast(isNew ? 'Reminder added' : 'Saved');
+}
+// A finished reminder's notes are copied into its job's Notes so they're easy to find later.
+function noteFromTask(t) {
+  const j = t.jobId && get('jobs', t.jobId);
+  if (!j) return;
+  j.log = j.log || [];
+  const entry = j.log.find((l) => l.taskId === t.id);
+  if (t.notes) {
+    const fields = { date: (t.doneAt || '').slice(0, 10) || t.due || today(), type: 'Note', text: `${t.title}: ${t.notes}` };
+    if (entry) Object.assign(entry, fields); else j.log.push({ id: uid(), taskId: t.id, ...fields });
+  } else if (entry) j.log = j.log.filter((l) => l !== entry);
+  else return;
+  put('jobs', j);
+}
+function tick(id) {
+  const t = get('tasks', id);
+  if (!t) return;
+  t.done = !t.done;
+  t.doneAt = t.done ? nowISO() : '';
+  put('tasks', t);
+  if (t.done) { noteFromTask(t); toast('Done'); }
+}
+
+async function noteForm(j, entry) {
+  const isNew = !entry;
+  const d = await form({
+    title: isNew ? 'Add a note' : 'Note', values: entry || { type: 'Note', date: today() },
+    fields: [
+      { name: 'type', label: 'Kind', type: 'radios', options: NOTE_TYPES },
+      { name: 'date', label: 'Date', type: 'date', required: true },
+      { name: 'text', label: 'What happened', type: 'textarea', rows: 5, required: true },
+    ],
+    extra: isNew ? [] : [['delete', 'Delete', 'danger']],
+  });
+  if (!d) return;
+  j.log = j.log || [];
+  if (d._extra === 'delete') { if (!(await ask('Delete note?', 'This can’t be undone.', 'Delete', true))) return; j.log = j.log.filter((l) => l.id !== entry.id); }
+  else if (isNew) j.log.push({ id: uid(), ...d });
+  else Object.assign(j.log.find((l) => l.id === entry.id), d);
+  put('jobs', j);
+  toast('Saved');
+}
+
+// Upload a file to the Claude account and return the file record for a job.
+async function uploadFile(file, label, note) {
+  if (!S.assets) { toast('Files can only be added when this page is opened from your Claude account.'); return null; }
+  if (file.size > 20 * 1024 * 1024) { toast('That file is over 20 MB. Try a smaller copy.'); return null; }
+  toast('Uploading…');
+  try {
+    const r = await S.assets.upload(file);
+    return { id: uid(), assetId: r.id, name: file.name, label, type: r.contentType || file.type, size: r.sizeBytes || file.size, addedAt: nowISO(), note: note || '' };
+  } catch (e) {
+    console.error(e);
+    toast(e && e.code === 'invalid_request' ? 'That kind of file can’t be stored. Use a PDF, photo, CSV, or text file.' : e && e.code === 'quota_exceeded' ? 'File storage is full. Delete some old files first.' : 'Upload failed. Try again.');
+    return null;
+  }
+}
+
+async function quoteForm(j, q) {
+  const isNew = !q;
+  const d = await form({
+    title: isNew ? 'Add a quote' : 'Quote', values: q || {},
+    fields: [
+      { name: 'name', label: 'Option name', required: true, placeholder: 'e.g. Option A – Motorized shades' },
+      { name: 'amount', label: 'Price ($)', type: 'number' },
+      { name: 'note', label: 'Note', placeholder: 'What’s included' },
+      { name: 'file', label: q && q.fileId ? 'Replace PDF' : 'Quote PDF (optional)', type: 'file', accept: 'application/pdf,image/*' },
+    ],
+    extra: isNew ? [] : [['delete', 'Delete', 'danger'], ...(q.chosen ? [] : [['chosen', 'They picked this']])],
+  });
+  if (!d) return;
+  j.quotes = j.quotes || [];
+  if (d._extra === 'delete') { if (!(await ask('Delete quote?', esc(q.name), 'Delete', true))) return; j.quotes = j.quotes.filter((x) => x.id !== q.id); put('jobs', j); return; }
+  if (d._extra === 'chosen') { j.quotes.forEach((x) => { x.chosen = x.id === q.id; }); put('jobs', j); toast('Marked as chosen'); return; }
+  let fileId = q ? q.fileId || '' : '';
+  if (d.file) {
+    const rec = await uploadFile(d.file, 'Quote', d.name);
+    if (rec) { j.files = j.files || []; j.files.push(rec); fileId = rec.id; }
+  }
+  const body = { name: d.name, amount: d.amount === '' ? '' : Number(d.amount), note: d.note, fileId };
+  if (isNew) j.quotes.push({ id: uid(), date: today(), chosen: false, ...body });
+  else Object.assign(j.quotes.find((x) => x.id === q.id), body);
+  put('jobs', j);
+  if (isNew && (j.stage === 'lead' || j.stage === 'consult')) setStage(j, 'quoted');
+  toast('Saved');
+}
+
+async function itemForm(j, it, copyFrom) {
+  const isNew = !it;
+  const v = it || (copyFrom ? { ...copyFrom, location: '', width: '', height: '' } : { qty: 1, category: 'Shades', status: stage(j.stage).sec === 'sales' ? 'Quoted' : 'Ordered' });
+  const used = [...new Set(all('jobs').flatMap((x) => (x.items || []).map((i) => i.brand)).filter(Boolean))];
+  const d = await form({
+    title: isNew ? 'Add a product' : 'Product', values: v,
+    fields: [
+      [{ name: 'room', label: 'Room', required: true, placeholder: 'Living Room', list: [...new Set((j.items || []).map((i) => i.room).filter(Boolean))] }, { name: 'location', label: 'Window', placeholder: 'Left of fireplace' }],
+      [{ name: 'category', label: 'Type', type: 'select', options: CATEGORIES }, { name: 'brand', label: 'Brand', list: [...new Set([...used, ...BRANDS])] }],
+      [{ name: 'product', label: 'Product', placeholder: 'Duette, Pirouette…' }, { name: 'color', label: 'Fabric / color' }],
+      [{ name: 'width', label: 'Width (in)', placeholder: '36 1/2', hint: 'Fractions are fine' }, { name: 'height', label: 'Height (in)', placeholder: '60' }],
+      [{ name: 'mount', label: 'Mount', type: 'select', options: ['', ...MOUNTS] }, { name: 'control', label: 'Control', type: 'select', options: ['', ...CONTROLS] }],
+      [{ name: 'qty', label: 'Qty', type: 'number' }, { name: 'price', label: 'Price each ($)', type: 'number' }],
+      { name: 'status', label: 'Status', type: 'radios', options: ITEM_STATUSES },
+      { name: 'notes', label: 'Notes', type: 'textarea', rows: 2 },
+    ],
+    extra: isNew ? [] : [['delete', 'Delete', 'danger'], ['copy', 'Copy as new']],
+  });
+  if (!d) return;
+  j.items = j.items || [];
+  if (d._extra === 'delete') { if (!(await ask('Delete product?', 'This removes it from the list.', 'Delete', true))) return; j.items = j.items.filter((x) => x.id !== it.id); put('jobs', j); return; }
+  if (d._extra === 'copy') return itemForm(j, null, it);
+  const body = { ...d, qty: Number(d.qty) || 1, price: d.price === '' ? '' : Number(d.price) };
+  if (isNew) j.items.push({ id: uid(), ...body }); else Object.assign(j.items.find((x) => x.id === it.id), body);
+  put('jobs', j);
+  toast('Saved');
+}
+
+async function personForm(j, i) {
+  const p = i == null ? null : j.people[i];
+  const d = await form({
+    title: p ? 'Person' : 'Add a person', values: p || { role: 'Homeowner' },
+    fields: [
+      { name: 'name', label: 'Name', required: true },
+      [{ name: 'role', label: 'Role', type: 'select', options: [...ROLES, ...(p && p.role && !ROLES.includes(p.role) ? [p.role] : [])] }, { name: 'company', label: 'Company' }],
+      [{ name: 'phone', label: 'Phone', type: 'tel' }, { name: 'email', label: 'Email', type: 'email' }],
+      { name: 'notes', label: 'Notes', type: 'textarea', rows: 2, placeholder: 'e.g. Prefers texts' },
+    ],
+    extra: p ? [['delete', 'Remove', 'danger']] : [],
+  });
+  if (!d) return;
+  j.people = j.people || [];
+  if (d._extra === 'delete') j.people.splice(i, 1);
+  else if (p) Object.assign(j.people[i], d);
+  else j.people.push(d);
+  put('jobs', j);
+  toast('Saved');
+}
+
+async function addFile(j) {
+  const d = await form({
+    title: 'Add a file',
+    fields: [
+      { name: 'file', label: 'File', type: 'file', accept: 'application/pdf,image/*,.csv,.txt,.md,.json' },
+      { name: 'label', label: 'Kind', type: 'radios', options: FILE_LABELS },
+      { name: 'note', label: 'Note', placeholder: 'e.g. Rev B from the builder' },
+    ],
+    values: { label: 'Plans' }, submit: 'Upload',
+  });
+  if (!d) return;
+  if (!d.file) { toast('Choose a file first'); return addFile(j); }
+  const rec = await uploadFile(d.file, d.label || 'Other', d.note);
+  if (!rec) return;
+  const fresh = get('jobs', j.id);
+  fresh.files = fresh.files || [];
+  fresh.files.push(rec);
+  if (rec.label === 'Quote') { fresh.quotes = fresh.quotes || []; fresh.quotes.push({ id: uid(), name: rec.name.replace(/\.[^.]+$/, ''), amount: '', note: rec.note, fileId: rec.id, date: today(), chosen: false }); }
+  put('jobs', fresh);
+  toast('File added');
+}
+async function fileMenu(j, fid) {
+  const f = (j.files || []).find((x) => x.id === fid);
+  if (!f) return;
+  const a = await choose(f.name, [{ value: 'rename', label: 'Rename or change kind' }, { value: 'delete', label: 'Delete file', cls: 'danger' }]);
+  if (a === 'rename') {
+    const d = await form({ title: 'File', values: f, fields: [{ name: 'name', label: 'Name', required: true }, { name: 'label', label: 'Kind', type: 'radios', options: FILE_LABELS }, { name: 'note', label: 'Note' }] });
+    if (!d) return;
+    Object.assign(f, d);
+    put('jobs', j);
+  } else if (a === 'delete') {
+    if (!(await ask('Delete file?', esc(f.name) + ' will be removed for good.', 'Delete', true))) return;
+    j.files = j.files.filter((x) => x.id !== fid);
+    (j.quotes || []).forEach((q) => { if (q.fileId === fid) q.fileId = ''; });
+    put('jobs', j);
+    if (f.assetId && S.assets && !all('jobs').some((x) => (x.files || []).some((y) => y.assetId === f.assetId))) S.assets.delete(f.assetId).catch(() => {});
+    toast('Deleted');
+  }
+}
+
+async function orderedFlow(j) {
+  const d = await form({
+    title: 'Order placed', intro: `<p class="sheet-context">${esc(j.name)}</p>`,
+    values: { eta: addDays(today(), 28) },
+    fields: [{ name: 'eta', label: 'When should the product arrive?', type: 'date', hint: 'You’ll get a reminder that day to book the install.' }],
+    submit: 'Mark as ordered',
+  });
+  if (!d) return;
+  j.eta = d.eta;
+  (j.items || []).forEach((i) => { if (!i.status || i.status === 'Quoted') i.status = 'Ordered'; });
+  setStage(j, 'ordered');
+  if (d.eta) put('tasks', { title: 'Product should be in: book the install', due: d.eta, jobId: j.id, done: false, auto: 'eta', forStage: 'ordered' });
+  toast('Marked as ordered');
+}
+
+async function nextAction(act) {
+  const j = curJob();
+  if (!j) return;
+  if (act === 'book-sales') return eventForm({}, { jobId: j.id, type: 'sales', date: addDays(today(), 1) });
+  if (act === 'book-measure') return eventForm({}, { jobId: j.id, type: 'measure', date: addDays(today(), 3) });
+  if (act === 'book-install') return eventForm({}, { jobId: j.id, type: 'install', date: addDays(today(), 3) });
+  if (act === 'add-quote') return quoteForm(j);
+  if (act === 'ordered') return orderedFlow(j);
+  if (act === 'said-yes') {
+    const qs = j.quotes || [];
+    let pick = qs.length === 1 ? qs[0].id : '';
+    if (qs.length > 1) {
+      pick = await choose('Which option did they pick?', qs.map((q) => ({ value: q.id, label: q.name, hint: money(q.amount) })));
+      if (!pick) return;
+    }
+    qs.forEach((q) => { q.chosen = q.id === pick; });
+    setStage(j, 'measure');
+    toast('On to final measure');
+    return eventForm({}, { jobId: j.id, type: 'measure', date: addDays(today(), 3) });
+  }
+  if (act === 'mark-lost') { if (await ask('Mark as lost?', 'The job moves to the Lost list. You can reopen it any time.', 'Mark lost')) { setStage(j, 'lost'); toast('Moved to Lost'); } return; }
+  if (act === 'finish') {
+    if (!(await ask('Job finished?', 'You’ll get a reminder in 2 weeks to check in with the client.', 'Finish job'))) return;
+    (j.items || []).forEach((i) => { if (i.status !== 'Issue') i.status = 'Installed'; });
+    setStage(j, 'complete');
+    toast('Nice work. Job done.');
+    return;
+  }
+  if (act === 'reopen') {
+    const prev = (j.stageHistory || []).map((h) => h.stage).filter((s) => STEP_IDS.includes(s)).pop() || 'lead';
+    setStage(j, prev);
+    toast('Reopened');
+  }
+}
+
+async function changeStage(j) {
+  const n = stageIdx(j.stage);
+  const to = await choose('Move to which step?', [...STAGES.slice(0, 7).map((s, i) => ({ value: s.id, label: s.label, hint: s.id === j.stage ? 'Current step' : i < n ? 'Go back' : '', cls: s.id === j.stage ? 'primary' : '' })), { value: 'lost', label: 'Lost', hint: 'They didn’t go ahead' }]);
+  if (to && to !== j.stage) { setStage(j, to); toast('Moved to ' + stage(to).label); }
+}
+
+async function jobMenu(j) {
+  const a = await choose(j.name, [
+    { value: 'edit', label: 'Edit details' },
+    { value: 'stage', label: 'Change step' },
+    ...(j.stage !== 'lost' ? [{ value: 'lost', label: 'Mark as lost' }] : []),
+    { value: 'delete', label: 'Delete job', cls: 'danger' },
+  ]);
+  if (a === 'edit') return editJob(j);
+  if (a === 'stage') return changeStage(j);
+  if (a === 'lost') { setStage(j, 'lost'); toast('Moved to Lost'); }
+  if (a === 'delete') {
+    if (!(await ask('Delete this job?', `${esc(j.name)} and its appointments, reminders, notes and files will be removed for good.`, 'Delete job', true))) return;
+    jobEvents(j.id).forEach((e) => del('events', e.id));
+    jobTasks(j.id).forEach((t) => del('tasks', t.id));
+    del('jobs', j.id);
+    go('jobs');
+    toast('Job deleted');
+  }
+}
+
+// ---------- Backup and import ----------
+async function exportBackup() {
+  if (!S.downloads) return;
+  const data = { app: 'job-tracker-2', exportedAt: nowISO(), jobs: all('jobs'), events: all('events'), tasks: all('tasks'), contacts: S.meta.contacts || [] };
+  try {
+    await S.downloads.save({ filename: `job-tracker-backup-${today()}.json`, data: JSON.stringify(data, null, 1) });
+    S.meta.lastBackup = nowISO();
+    if (S.db) write('meta/info', () => S.db.doc('meta/info').set({ lastBackup: S.meta.lastBackup }));
+    toast('Backup saved');
+  } catch (e) { if (e && e.code !== 'declined' && e.code !== 'cancelled') toast('Backup wasn’t saved.'); }
+}
+
+function dataURLToBlob(url) {
+  const [head, b64] = url.split(',');
+  const type = (head.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream';
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type });
+}
+
+async function importFile(file) {
+  const box = $('#import-progress'), bar = $('#import-progress i'), msg = $('#import-msg');
+  const show = (p, m) => { if (box) { box.hidden = false; bar.style.width = Math.round(p * 100) + '%'; msg.textContent = m; } };
+  let d;
+  try { d = JSON.parse(await file.text()); } catch (e) { toast('That file isn’t a backup file.'); return; }
+  let jobs = [], events = [], tasks = [], contacts = [], fileData = {};
+  if (d && d.app === 'job-tracker-2') {
+    ({ jobs = [], events = [], tasks = [], contacts = [] } = d);
+  } else if (d && Array.isArray(d.projects) && Array.isArray(d.contacts)) {
+    fileData = d.fileData || {};
+    const cById = new Map(d.contacts.map((c) => [c.id, c]));
+    const coById = new Map((d.companies || []).map((c) => [c.id, c]));
+    const used = new Set();
+    jobs = d.projects.map((p) => {
+      const stageId = OLD_STAGES[p.stage] || p.stage || 'lead';
+      const people = (p.contacts || []).map((pc) => { const c = cById.get(pc.contactId); if (!c) return null; used.add(c.id); return { name: c.name, role: pc.role || c.role || '', company: c.company || (coById.get(c.companyId) || {}).name || '', phone: c.phone || '', email: c.email || '', notes: c.notes || '' }; }).filter(Boolean);
+      const log = (p.log || []).map((l) => ({ id: l.id || uid(), date: l.date || '', type: l.type || 'Note', text: l.summary || '', who: (cById.get(l.contactId) || {}).name || '', ...(l.taskId ? { taskId: l.taskId } : {}) }));
+      if ((p.phases || []).length) log.push({ id: 'phases-' + p.id, date: (p.createdAt || nowISO()).slice(0, 10), type: 'Note', text: 'Job phases (from the old app):\n' + p.phases.map((ph) => `• ${ph.name}: ${ph.status}${ph.date ? ' (' + ph.date + ')' : ''}${ph.waitingOn ? ', waiting on ' + ph.waitingOn : ''}${ph.notes ? ', ' + ph.notes : ''}`).join('\n') });
+      return {
+        id: p.id, name: p.name || 'Untitled job', stage: stageId, address: p.address || '', source: p.source || '', referredBy: p.referredBy || '', value: p.estValue ?? '', eta: p.eta || '', about: p.notes || '',
+        people, log, quotes: (p.quotes || []).map((q) => ({ ...q })), items: (p.items || []).map((i) => ({ ...i })),
+        files: (p.files || []).map((f) => ({ id: f.id, name: f.name, label: f.label || 'Other', type: f.type || '', size: f.size || 0, addedAt: f.addedAt || '', note: f.note || '' })),
+        stageHistory: (p.stageHistory || []).map((h) => ({ stage: OLD_STAGES[h.stage] || h.stage, at: h.at })), createdAt: p.createdAt || nowISO(), updatedAt: p.updatedAt || nowISO(),
+      };
+    });
+    events = (d.events || []).map((e) => ({ id: e.id, title: e.title || '', type: e.type || 'other', jobId: e.projectId || '', date: e.date, start: e.start || '', end: e.end || '', days: e.days || 1, location: e.location || '', notes: e.notes || '', done: !!e.done, createdAt: e.createdAt || nowISO() })).filter((e) => e.date);
+    tasks = (d.tasks || []).map((t) => ({ id: t.id, title: t.title || 'Reminder', due: t.due || today(), time: t.time || '', jobId: t.projectId || '', done: !!t.done, doneAt: t.doneAt || '', notes: t.notes || '', forStage: t.forStage || '', auto: t.auto || false, createdAt: t.createdAt || nowISO() }));
+    contacts = d.contacts.map((c) => ({ name: c.name || '', role: c.role || '', company: c.company || (coById.get(c.companyId) || {}).name || '', phone: c.phone || '', email: c.email || '', notes: c.notes || '' })).filter((c) => c.name);
+    (d.companies || []).forEach((co) => { if (co.phone || co.email || co.notes) contacts.push({ name: co.name, role: co.type || 'Company', company: '', phone: co.phone || '', email: co.email || '', notes: [co.address, co.website, co.notes].filter(Boolean).join(' · ') }); });
+  } else { toast('That file isn’t a Job Tracker backup.'); return; }
+
+  const fileJobs = jobs.flatMap((j) => (j.files || []).filter((f) => fileData[f.id] && !f.assetId).map((f) => [j, f]));
+  const ok = await ask('Bring this in?', `${jobs.length} jobs, ${events.length} appointments, ${tasks.length} reminders${fileJobs.length ? `, ${fileJobs.length} files` : ''}. Jobs already here with the same ID will be replaced by the copy in the file.`, 'Bring it in');
+  if (!ok) return;
+  const total = fileJobs.length + jobs.length + events.length + tasks.length + 1;
+  let doneN = 0;
+  const step = (m) => { doneN++; show(doneN / total, m); };
+  let failed = 0;
+  for (const [, f] of fileJobs) {
+    try {
+      const blob = dataURLToBlob(fileData[f.id]);
+      const r = await S.assets.upload(blob);
+      f.assetId = r.id; f.type = r.contentType || f.type;
+    } catch (e) { f.missing = true; failed++; }
+    step(`Uploading files… ${f.name}`);
+  }
+  jobs.forEach((j) => (j.files || []).forEach((f) => { if (!f.assetId && !f.missing) f.missing = true; }));
+  const writeAll = async (coll, rows) => {
+    for (const r of rows) {
+      if (!r.id) r.id = uid();
+      S[coll].set(r.id, clone(r));
+      try { await S.db.collection(coll).doc(r.id).set(clone(r)); } catch (e) { if (e && e.code === 'unavailable') { await new Promise((x) => setTimeout(x, 1000)); await S.db.collection(coll).doc(r.id).set(clone(r)); } else throw e; }
+      step(`Saving ${coll}…`);
+    }
+  };
+  try {
+    await writeAll('jobs', jobs);
+    await writeAll('events', events);
+    await writeAll('tasks', tasks);
+    if (contacts.length) { S.meta.contacts = contacts; await S.db.doc('meta/contacts').set({ list: contacts }); }
+    step('Done');
+    show(1, `Brought in ${jobs.length} jobs, ${events.length} appointments and ${tasks.length} reminders.${failed ? ` ${failed} files couldn’t be brought over (they’re marked on their jobs).` : ''}`);
+    toast('Old data brought in');
+    schedule();
+  } catch (e) {
+    console.error(e);
+    show(doneN / total, 'Stopped partway: ' + (e && e.code === 'quota_exceeded' ? 'storage is full.' : 'the connection dropped.') + ' Choose the file again to finish. Nothing will be duplicated.');
+  }
+}
+
+async function eraseAll() {
+  if (!(await ask('Erase all jobs?', 'Every job, appointment and reminder will be deleted from your account. Save a backup first if you might want them back.', 'Erase everything', true))) return;
+  all('events').forEach((e) => del('events', e.id));
+  all('tasks').forEach((t) => del('tasks', t.id));
+  all('jobs').forEach((j) => del('jobs', j.id));
+  toast('Erased');
+}
+
+// ---------- Events ----------
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act;
+  const id = el.dataset.id;
+  const j = curJob();
+  if (act === 'tick') { ev.stopPropagation(); return tick(id); }
+  if (el.tagName === 'A' && act !== 'copy') return;
+  ev.preventDefault();
+  switch (act) {
+    case 'copy': return copyText(el.dataset.v);
+    case 'pick-day': V.sel = el.dataset.day; return render();
+    case 'week': V.weekStart = addDays(V.weekStart, Number(el.dataset.n)); V.sel = V.weekStart <= today() && today() <= addDays(V.weekStart, 6) ? today() : V.weekStart; return render();
+    case 'go-today': V.sel = today(); V.weekStart = ''; return render();
+    case 'filter': V.filter = el.dataset.f; V.q = ''; return render();
+    case 'new-job': return newJob();
+    case 'new-event': return eventForm({}, j ? { jobId: j.id, type: { lead: 'sales', consult: 'sales', quoted: 'sales', measure: 'measure', ordered: 'install', install: 'install' }[j.stage] || 'other', date: addDays(today(), 1) } : { date: V.route === 'today' ? V.sel : today() });
+    case 'new-task': return taskForm({}, j ? { jobId: j.id, due: addDays(today(), 1) } : { due: V.route === 'today' ? V.sel : today() });
+    case 'event': { const e = get('events', id); return e && eventForm(e); }
+    case 'how': { const e = get('events', id); return e && howItWent(e); }
+    case 'task': { const t = get('tasks', id); return t && taskForm(t); }
+    case 'export': return exportBackup();
+    case 'erase': return eraseAll();
+  }
+  if (!j) return;
+  switch (act) {
+    case 'add-coming': return choose('Add to this job', [{ value: 'new-event', label: 'Appointment', hint: 'Sales call, measure, install, site visit' }, { value: 'new-task', label: 'Reminder', hint: 'Something to do on a date' }]).then((a) => { if (a) { const b = document.createElement('button'); b.dataset.act = a; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); } });
+    case 'job-menu': return jobMenu(j);
+    case 'change-stage': return changeStage(j);
+    case 'edit-job': return editJob(j);
+    case 'add-note': return noteForm(j);
+    case 'edit-note': return noteForm(j, (j.log || []).find((l) => l.id === id));
+    case 'edit-quote': return quoteForm(j, (j.quotes || []).find((q) => q.id === id));
+    case 'add-item': return itemForm(j);
+    case 'edit-item': return itemForm(j, (j.items || []).find((i) => i.id === id));
+    case 'add-person': return personForm(j);
+    case 'edit-person': return personForm(j, Number(el.dataset.i));
+    case 'add-file': return addFile(j);
+    case 'file-menu': return fileMenu(j, id);
+    default: return nextAction(act);
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.row[role=button]')) { e.preventDefault(); e.target.click(); }
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'q') { V.q = e.target.value; render(); }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'import-file' && e.target.files[0]) { importFile(e.target.files[0]); e.target.value = ''; }
+});
+window.addEventListener('hashchange', () => { parseHash(); render(); });
+
+// ---------- Start ----------
+function loadPreview() {
+  S.mode = 'preview';
+  const t = today();
+  const jA = { id: 'demo1', name: 'Greene – Harbor Ct', stage: 'quoted', address: '9 Harbor Ct', source: 'Referral', referredBy: 'Past client', value: 4200, about: 'Patio shade for afternoon sun, something simple in the kitchen.', people: [{ name: 'Tom & Lisa Greene', role: 'Homeowner', phone: '(555) 600-4512', email: '', company: '', notes: '' }], log: [{ id: 'l1', date: addDays(t, -16), type: 'Visit', text: 'Sales call: want shade on the patio in the afternoon. Rough sizes taken.' }], quotes: [{ id: 'q1', name: 'Option A – Motorized patio screen', amount: 4200, note: 'Includes kitchen Vignette', date: addDays(t, -9) }, { id: 'q2', name: 'Option B – Manual patio screen', amount: 3100, note: 'Crank operation', date: addDays(t, -9) }], items: [{ id: 'i1', room: 'Patio', location: 'South opening', category: 'Outdoor Screens & Shades', brand: 'Phantom Screens', product: 'Executive', color: 'Charcoal 90%', width: '144', height: '96', mount: 'Outside', control: 'Motorized – hardwired', qty: 1, price: 3200, status: 'Quoted' }], files: [], stageHistory: [{ stage: 'quoted', at: addDays(t, -9) + 'T12:00:00Z' }], createdAt: addDays(t, -20) + 'T12:00:00Z', updatedAt: nowISO() };
+  const jB = { id: 'demo2', name: 'Johnson – Lakeview Dr', stage: 'consult', address: '42 Lakeview Dr', people: [{ name: 'Sarah Johnson', role: 'Homeowner', phone: '(555) 201-3344' }, { name: 'Dana Ruiz', role: 'Interior Designer', company: 'Ruiz Interiors', phone: '(555) 410-7788' }], log: [], quotes: [], items: [], files: [], stageHistory: [], createdAt: addDays(t, -5) + 'T12:00:00Z', updatedAt: nowISO() };
+  const jC = { id: 'demo3', name: 'Kim – Maple St', stage: 'install', address: '77 Maple St', people: [], log: [], quotes: [], items: [], files: [], stageHistory: [], createdAt: addDays(t, -90) + 'T12:00:00Z', updatedAt: nowISO() };
+  const jD = { id: 'demo4', name: 'Nguyen – 310 Elm St', stage: 'ordered', address: '310 Elm St', people: [], log: [], quotes: [], items: [], files: [], stageHistory: [], createdAt: addDays(t, -60) + 'T12:00:00Z', updatedAt: nowISO() };
+  [jA, jB, jC, jD].forEach((j) => S.jobs.set(j.id, j));
+  [{ id: 'e1', type: 'sales', jobId: 'demo2', date: addDays(t, 1), start: '10:00', days: 1, notes: 'Bring Duette & shutter samples.' },
+    { id: 'e2', type: 'install', jobId: 'demo3', date: t, start: '09:00', end: '15:00', days: 2 },
+    { id: 'e3', type: 'sales', jobId: 'demo1', date: addDays(t, -3), start: '13:00', days: 1 }].forEach((e) => S.events.set(e.id, { ...e, title: `${evType(e.type).label} – ${S.jobs.get(e.jobId).name}` }));
+  [{ id: 't1', title: 'Check in on the quotes', due: addDays(t, -2), jobId: 'demo1', done: false },
+    { id: 't2', title: 'Product should be in: book the install', due: addDays(t, 4), jobId: 'demo4', done: false }].forEach((x) => S.tasks.set(x.id, x));
+  S.loaded = true;
+  schedule();
+}
+
+async function start() {
+  parseHash();
+  render();
+  const use = window.claude && typeof window.claude.use === 'function' ? window.claude.use.bind(window.claude) : null;
+  if (!use) return loadPreview();
+  const [db, assets, downloads] = await Promise.all([use('db'), use('assets').catch(() => null), use('downloads').catch(() => null)]);
+  S.assets = assets; S.downloads = downloads;
+  if (!db) return loadPreview();
+  S.db = db; S.mode = 'live';
+  const got = { jobs: false, events: false, tasks: false };
+  const timer = setTimeout(() => { if (!S.loaded) { S.stale = true; schedule(); } }, 10000);
+  ['jobs', 'events', 'tasks'].forEach((coll) => {
+    db.collection(coll).onSnapshot((snap) => {
+      const m = new Map();
+      snap.docs.forEach((d) => m.set(d.id, { ...d.data(), id: d.id }));
+      S[coll] = m;
+      if (!snap.metadata.fromCache) got[coll] = true;
+      if (got.jobs && got.events && got.tasks && !S.loaded) { S.loaded = true; S.stale = false; clearTimeout(timer); }
+      schedule();
+    }, (e) => { console.error(e); S.stale = true; S.loaded = true; clearTimeout(timer); schedule(); });
+  });
+  db.doc('meta/contacts').onSnapshot((s) => { S.meta.contacts = s.exists ? (s.data().list || []) : []; schedule(); }, () => {});
+  db.doc('meta/info').onSnapshot((s) => { if (s.exists) S.meta.lastBackup = s.data().lastBackup || ''; schedule(); }, () => {});
+  schedule();
+}
+start();
+})();
+</script>
