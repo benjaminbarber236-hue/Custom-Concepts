@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Field Notes</title>
+<meta name="description" content="Offline notes and window measurements for Job Tracker. Copy them into Job Tracker when you're back online.">
+<meta name="theme-color" content="#eef1ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1412" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Field Notes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Same look as Job Tracker: stone neutrals, fabric-teal accent. One column, sheets for forms. */
+:root {
+  --bg: #eef1ef; --surface: #ffffff; --sunk: #e3e8e5; --ink: #17201d; --muted: #5a6762; --line: #d3dbd7;
+  --accent: #1d6a5b; --accent-ink: #ffffff; --accent-soft: #d6e9e3; --warn: #a8571f; --warn-soft: #f6e4d6; --danger: #b03a32;
+  --shadow: 0 1px 2px rgba(20, 35, 30, .06), 0 6px 20px rgba(20, 35, 30, .06);
+  --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 14px; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1412; --surface: #182019; --sunk: #121815; --ink: #e4ebe7; --muted: #95a39d; --line: #2a3430;
+    --accent: #5cbfa6; --accent-ink: #08201a; --accent-soft: #1b3830; --warn: #e39a62; --warn-soft: #3a2719; --danger: #ec7a70;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25); color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased;
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+[hidden] { display: none !important; }
+#app { max-width: 680px; margin: 0 auto; padding-block: 18px 60px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2 { font-family: var(--font-display); letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(28px, 7vw, 36px); line-height: 1.08; }
+h2 { font-size: 19px; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.topline { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); gap: 12px; }
+.brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--ink); }
+.brand img { width: 22px; height: 22px; }
+.section { display: flex; flex-direction: column; gap: 10px; }
+.section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.list > * + * { border-top: 1px solid var(--line); }
+.empty { padding: 18px; color: var(--muted); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); }
+.banner { padding: 14px 16px; border-radius: var(--r); background: var(--warn-soft); display: flex; flex-direction: column; gap: 10px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.big { min-height: 52px; width: 100%; font-size: 16px; }
+.btn.danger { color: var(--danger); }
+.btn.sm { min-height: 36px; font-size: 14px; padding: 0 12px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.tri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tri .btn { flex-direction: column; gap: 2px; min-height: 64px; border-radius: var(--r); }
+.tri .btn span { font-size: 22px; line-height: 1; }
+.row { display: flex; gap: 12px; align-items: flex-start; padding: 13px 14px; width: 100%; background: none; border: 0; text-align: left; cursor: pointer; color: inherit; text-decoration: none; }
+.row:hover { background: var(--sunk); }
+.row .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row .t { font-weight: 600; overflow-wrap: anywhere; }
+.row .s { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; white-space: pre-wrap; }
+.tag { display: inline-flex; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--sunk); color: var(--muted); white-space: nowrap; }
+.tag.ok { background: var(--accent-soft); color: var(--accent); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.back { color: var(--muted); font-weight: 600; text-decoration: none; }
+.search input { width: 100%; min-height: 46px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 0 16px; font-size: 16px; }
+dialog { border: 0; padding: 0; background: var(--surface); color: var(--ink); width: min(560px, 100%); max-width: 100%; max-height: 92dvh; border-radius: 20px 20px 0 0; margin: auto auto 0; }
+@media (min-width: 640px) { dialog { border-radius: 20px; margin: auto; } }
+dialog::backdrop { background: rgba(10, 18, 15, .45); }
+.sheet { display: flex; flex-direction: column; max-height: 92dvh; }
+.sheet-head { padding: 18px 20px 10px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.sheet-body { padding: 4px 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.sheet-foot { padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+.sheet-foot .btn { flex: 1; }
+.x { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 20px; line-height: 1; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field label, .field .lbl { font-size: 14px; font-weight: 600; }
+.field input, .field select, .field textarea { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); padding: 10px 12px; font-size: 16px; }
+.field textarea { min-height: 100px; resize: vertical; }
+.field .hint { font-size: 13px; color: var(--muted); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.radios { display: flex; flex-wrap: wrap; gap: 6px; }
+.radios input { position: absolute; opacity: 0; pointer-events: none; }
+.radios label { min-height: 38px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid var(--line); font-weight: 600; font-size: 14px; cursor: pointer; background: var(--bg); }
+.radios input:checked + label { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.radios input:focus-visible + label { outline: 2px solid var(--accent); }
+#toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; max-width: calc(100% - 32px); text-align: center; }
+#toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<dialog id="sheet"></dialog>
+<div id="toast" role="status"></div>
+<script>
+(function () {
+'use strict';
+const KEY = 'field-notes-v1';
+const TAG = 'JOB-TRACKER-FIELD';
+const MOUNTS = ['Inside', 'Outside', 'Ceiling', 'Wall', 'Pocket'];
+const CONTROLS = ['Cordless', 'Cord', 'Wand', 'Chain / loop', 'Motorized – hardwired', 'Motorized – battery', 'Motorized – plug-in', 'Manual crank'];
+const CATEGORIES = ['Shades', 'Blinds', 'Shutters', 'Drapery', 'Outdoor Screens & Shades', 'Motorization / Controls', 'Hardware / Other'];
+const NOTE_TYPES = ['Note', 'Visit', 'Call'];
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const uid = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => ymd(new Date());
+const addDays = (s, n) => { const [y, m, d] = s.split('-').map(Number); const x = new Date(y, m - 1, d + n); return ymd(x); };
+const fmtDay = (s) => { if (!s) return ''; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); };
+const ago = (iso) => { if (!iso) return 'never'; const m = Math.round((Date.now() - new Date(iso)) / 60000); if (m < 2) return 'just now'; if (m < 60) return m + ' min ago'; const h = Math.round(m / 60); if (h < 24) return h + ' hr ago'; return Math.round(h / 24) + ' days ago'; };
+
+// ---------- Data, kept in this browser only ----------
+let D = { jobs: [], jobsAt: '', newJobs: [], entries: [], copiedAt: '' };
+try { D = Object.assign(D, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { toast('Couldn’t save. This device may be out of space.'); }
+}
+// Ask the browser not to clear this data when space runs low.
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+
+const allJobs = () => [...D.newJobs.map((n) => ({ id: n.key, name: n.client + (n.address ? ' – ' + n.address.split(',')[0] : ''), address: n.address, people: [{ name: n.client, phone: n.phone }], isNew: true })), ...D.jobs];
+const jobById = (id) => allJobs().find((j) => j.id === id);
+const entriesFor = (id) => D.entries.filter((e) => e.jobId === id).sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+const unsent = () => D.entries.filter((e) => !e.copied);
+
+// ---------- Views ----------
+let route = '', q = '';
+function render() {
+  const h = location.hash.slice(1);
+  route = h.startsWith('job-') ? h.slice(4) : '';
+  $('#app').innerHTML = `<div class="topline"><span class="brand"><img src="icon.svg" alt="">Field Notes</span><span>${navigator.onLine ? 'Online' : 'Offline'} · saved on this device</span></div>` + (route ? viewJob(route) : viewHome());
+  const s = $('#q');
+  if (s && render.focus) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+}
+
+function viewHome() {
+  const waiting = unsent().length;
+  const jobs = allJobs().filter((j) => !q || [j.name, j.address, ...(j.people || []).map((p) => p.name)].join(' ').toLowerCase().includes(q.toLowerCase()));
+  return `
+  <header><h1>Field Notes</h1><p class="muted" style="margin-top:6px">Notes and window sizes for when there’s no internet. Copy them into Job Tracker when you’re back online.</p></header>
+  ${waiting ? `<div class="banner"><strong>${waiting} ${waiting === 1 ? 'item' : 'items'} to hand over</strong><span class="small">When you have internet: copy, open Job Tracker, then More → Paste field notes.</span><button class="btn primary big" data-act="copy-all">Copy for Job Tracker</button></div>` : ''}
+  <section class="section">
+    <div class="section-head"><h2>Jobs</h2><button class="btn sm" data-act="new-client">+ New client</button></div>
+    ${allJobs().length > 6 ? `<div class="search"><input id="q" type="search" placeholder="Find a job" value="${esc(q)}" aria-label="Find a job"></div>` : ''}
+    ${jobs.length ? `<div class="list">${jobs.map((j) => {
+      const n = entriesFor(j.id).length;
+      return `<a class="row" href="#job-${esc(j.id)}"><span class="body"><span class="t">${esc(j.name)} ${j.isNew ? '<span class="tag ok">New</span>' : ''}</span><span class="s">${esc(j.address || '')}</span></span>${n ? `<span class="tag">${n}</span>` : ''}</a>`;
+    }).join('')}</div>` : `<div class="empty">${D.jobs.length ? 'No jobs match.' : 'No jobs yet. While you have internet, open Job Tracker, go to More → <strong>Copy jobs for the field</strong>, then tap <strong>Update job list</strong> below.'}</div>`}
+  </section>
+  <section class="section"><h2>Job list</h2>
+    <div class="card">
+      <p class="small muted">${D.jobs.length} jobs from Job Tracker · updated ${esc(ago(D.jobsAt))}</p>
+      <button class="btn" data-act="paste-jobs">Update job list</button>
+    </div></section>
+  ${D.entries.some((e) => e.copied) ? `<section class="section"><h2>Already handed over</h2><div class="card">
+      <p class="small muted">${D.entries.filter((e) => e.copied).length} items were copied for Job Tracker ${esc(ago(D.copiedAt))}. Clear them once you’ve pasted them in.</p>
+      <div class="btn-row"><button class="btn" data-act="copy-all-again">Copy them again</button><button class="btn danger" data-act="clear-sent">Clear handed-over items</button></div>
+    </div></section>` : ''}
+  <p class="small muted">Open this from your home screen icon so the notes stay put. They’re kept on this device until you clear them.</p>`;
+}
+
+function entryRow(e) {
+  let t = '', s = '';
+  if (e.kind === 'window') {
+    t = [e.room, e.location].filter(Boolean).join(' · ') || 'Window';
+    s = [e.width || e.height ? `${e.width || '?'}″ × ${e.height || '?'}″` : '', e.mount ? e.mount + ' mount' : '', e.control, [e.brand, e.product].filter(Boolean).join(' '), e.color, Number(e.qty) > 1 ? '×' + e.qty : '', e.notes].filter(Boolean).join(' · ');
+  } else if (e.kind === 'reminder') { t = e.title; s = 'Reminder · ' + fmtDay(e.due) + (e.time ? ' ' + e.time : ''); }
+  else { t = e.noteType || 'Note'; s = e.text; }
+  const kind = { window: 'Window', reminder: 'Reminder', note: 'Note' }[e.kind];
+  return `<button class="row" data-act="edit" data-id="${e.id}"><span class="body"><span class="t">${esc(t)}</span><span class="s">${esc(s)}</span></span><span class="tag ${e.copied ? 'ok' : ''}">${e.copied ? 'Handed over' : kind}</span></button>`;
+}
+
+function viewJob(id) {
+  const j = jobById(id);
+  if (!j) return `<a class="back" href="#">‹ Jobs</a><div class="empty">This job isn’t on this device anymore.</div>`;
+  const es = entriesFor(id);
+  const ppl = (j.people || []).filter((p) => p.name);
+  return `<a class="back" href="#">‹ Jobs</a>
+  <header><h1>${esc(j.name)}</h1>${j.address ? `<p class="muted" style="margin-top:6px">${esc(j.address)}</p>` : ''}
+    ${ppl.length ? `<p class="small muted" style="margin-top:4px">${ppl.map((p) => esc(p.name + (p.phone ? ' ' + p.phone : ''))).join(' · ')}</p>` : ''}</header>
+  <div class="tri">
+    <button class="btn primary" data-act="add-note"><span>✎</span>Note</button>
+    <button class="btn" data-act="add-window"><span>▭</span>Window</button>
+    <button class="btn" data-act="add-reminder"><span>◷</span>Reminder</button>
+  </div>
+  <section class="section"><h2>On this job</h2>
+    ${es.length ? `<div class="list">${es.map(entryRow).join('')}</div>` : '<div class="empty">Nothing yet. Add a note, a window size, or a reminder.</div>'}
+  </section>
+  ${j.isNew ? `<button class="btn danger sm" data-act="del-client" style="align-self:flex-start">Remove this new client</button>` : ''}`;
+}
+
+// ---------- Sheet ----------
+const sheet = $('#sheet');
+let done = null;
+function close(v) { const f = done; done = null; if (sheet.open) sheet.close(); if (f) f(v); }
+sheet.addEventListener('close', () => { if (done && !sheet.open) close(null); });
+function fieldHtml(f, v) {
+  const id = 'f-' + f.name, val = v ?? '';
+  const lbl = `<label for="${id}">${esc(f.label)}</label>`;
+  const hint = f.hint ? `<span class="hint">${esc(f.hint)}</span>` : '';
+  if (f.type === 'textarea') return `<div class="field">${lbl}<textarea id="${id}" name="${f.name}" rows="${f.rows || 4}" placeholder="${esc(f.placeholder || '')}">${esc(val)}</textarea>${hint}</div>`;
+  if (f.type === 'select') return `<div class="field">${lbl}<select id="${id}" name="${f.name}">${f.options.map((o) => `<option${o === val ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+  if (f.type === 'radios') return `<div class="field"><span class="lbl">${esc(f.label)}</span><div class="radios">${f.options.map((o, i) => `<input type="radio" id="${id}-${i}" name="${f.name}" value="${esc(o)}"${o === val ? ' checked' : ''}><label for="${id}-${i}">${esc(o)}</label>`).join('')}</div></div>`;
+  const dl = f.list ? `<datalist id="${id}-l">${f.list.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>` : '';
+  return `<div class="field">${lbl}<input id="${id}" name="${f.name}" type="${f.type || 'text'}" value="${esc(val)}" placeholder="${esc(f.placeholder || '')}"${f.list ? ` list="${id}-l"` : ''}${f.mode ? ` inputmode="${f.mode}"` : ''}${f.required ? ' required' : ''} autocomplete="off">${dl}${hint}</div>`;
+}
+function form({ title, intro = '', fields = [], values = {}, submit = 'Save', extra = [] }) {
+  if (done) close(null);
+  sheet.innerHTML = `<form class="sheet" novalidate><div class="sheet-head"><h2>${esc(title)}</h2><button type="button" class="x" data-x aria-label="Close">×</button></div>
+    <div class="sheet-body">${intro}${fields.map((f) => (Array.isArray(f) ? `<div class="two">${f.map((x) => fieldHtml(x, values[x.name])).join('')}</div>` : fieldHtml(f, values[f.name]))).join('')}</div>
+    <div class="sheet-foot">${extra.map(([k, l, c]) => `<button type="button" class="btn ${c || ''}" data-extra="${k}">${esc(l)}</button>`).join('')}${submit ? `<button class="btn primary">${esc(submit)}</button>` : ''}</div></form>`;
+  return new Promise((resolve) => {
+    done = resolve;
+    const fm = $('form', sheet);
+    fm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const miss = [...fm.querySelectorAll('[required]')].find((el) => !el.value.trim());
+      if (miss) { miss.focus(); toast('Please fill that in'); return; }
+      const out = {};
+      fields.flat().forEach((f) => { out[f.name] = f.type === 'radios' ? ((fm.querySelector(`[name="${f.name}"]:checked`) || {}).value || '') : fm.elements[f.name].value.trim(); });
+      close(out);
+    });
+    $('[data-x]', sheet).addEventListener('click', () => close(null));
+    sheet.querySelectorAll('[data-extra]').forEach((b) => b.addEventListener('click', () => close({ _extra: b.dataset.extra })));
+    sheet.showModal();
+  });
+}
+const ask = (title, text, ok, danger) => form({ title, intro: `<p class="muted">${text}</p>`, submit: '', extra: [['no', 'Cancel'], ['yes', ok, danger ? 'danger' : 'primary']] }).then((r) => r && r._extra === 'yes');
+let tt = 0;
+function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2800); }
+
+// ---------- Actions ----------
+async function noteForm(jobId, e) {
+  const d = await form({ title: e ? 'Note' : 'New note', values: e || { noteType: 'Visit' },
+    fields: [{ name: 'noteType', label: 'Kind', type: 'radios', options: NOTE_TYPES }, { name: 'text', label: 'What happened', type: 'textarea', rows: 7, required: true, placeholder: 'What they want, rooms, colors, budget, next steps…' }],
+    extra: e ? [['delete', 'Delete', 'danger']] : [] });
+  return finish(jobId, e, d, 'note');
+}
+async function windowForm(jobId, e, copyFrom) {
+  const j = jobById(jobId) || {};
+  const rooms = [...new Set([...(j.rooms || []), ...D.entries.filter((x) => x.jobId === jobId && x.room).map((x) => x.room)])];
+  const v = e || (copyFrom ? { ...copyFrom, location: '', width: '', height: '' } : { qty: '1', category: 'Shades' });
+  const d = await form({ title: e ? 'Window' : 'New window', values: v,
+    fields: [
+      [{ name: 'room', label: 'Room', required: true, list: rooms, placeholder: 'Living Room' }, { name: 'location', label: 'Window', placeholder: 'Left of fireplace' }],
+      [{ name: 'width', label: 'Width (in)', mode: 'decimal', placeholder: '36 1/2', hint: 'Fractions are fine' }, { name: 'height', label: 'Height (in)', mode: 'decimal', placeholder: '60' }],
+      [{ name: 'mount', label: 'Mount', type: 'select', options: ['', ...MOUNTS] }, { name: 'control', label: 'Control', type: 'select', options: ['', ...CONTROLS] }],
+      [{ name: 'category', label: 'Type', type: 'select', options: CATEGORIES }, { name: 'qty', label: 'Qty', mode: 'numeric' }],
+      [{ name: 'brand', label: 'Brand' }, { name: 'product', label: 'Product' }],
+      { name: 'color', label: 'Fabric / color' },
+      { name: 'notes', label: 'Notes', type: 'textarea', rows: 2, placeholder: 'e.g. Crank handle in the way, needs extension' },
+    ],
+    extra: e ? [['delete', 'Delete', 'danger'], ['copy', 'Copy as new']] : [], submit: e ? 'Save' : 'Save window' });
+  if (d && d._extra === 'copy') return windowForm(jobId, null, e);
+  const saved = finish(jobId, e, d, 'window');
+  if (saved && !e) { if (await ask('Window saved', 'Add the next window in this room?', 'Next window')) windowForm(jobId, null, saved); }
+}
+async function reminderForm(jobId, e) {
+  const d = await form({ title: e ? 'Reminder' : 'New reminder', values: e || { due: addDays(today(), 1) },
+    fields: [{ name: 'title', label: 'Remind me to', required: true, placeholder: 'e.g. Send quote with motorized option' }, [{ name: 'due', label: 'Date', type: 'date', required: true }, { name: 'time', label: 'Time (optional)', type: 'time' }]],
+    extra: e ? [['delete', 'Delete', 'danger']] : [] });
+  return finish(jobId, e, d, 'reminder');
+}
+function finish(jobId, e, d, kind) {
+  if (!d) return null;
+  if (d._extra === 'delete') { D.entries = D.entries.filter((x) => x.id !== e.id); save(); render(); toast('Deleted'); return null; }
+  let rec;
+  if (e) { rec = D.entries.find((x) => x.id === e.id); Object.assign(rec, d, { copied: false }); }
+  else { rec = { id: uid(), jobId, kind, at: new Date().toISOString(), date: today(), ...d }; D.entries.push(rec); }
+  save(); render(); toast('Saved on this device');
+  return rec;
+}
+
+async function newClient() {
+  const d = await form({ title: 'New client', fields: [{ name: 'client', label: 'Name', required: true }, [{ name: 'phone', label: 'Phone', type: 'tel' }, { name: 'email', label: 'Email', type: 'email' }], { name: 'address', label: 'Address' }, { name: 'about', label: 'What they’re looking for', type: 'textarea', rows: 2 }], submit: 'Add' });
+  if (!d) return;
+  const key = uid();
+  D.newJobs.push({ key, at: new Date().toISOString(), ...d });
+  save();
+  location.hash = 'job-' + key;
+  toast('New client added. It becomes a job in Job Tracker when you hand over.');
+}
+
+function copyAll() {
+  const entries = D.entries;
+  const keys = new Set(entries.map((e) => e.jobId));
+  const code = `${TAG} notes\n` + JSON.stringify({ kind: 'notes', at: new Date().toISOString(), newJobs: D.newJobs.filter((n) => keys.has(n.key)), entries });
+  const ok = () => { D.entries.forEach((e) => { e.copied = true; }); D.copiedAt = new Date().toISOString(); save(); render(); toast('Copied. Now open Job Tracker → More → Paste field notes.'); };
+  const manual = () => form({ title: 'Copy for Job Tracker', intro: '<p class="muted">Select all of this text and copy it, then paste it into Job Tracker → More → Paste field notes.</p>', fields: [{ name: 'code', label: `${entries.length} items`, type: 'textarea', rows: 8 }], values: { code }, submit: 'I copied it' }).then((r) => { if (r) ok(); });
+  try { navigator.clipboard.writeText(code).then(ok, manual); } catch (e) { manual(); }
+}
+
+async function pasteJobs() {
+  let text = '';
+  try { if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText(); } catch (e) {}
+  let data = parse(text);
+  if (!data) {
+    const d = await form({ title: 'Update job list', intro: '<p class="muted">In Job Tracker, go to More → <strong>Copy jobs for the field</strong>. Then paste it here.</p>', fields: [{ name: 'code', label: 'Job list', type: 'textarea', rows: 6, placeholder: 'Tap here, then Paste' }], submit: 'Update' });
+    if (!d) return;
+    data = parse(d.code);
+    if (!data) { toast('That isn’t a job list from Job Tracker. Copy it again.'); return; }
+  }
+  D.jobs = data.jobs || [];
+  D.jobsAt = data.at || new Date().toISOString();
+  // A new client that's now a real job in Job Tracker can drop off once its notes are handed over.
+  save(); render();
+  toast(`Job list updated: ${D.jobs.length} jobs`);
+}
+function parse(text) {
+  if (!text) return null;
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if (a < 0 || b < a) return null;
+  try { const d = JSON.parse(text.slice(a, b + 1)); return d && d.kind === 'jobs' ? d : null; } catch (e) { return null; }
+}
+
+async function clearSent() {
+  const n = D.entries.filter((e) => e.copied).length;
+  if (!(await ask('Clear handed-over items?', `Only do this after pasting them into Job Tracker. ${n} items will be removed from this device.`, 'Clear', true))) return;
+  D.entries = D.entries.filter((e) => !e.copied);
+  const still = new Set(D.entries.map((e) => e.jobId));
+  D.newJobs = D.newJobs.filter((nj) => still.has(nj.key));
+  save(); render(); toast('Cleared');
+}
+
+document.addEventListener('click', async (ev) => {
+  const el = ev.target.closest('[data-act]');
+  if (!el) return;
+  const a = el.dataset.act;
+  if (a === 'copy-all' || a === 'copy-all-again') return copyAll();
+  if (a === 'paste-jobs') return pasteJobs();
+  if (a === 'new-client') return newClient();
+  if (a === 'clear-sent') return clearSent();
+  if (a === 'add-note') return noteForm(route);
+  if (a === 'add-window') return windowForm(route);
+  if (a === 'add-reminder') return reminderForm(route);
+  if (a === 'edit') {
+    const e = D.entries.find((x) => x.id === el.dataset.id);
+    if (!e) return;
+    return e.kind === 'window' ? windowForm(e.jobId, e) : e.kind === 'reminder' ? reminderForm(e.jobId, e) : noteForm(e.jobId, e);
+  }
+  if (a === 'del-client') {
+    if (!(await ask('Remove this new client?', 'Its notes on this device are removed too.', 'Remove', true))) return;
+    D.newJobs = D.newJobs.filter((n) => n.key !== route);
+    D.entries = D.entries.filter((e) => e.jobId !== route);
+    save(); location.hash = '';
+  }
+});
+document.addEventListener('input', (e) => { if (e.target.id === 'q') { q = e.target.value; render.focus = true; render(); render.focus = false; } });
+window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+window.addEventListener('online', render);
+window.addEventListener('offline', render);
+render();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>

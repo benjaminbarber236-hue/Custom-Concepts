@@ -113,7 +113,7 @@ p { margin: 0; }
 .week { display: flex; flex-direction: column; gap: 10px; }
 .week-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .week-nav strong { font-family: var(--font-display); font-size: 17px; }
-.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px 4px; }
 .day { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 7px; border-radius: 12px; border: 1px solid transparent; background: none; cursor: pointer; min-width: 0; }
 .day .dw { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
 .day .dn { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
@@ -332,35 +332,60 @@ const ICON = {
 // ---------- Data ----------
 // Collections: jobs, events, tasks (one document each) and meta/contacts (people from the old app).
 const S = { jobs: new Map(), events: new Map(), tasks: new Map(), meta: {}, loaded: false, stale: false, mode: 'connecting', db: null, assets: null, downloads: null };
-const chains = new Map();
-let pending = 0;
-
-function write(path, fn) {
-  pending++; syncBadge();
-  const prev = chains.get(path) || Promise.resolve();
-  const p = prev.then(fn).catch(async (e) => {
-    if (e && e.code === 'unavailable') { await new Promise((r) => setTimeout(r, 800 + Math.random() * 800)); return fn(); }
-    throw e;
-  }).catch((e) => {
-    console.error(e);
-    toast(e && e.code === 'quota_exceeded' ? 'Storage is full. Delete old files or jobs to make room.' : 'That change did not save. Check your connection and try again.');
-  }).finally(() => { pending--; syncBadge(); if (chains.get(path) === p) chains.delete(path); });
-  chains.set(path, p);
-  return p;
+// Every change goes into a waiting list kept on this device first, then to the account.
+// If the connection drops, changes wait here (even if the page reloads) and send themselves later.
+const OUTBOX_KEY = 'jt-outbox-v1';
+let outbox = {};
+try { outbox = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '{}') || {}; } catch (e) { outbox = {}; }
+const inflight = new Set();
+let outV = 0;
+function saveOutbox() { try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox)); } catch (e) {} }
+function enqueue(coll, id, body) {
+  if (S.mode === 'preview') return;
+  const path = coll + '/' + id;
+  outbox[path] = { coll, id, body, v: `${++outV}:${Date.now()}`, at: (outbox[path] && outbox[path].at) || Date.now() };
+  saveOutbox(); syncBadge(); flush(path);
 }
+async function flush(path) {
+  const item = outbox[path];
+  if (!item || !S.db || inflight.has(path)) return;
+  inflight.add(path);
+  try {
+    const ref = S.db.collection(item.coll).doc(item.id);
+    const op = item.body ? ref.set(item.body) : ref.delete();
+    await Promise.race([op, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 20000))]);
+    if (outbox[path] && outbox[path].v === item.v) { delete outbox[path]; saveOutbox(); }
+  } catch (e) {
+    console.error(e);
+    if (e && (e.code === 'quota_exceeded' || e.code === 'invalid_argument')) {
+      if (outbox[path] && outbox[path].v === item.v) { delete outbox[path]; saveOutbox(); }
+      toast(e.code === 'quota_exceeded' ? 'Storage is full. Delete old files or jobs to make room.' : 'A change couldn’t be saved.');
+    }
+  } finally {
+    inflight.delete(path);
+    syncBadge();
+    if (outbox[path] && outbox[path].v !== item.v) flush(path);
+  }
+}
+function flushAll() { Object.keys(outbox).forEach(flush); }
+window.addEventListener('online', () => { flushAll(); schedule(); });
+window.addEventListener('offline', () => schedule());
+setInterval(() => { flushAll(); syncBadge(); }, 15000);
+
 function put(coll, obj) {
-  if (!obj.id) { obj.id = uid(); obj.createdAt = nowISO(); }
+  if (!obj.id) { obj.id = uid(); }
+  if (!obj.createdAt) obj.createdAt = nowISO();
   obj.updatedAt = nowISO();
   const body = clone(obj);
   S[coll].set(obj.id, body);
   schedule();
-  if (S.db) write(`${coll}/${obj.id}`, () => S.db.collection(coll).doc(obj.id).set(body));
+  enqueue(coll, obj.id, body);
   return obj;
 }
 function del(coll, id) {
   S[coll].delete(id);
   schedule();
-  if (S.db) write(`${coll}/${id}`, () => S.db.collection(coll).doc(id).delete());
+  enqueue(coll, id, null);
 }
 const get = (coll, id) => clone(S[coll].get(id));
 const all = (coll) => [...S[coll].values()];
@@ -404,8 +429,10 @@ function syncBadge() {
   if (!el) return;
   if (S.mode === 'preview') { el.className = 'sync off'; el.innerHTML = '<i></i>Preview'; return; }
   if (S.mode !== 'live') { el.className = 'sync off'; el.innerHTML = '<i></i>Connecting'; return; }
-  el.className = 'sync' + (pending ? ' saving' : '');
-  el.innerHTML = `<i></i>${pending ? 'Saving' : S.stale ? 'May be out of date' : 'Synced'}`;
+  const n = Object.keys(outbox).length;
+  const waiting = n && (!navigator.onLine || Object.values(outbox).some((x) => Date.now() - x.at > 8000));
+  el.className = 'sync' + (n ? ' saving' : '');
+  el.innerHTML = `<i></i>${waiting ? `${n} waiting to sync` : n ? 'Saving' : S.stale ? 'May be out of date' : 'Synced'}`;
 }
 
 function parseHash() {
@@ -443,6 +470,7 @@ function loadingNote() {
       ? `<div class="banner warn"><strong>Can't reach your saved jobs yet.</strong><span>Check your connection. This page will fill in by itself once it connects.</span></div>`
       : `<div class="banner"><span>Loading your jobs…</span></div>`;
   }
+  if (S.mode === 'live' && !navigator.onLine) return `<div class="banner warn"><strong>You’re offline.</strong><span>Keep working. Changes are kept on this device and sync by themselves when you’re back online.</span></div>`;
   if (S.mode === 'preview') return `<div class="banner"><strong>Preview with example jobs</strong><span>Open this page from your Claude account to see and save your own jobs. Nothing here is saved.</span></div>`;
   return '';
 }
@@ -479,18 +507,19 @@ function taskRow(t, showDue, hideJob) {
 function viewToday() {
   const t = today();
   if (!V.weekStart) V.weekStart = addDays(t, -parseDay(t).getDay());
-  const days = Array.from({ length: 7 }, (_, i) => addDays(V.weekStart, i));
-  const ws = parseDay(days[0]), we = parseDay(days[6]);
+  const days = Array.from({ length: 14 }, (_, i) => addDays(V.weekStart, i));
+  const ws = parseDay(days[0]), we = parseDay(days[13]);
   const range = ws.getMonth() === we.getMonth()
     ? `${ws.toLocaleDateString(undefined, { month: 'long' })} ${ws.getDate()}–${we.getDate()}`
-    : `${fmtDay(days[0], { month: 'short', day: 'numeric' })} – ${fmtDay(days[6], { month: 'short', day: 'numeric' })}`;
-  const strip = days.map((d) => {
+    : `${fmtDay(days[0], { month: 'short', day: 'numeric' })} – ${fmtDay(days[13], { month: 'short', day: 'numeric' })}`;
+  const cell = (d) => {
     const { evs, tks } = dayItems(d);
     const dots = evs.slice(0, 3).map((e) => `<i style="background:${evColor(e.type)}"></i>`).join('') + (tks.some((x) => !x.done) ? '<i style="background:var(--muted)"></i>' : '');
     const dt = parseDay(d);
     return `<button class="day${d === t ? ' today' : ''}${d === V.sel ? ' sel' : ''}" data-act="pick-day" data-day="${d}" aria-label="${esc(fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' }))}">
-      <span class="dw">${dt.toLocaleDateString(undefined, { weekday: 'narrow' })}</span><span class="dn">${dt.getDate()}</span><span class="dots">${dots}</span></button>`;
-  }).join('');
+      ${d < days[7] ? `<span class="dw">${dt.toLocaleDateString(undefined, { weekday: 'narrow' })}</span>` : ''}<span class="dn">${dt.getDate()}</span><span class="dots">${dots}</span></button>`;
+  };
+  const strip = days.map(cell).join('');
 
   // What needs attention
   const overdue = all('tasks').filter((x) => !x.done && x.due && x.due < t).sort((a, b) => a.due.localeCompare(b.due));
@@ -515,14 +544,14 @@ function viewToday() {
   let ahead = '';
   if (V.sel === t) {
     const groups = [];
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 14; i++) {
       const d = addDays(t, i);
       const it = dayItems(d);
       const evStart = it.evs.filter((e) => e.date === d);
       const tOpen = it.tks.filter((x) => !x.done);
       if (evStart.length || tOpen.length) groups.push(`<div class="room-head">${esc(relDay(d))} · ${esc(fmtDay(d, { month: 'short', day: 'numeric' }))}</div>${evStart.map((e) => evRow(e, d)).join('')}${tOpen.map((x) => taskRow(x, false)).join('')}`);
     }
-    ahead = `<section class="section"><div class="section-head"><h2>Next 7 days</h2></div>${groups.length ? `<div class="list">${groups.join('')}</div>` : '<div class="empty">Nothing booked for the coming week.</div>'}</section>`;
+    ahead = `<section class="section"><div class="section-head"><h2>Next 2 weeks</h2></div>${groups.length ? `<div class="list">${groups.join('')}</div>` : '<div class="empty">Nothing booked for the next two weeks.</div>'}</section>`;
   }
 
   const firstRun = S.loaded && !S.jobs.size && S.mode === 'live'
@@ -705,6 +734,11 @@ function viewMore() {
       <p>${live ? 'Your jobs are saved to your Claude account. Open this page on your phone or computer and you’ll see the same thing, updated live.' : 'Open this page from your Claude account to save your jobs there.'}</p>
       <p class="small muted">${all('jobs').length} jobs · ${all('events').length} appointments · ${all('tasks').length} reminders${S.meta.lastBackup ? ` · last backup ${esc(relDay(S.meta.lastBackup.slice(0, 10)))}` : ''}</p>
     </div></section>
+  <section class="section"><h2>Field Notes</h2>
+    <div class="card next">
+      <p>For jobs with no internet. <strong>Copy jobs for the field</strong> and paste them into the Field Notes app while you have signal. Back home, copy from Field Notes and paste here.</p>
+      <div class="btn-row"><button class="btn primary" data-act="field-copy">Copy jobs for the field</button><button class="btn" data-act="field-paste">Paste field notes</button></div>
+    </div></section>
   <section class="section"><h2>Bring in old data</h2>
     <div class="card next">
       <p>Choose the backup file from the old Job Tracker (<strong>Settings → Export backup</strong> there). Jobs, people, appointments, reminders, notes, quotes, products, and attached files all come over. Doing it twice won’t make duplicates.</p>
@@ -725,7 +759,7 @@ function viewMore() {
 const sheetEl = $('#sheet');
 let sheetDone = null;
 function closeSheet(v) { const f = sheetDone; sheetDone = null; if (sheetEl.open) sheetEl.close(); if (f) f(v); }
-sheetEl.addEventListener('close', () => { if (sheetDone) closeSheet(null); });
+sheetEl.addEventListener('close', () => { if (sheetDone && !sheetEl.open) closeSheet(null); });
 sheetEl.addEventListener('click', (e) => { if (e.target === sheetEl) closeSheet(null); });
 
 function fieldHtml(f, v) {
@@ -1180,7 +1214,7 @@ async function exportBackup() {
   try {
     await S.downloads.save({ filename: `job-tracker-backup-${today()}.json`, data: JSON.stringify(data, null, 1) });
     S.meta.lastBackup = nowISO();
-    if (S.db) write('meta/info', () => S.db.doc('meta/info').set({ lastBackup: S.meta.lastBackup }));
+    enqueue('meta', 'info', { lastBackup: S.meta.lastBackup });
     toast('Backup saved');
   } catch (e) { if (e && e.code !== 'declined' && e.code !== 'cancelled') toast('Backup wasn’t saved.'); }
 }
@@ -1264,6 +1298,77 @@ async function importFile(file) {
   }
 }
 
+// ---------- Field Notes handover (copy and paste between the two apps) ----------
+const FIELD_TAG = 'JOB-TRACKER-FIELD';
+function copyForField() {
+  const jobs = all('jobs').filter(isActive).sort((a, b) => a.name.localeCompare(b.name)).map((j) => ({
+    id: j.id, name: j.name, address: j.address || '', stage: j.stage,
+    people: (j.people || []).map((p) => ({ name: p.name || '', role: p.role || '', phone: p.phone || '' })),
+    rooms: [...new Set((j.items || []).map((i) => i.room).filter(Boolean))],
+  }));
+  const code = `${FIELD_TAG} jobs\n` + JSON.stringify({ kind: 'jobs', at: nowISO(), jobs });
+  const manual = () => form({ title: 'Copy jobs for the field', intro: '<p class="sheet-context">Copying didn’t work here. Select all of the text below, copy it, then paste it into Field Notes.</p>', fields: [{ name: 'code', label: `${jobs.length} active jobs`, type: 'textarea', rows: 8 }], values: { code }, submit: '' });
+  try {
+    navigator.clipboard.writeText(code).then(() => toast(`Copied ${jobs.length} jobs. Paste them into Field Notes.`), manual);
+  } catch (e) { manual(); }
+}
+function parseCode(text, kind) {
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if (a < 0 || b < a) return null;
+  try { const d = JSON.parse(text.slice(a, b + 1)); return d && d.kind === kind ? d : null; } catch (e) { return null; }
+}
+async function pasteFieldNotes() {
+  const f = await form({
+    title: 'Paste field notes',
+    intro: '<p class="sheet-context">In Field Notes, tap <strong>Copy for Job Tracker</strong>. Then paste it here.</p>',
+    fields: [{ name: 'code', label: 'Field notes', type: 'textarea', rows: 6, placeholder: 'Tap here, then Paste' }],
+    submit: 'Next',
+  });
+  if (!f || !f.code) return;
+  const d = parseCode(f.code, 'notes');
+  if (!d) { toast('That isn’t from Field Notes. Copy it again and paste the whole thing.'); return; }
+  const entries = d.entries || [], newJobs = d.newJobs || [];
+  const nameOf = (id) => (S.jobs.get(id) || {}).name || (newJobs.find((n) => n.key === id) || {}).client || '';
+  const isNewEntry = (e) => {
+    const j = S.jobs.get(e.jobId);
+    if (e.kind === 'reminder') return !S.tasks.has(e.id);
+    if (!j) return true;
+    return e.kind === 'window' ? !(j.items || []).some((i) => i.id === e.id) : !(j.log || []).some((l) => l.id === e.id);
+  };
+  const fresh = entries.filter((e) => nameOf(e.jobId) && isNewEntry(e));
+  const skipped = entries.length - fresh.length;
+  const groups = {};
+  fresh.forEach((e) => { const g = groups[e.jobId] = groups[e.jobId] || { note: 0, window: 0, reminder: 0 }; g[e.kind] = (g[e.kind] || 0) + 1; });
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const lines = Object.entries(groups).map(([id, g]) => `<li><strong>${esc(nameOf(id))}</strong>${S.jobs.has(id) ? '' : ' <span class="tag ok">New job</span>'}: ${[g.note && plural(g.note, 'note'), g.window && plural(g.window, 'window'), g.reminder && plural(g.reminder, 'reminder')].filter(Boolean).join(', ')}</li>`).join('');
+  if (!fresh.length) { toast(skipped ? 'Everything in there was already added.' : 'There’s nothing in there to add.'); return; }
+  const ok = await ask('Add these to your jobs?', `<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px">${lines}</ul>${skipped ? `<p class="small muted" style="margin-top:10px">${skipped} already added before, so they’ll be skipped.</p>` : ''}`, 'Add');
+  if (!ok) return;
+  newJobs.forEach((n) => {
+    if (S.jobs.has(n.key) || !fresh.some((e) => e.jobId === n.key)) return;
+    const street = (n.address || '').split(',')[0].trim();
+    const last = (n.client || '').split(' ').filter(Boolean).pop() || n.client || 'New client';
+    put('jobs', { id: n.key, createdAt: n.at || nowISO(), name: street ? `${last} – ${street}` : (n.client || 'New client'), stage: 'lead', address: n.address || '', source: '', referredBy: '', about: n.about || '', value: '',
+      people: [{ name: n.client || '', role: 'Homeowner', phone: n.phone || '', email: n.email || '', company: '', notes: '' }], log: [], quotes: [], items: [], files: [], stageHistory: [{ stage: 'lead', at: n.at || nowISO() }] });
+  });
+  const touched = new Map();
+  fresh.forEach((e) => {
+    if (e.kind === 'reminder') { put('tasks', { id: e.id, title: e.title || 'Follow up', due: e.due || today(), time: e.time || '', jobId: e.jobId, done: false, notes: '' }); return; }
+    const j = touched.get(e.jobId) || get('jobs', e.jobId);
+    if (!j) return;
+    touched.set(j.id, j);
+    if (e.kind === 'window') {
+      j.items = j.items || [];
+      j.items.push({ id: e.id, room: e.room || '', location: e.location || '', category: e.category || 'Shades', brand: e.brand || '', product: e.product || '', color: e.color || '', width: e.width || '', height: e.height || '', mount: e.mount || '', control: e.control || '', qty: Number(e.qty) || 1, price: '', status: stage(j.stage).sec === 'sales' ? 'Quoted' : 'Ordered', notes: e.notes || '' });
+    } else {
+      j.log = j.log || [];
+      j.log.push({ id: e.id, date: e.date || today(), type: e.noteType || 'Note', text: e.text || '' });
+    }
+  });
+  touched.forEach((j) => put('jobs', j));
+  toast(`Added ${plural(fresh.length, 'item')} from the field`);
+}
+
 async function eraseAll() {
   if (!(await ask('Erase all jobs?', 'Every job, appointment and reminder will be deleted from your account. Save a backup first if you might want them back.', 'Erase everything', true))) return;
   all('events').forEach((e) => del('events', e.id));
@@ -1285,7 +1390,7 @@ document.addEventListener('click', (ev) => {
   switch (act) {
     case 'copy': return copyText(el.dataset.v);
     case 'pick-day': V.sel = el.dataset.day; return render();
-    case 'week': V.weekStart = addDays(V.weekStart, Number(el.dataset.n)); V.sel = V.weekStart <= today() && today() <= addDays(V.weekStart, 6) ? today() : V.weekStart; return render();
+    case 'week': V.weekStart = addDays(V.weekStart, Number(el.dataset.n)); V.sel = V.weekStart <= today() && today() <= addDays(V.weekStart, 13) ? today() : V.weekStart; return render();
     case 'go-today': V.sel = today(); V.weekStart = ''; return render();
     case 'filter': V.filter = el.dataset.f; V.q = ''; return render();
     case 'new-job': return newJob();
@@ -1295,6 +1400,8 @@ document.addEventListener('click', (ev) => {
     case 'how': { const e = get('events', id); return e && howItWent(e); }
     case 'task': { const t = get('tasks', id); return t && taskForm(t); }
     case 'export': return exportBackup();
+    case 'field-copy': return copyForField();
+    case 'field-paste': return pasteFieldNotes();
     case 'erase': return eraseAll();
   }
   if (!j) return;
@@ -1359,12 +1466,15 @@ async function start() {
     db.collection(coll).onSnapshot((snap) => {
       const m = new Map();
       snap.docs.forEach((d) => m.set(d.id, { ...d.data(), id: d.id }));
+      // Changes still waiting to send win over what the account has.
+      Object.values(outbox).forEach((it) => { if (it.coll === coll) { if (it.body) m.set(it.id, { ...it.body, id: it.id }); else m.delete(it.id); } });
       S[coll] = m;
       if (!snap.metadata.fromCache) got[coll] = true;
       if (got.jobs && got.events && got.tasks && !S.loaded) { S.loaded = true; S.stale = false; clearTimeout(timer); }
       schedule();
     }, (e) => { console.error(e); S.stale = true; S.loaded = true; clearTimeout(timer); schedule(); });
   });
+  flushAll();
   db.doc('meta/contacts').onSnapshot((s) => { S.meta.contacts = s.exists ? (s.data().list || []) : []; schedule(); }, () => {});
   db.doc('meta/info').onSnapshot((s) => { if (s.exists) S.meta.lastBackup = s.data().lastBackup || ''; schedule(); }, () => {});
   schedule();
