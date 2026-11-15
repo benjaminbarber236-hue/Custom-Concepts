@@ -49,8 +49,11 @@
   color-scheme: dark;
 }
 
-* { box-sizing: border-box; }
-html, body { min-height: 100%; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* App-style scrolling: the page itself stays put and only the content scrolls, with no rubber-band stretch. */
+html { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body { height: 100%; overflow-y: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch; touch-action: manipulation; }
+button, a, .row, .day, .chip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 body {
   background: var(--bg); color: var(--ink);
   font-family: var(--font-body); font-size: 16px; line-height: 1.45;
@@ -445,7 +448,7 @@ function go(h) { if (location.hash !== '#' + h) location.hash = h; else render()
 function render() {
   const app = $('#app');
   const keepScroll = render.last === location.hash;
-  const y = window.scrollY;
+  const y = document.body.scrollTop;
   const head = `<div class="topline"><span class="brand">${ICON.logo}Job Tracker</span><span id="sync" class="sync off"><i></i></span></div>`;
   let body = '';
   if (V.route === 'job') body = viewJob();
@@ -460,7 +463,7 @@ function render() {
   if (hadFocus && $('#q')) { $('#q').focus(); try { $('#q').setSelectionRange(caret, caret); } catch (e) {} }
   document.querySelectorAll('.tabbar a').forEach((a) => a.setAttribute('aria-current', a.dataset.tab === (V.route === 'job' ? 'jobs' : V.route) ? 'page' : 'false'));
   syncBadge();
-  if (keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
+  document.body.scrollTop = keepScroll ? y : 0;
   render.last = location.hash;
 }
 
