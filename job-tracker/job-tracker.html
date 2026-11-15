@@ -549,7 +549,7 @@ function viewToday() {
       const it = dayItems(d);
       const evStart = it.evs.filter((e) => e.date === d);
       const tOpen = it.tks.filter((x) => !x.done);
-      if (evStart.length || tOpen.length) groups.push(`<div class="room-head">${esc(relDay(d))} · ${esc(fmtDay(d, { month: 'short', day: 'numeric' }))}</div>${evStart.map((e) => evRow(e, d)).join('')}${tOpen.map((x) => taskRow(x, false)).join('')}`);
+      if (evStart.length || tOpen.length) groups.push(`<div class="room-head">${esc(i < 7 ? relDay(d) : parseDay(d).toLocaleDateString(undefined, { weekday: 'long' }))} · ${esc(fmtDay(d, { month: 'short', day: 'numeric' }))}</div>${evStart.map((e) => evRow(e, d)).join('')}${tOpen.map((x) => taskRow(x, false)).join('')}`);
     }
     ahead = `<section class="section"><div class="section-head"><h2>Next 2 weeks</h2></div>${groups.length ? `<div class="list">${groups.join('')}</div>` : '<div class="empty">Nothing booked for the next two weeks.</div>'}</section>`;
   }
