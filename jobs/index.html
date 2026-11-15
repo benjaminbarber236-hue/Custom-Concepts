@@ -7,16 +7,27 @@
 <!-- Home screen launcher: keeps the old blinds icon and opens the Job Tracker on Claude in Safari. -->
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<meta http-equiv="refresh" content="0; url=https://claude.ai/artifact/9fzgpv8S3kyHZ4YxY4Vh97">
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 17px/1.4 system-ui, -apple-system, sans-serif; background: #1e2b3c; color: #eef1f5; padding: 16px; text-align: center; }
   a { color: #eef1f5; font-weight: 600; }
   img { width: 72px; height: 72px; border-radius: 16px; }
 </style>
-<script>location.replace('https://claude.ai/artifact/9fzgpv8S3kyHZ4YxY4Vh97');</script>
+<script>
+  // Opened from the home screen icon (its address ends in ?open): go straight to the app.
+  // Opened any other way: show how to add the icon, and set the address so the icon gets ?open.
+  var APP = 'https://claude.ai/artifact/9fzgpv8S3kyHZ4YxY4Vh97';
+  var launch = /[?&]open\b/.test(location.search);
+  if (launch) location.replace(APP);
+  else try { history.replaceState(null, '', location.pathname + '?open'); } catch (e) {}
+</script>
 </head>
 <body>
-  <div><img src="apple-touch-icon.png" alt=""><p>Opening Job Tracker…</p><p><a href="https://claude.ai/artifact/9fzgpv8S3kyHZ4YxY4Vh97">Tap here if it doesn't open</a></p></div>
+  <div id="go" hidden><img src="apple-touch-icon.png" alt=""><p>Opening Job Tracker…</p><p><a href="https://claude.ai/artifact/9fzgpv8S3kyHZ4YxY4Vh97">Tap here if it doesn't open</a></p></div>
+  <div id="setup" hidden style="max-width:340px"><img src="apple-touch-icon.png" alt=""><h1 style="font-size:24px;margin:14px 0 8px">Add Job Tracker to your home screen</h1>
+    <p>Tap the <strong>Share</strong> button, then <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</p>
+    <p style="opacity:.75;font-size:15px">The icon will open your Job Tracker. Delete the old calendar icon afterwards.</p>
+    <p><a href="https://claude.ai/artifact/9fzgpv8S3kyHZ4YxY4Vh97">Open Job Tracker now</a></p></div>
+  <script>document.getElementById(launch ? 'go' : 'setup').hidden = false;</script>
 </body>
 </html>
