@@ -1,7 +1,7 @@
-// Offline support: serve the app shell from cache, refresh it in the background.
-const CACHE = 'life-tracker-v2';
+// Offline support: serve the app from cache, refresh it in the background.
+const CACHE = 'life-v3';
 const SHELL = [
-  './', 'index.html', 'css/styles.css', 'js/icons.js', 'js/constants.js', 'js/ui.js', 'js/store.js', 'js/sample.js', 'js/app.js',
+  './', 'index.html', 'css/styles.css', 'js/util.js', 'js/store.js', 'js/sample.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 
@@ -10,7 +10,7 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith('life') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 // Stale-while-revalidate for same-origin GETs.

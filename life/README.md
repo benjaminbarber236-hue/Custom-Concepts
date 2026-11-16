@@ -1,61 +1,44 @@
-# Life Tracker
+# Life
 
-A phone-friendly app to keep work, congregation, recreation and fitness in one place, so nothing slips through the cracks.
+A calm, phone-friendly app for the things that make up a good day: **habits**, **today's plan**, **goals** and a **journal**.
 
-Plain HTML, CSS and JavaScript: no build step, no server, works offline, and installs on your phone's home screen.
+Plain HTML, CSS and JavaScript: no build step and no server. It works offline and installs on your phone's home screen.
 
-## What's in it
+## The four tabs
 
-| Screen | What's there |
+| Tab | What's there |
 |---|---|
-| **Dashboard** | Today's date and count, quick buttons (To-do, Event, Note, Workout), **Needs attention** (overdue to-dos with a Move button, areas with nothing planned in the next 2 weeks, workouts you still need this week), a month **calendar** with colored dots per area (tap a day to see it and add things to it), **Coming up** for the next 7 days, a card per area, pinned notes, and to-dos with no date yet. |
-| **Work / Congregation / Recreation / Fitness** | One tab per area, each with **To do** (overdue, today, next 7 days, later, no date, done recently), **Schedule** (next 60 days plus the regular repeating schedule), and **Notes**. Fitness adds **Workouts**: this week against your goal, the last 8 weeks as bars, and your log. |
-| **Search** (magnifier, top right) | Finds to-dos, events, notes and workouts. |
-| **Settings** (sliders, top right) | Rename, recolor, reorder or add areas; fitness goal; light/dark; send events to your phone calendar; backup. |
+| **Today** | The date, a one-tap **mood check-in**, today's **habits** (tap to check off), your **plan** for today with a quick-add box (unfinished items from earlier days carry over, and **Coming up** holds later and someday items), and your top goals at a glance. |
+| **Habits** | Each habit with its streak and the last 7 days. Tap any day to fill in one you missed. Open a habit to see its current and best streak, how often you did it in the last 30 days, and a 20-week grid. A habit can be **every day**, **certain days** (such as weekdays) or **a number of times a week**. |
+| **Goals** | Goals tracked by **a number** (run 100 miles, read 12 books), where you log progress as you go, or by **steps** (plan the reunion) that you tick off. An optional finish date shows days left and whether you're **ahead**, **on track** or **behind**. An optional "why it matters" line keeps you going. |
+| **Journal** | A month calendar colored by mood, plus your entries. Each entry has mood, energy and notes. |
 
-### The pieces
-- **To-dos** have an optional due day, time, repeat and flag. Tick one to finish it (Undo shows for a few seconds). A repeating to-do moves to its next date and the finished day stays on the calendar.
-- **Events** go on the calendar and can repeat (every day, weekday, week, 2 weeks, month or year) until a date. Deleting one date of a repeating event asks whether you mean just that date, that date and later, or all of them.
-- **Notes** belong to an area and can be pinned to the Dashboard or shown on a calendar day.
-- **Workouts**: type, minutes, distance, effort, notes. A Fitness event in the past has a **Log as workout** button.
+**Settings** (the gear on Today): light or dark mode, backup and restore, add to home screen, sample data, erase.
 
-### Alerts on your phone
-The app can't send notifications by itself. To get alerts, open an event and tap **Add to phone calendar** (or Settings → **Add all events to phone calendar**). Your phone's calendar then reminds you 30 minutes before anything with a time. If you change an event later, add it again.
+## Coming from the old Life Tracker
+On the same phone and browser, Today offers **Bring it over** once. Your open to-dos go into the plan, and your logged workouts become an **Exercise** habit (a number of times a week, using your old weekly goal). The old data isn't deleted. You can also do this later from Settings.
 
-## Using it
+The calendar, events and per-area tabs from the old version are gone. That was on purpose, to keep the app uncluttered.
 
-### On your phone (recommended)
-Life Tracker is published with GitHub Pages alongside the Job Tracker, from the same branch (`claude/window-covering-scheduler-qfe9s1`).
+## Using it on your phone
+The app is served by GitHub Pages at **https://benjaminbarber236-hue.github.io/Custom-Concepts/life/**, from whichever branch Pages is set to deploy (Settings → Pages in the repository).
 
-1. If GitHub Pages isn't on yet: open https://github.com/benjaminbarber236-hue/Custom-Concepts/settings/pages, set **Source** to **Deploy from a branch**, pick `claude/window-covering-scheduler-qfe9s1` and `/ (root)`, then tap **Save**. Wait about a minute.
-2. On your phone, open **https://benjaminbarber236-hue.github.io/Custom-Concepts/life/**
-3. Add it to your home screen (the Dashboard shows these steps too, and Settings → Home screen keeps them):
-   - **iPhone:** in **Safari**, tap the **Share** button, then **Add to Home Screen**, then **Add**.
-   - **Android:** in **Chrome**, tap **Install the app** on the Dashboard, or **⋮** → **Install app**.
+- **iPhone:** in **Safari**, tap **Share**, then **Add to Home Screen**.
+- **Android:** in **Chrome**, tap **⋮**, then **Install app**.
 
-It then opens full screen like a regular app, works offline, and updates itself when new changes are pushed.
-
-### On a computer
-Run `python3 -m http.server` in this folder and go to http://localhost:8000.
+On a computer, run `python3 -m http.server` in this folder and go to http://localhost:8000.
 
 ## Your data
-Everything is saved **on the device, in that browser only**. Nothing is uploaded.
-- Use **Settings → Export backup** regularly and keep the file somewhere safe. The Dashboard reminds you after 14 days without one.
-- **Import backup** restores it, or moves it to a new phone.
-- To look around first, use **Load sample data**, then **Erase everything** before using it for real.
-
-## Customizing
-Areas can be changed in Settings. Title suggestions, workout types, repeat options and the "nothing planned" window are in `js/constants.js`.
+Everything is saved **on this device, in this browser only**. Nothing is uploaded. Use **Settings → Save backup** now and then. The Today screen reminds you after a month without one.
 
 ## Files
 ```
-index.html            app shell
-css/styles.css        styles (light and dark mode, one color per area)
-js/constants.js       areas, colors, repeats, workout types, suggestions
-js/ui.js              date helpers, form builder, dialogs
-js/store.js           data storage (localStorage), repeats, backup/restore
-js/sample.js          sample data
-js/app.js             screens and actions
+index.html              app shell
+css/styles.css          styles (light and dark)
+js/util.js              dates, icons, toast, bottom sheet
+js/store.js             data (localStorage), streaks, goal progress, old-app import
+js/sample.js            sample data
+js/app.js               screens and actions
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
-tools/build-demo.js   bundles a single-file demo with sample data
+tools/build-demo.js     builds a single-file demo with sample data
 ```
