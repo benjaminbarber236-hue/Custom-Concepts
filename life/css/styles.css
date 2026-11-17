@@ -430,3 +430,4 @@ button.list-row { width: 100%; text-align: left; gap: 10px; }
 }
 #update-bar .ic { width: 18px; height: 18px; }
 @keyframes drop { from { transform: translate(-50%, -20px); opacity: 0; } }
+.need { color: var(--muted); margin-top: -2px; } .need b { color: var(--accent); }
