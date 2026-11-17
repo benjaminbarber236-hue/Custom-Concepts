@@ -51,7 +51,7 @@
     const t = u.today();
     const ws = u.weekStart(t);
     const week = ['midweek', 'weekend'].filter((k) => s.meetings[k].day >= 0).map((k) => {
-      const d = u.addDays(ws, (s.meetings[k].day + 6) % 7);
+      const d = u.addDays(ws, s.meetings[k].day);
       const went = !!s.attended[d + ':' + k];
       return `<div class="list-row"><span><b>${S.MEETING_NAMES[k]}</b><small class="muted block">${u.relDay(d)} · ${u.timeText(s.meetings[k].time)}</small></span>
         ${d <= t ? `<button class="ag-check ${went ? 'on' : ''}" data-act="meet-attend" data-key="${k}" data-day="${d}" aria-pressed="${went}">${icon('check')}<span>${went ? 'Went' : 'Went?'}</span></button>` : '<span class="muted small">Coming up</span>'}</div>`;
@@ -189,7 +189,7 @@
   function group() {
     const s = sp();
     const g = s.group;
-    const fsm = s.fsm.slice().sort((a, b) => ((a.day + 6) % 7) - ((b.day + 6) % 7) || a.time.localeCompare(b.time));
+    const fsm = s.fsm.slice().sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
     const members = s.members.slice().sort((a, b) => a.name.localeCompare(b.name));
     const person = (role, name, phone) => name ? `<div class="list-row"><span><small class="muted block">${role}</small><b>${esc(name)}</b></span>${contact(phone)}</div>` : '';
     return `

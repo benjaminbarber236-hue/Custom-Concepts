@@ -8,7 +8,7 @@ window.L = window.L || {};
   const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return key(d); };
   const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
   const dow = (s) => parse(s).getDay();
-  const weekStart = (s) => addDays(s, -((dow(s) + 6) % 7)); // Monday
+  const weekStart = (s) => addDays(s, -dow(s)); // weeks start on Sunday
   const fmt = (s, o) => parse(s).toLocaleDateString(undefined, o);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -143,12 +143,12 @@ window.L = window.L || {};
   // 150 -> "2h 30m"
   const hrs = (min) => { min = Math.round(min || 0); const h = Math.floor(min / 60), m = min % 60; return h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`; };
 
-  // Month grid (Monday first). cell(day) returns the inner HTML/attrs for each date.
+  // Month grid (Sunday first). cell(day) returns the inner HTML/attrs for each date.
   function monthGrid(ym, cell) {
     const first = ym + '-01';
     const [y, m] = ym.split('-').map(Number);
-    const out = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((x) => `<b>${x}</b>`);
-    for (let i = 0; i < (dow(first) + 6) % 7; i++) out.push('<span></span>');
+    const out = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((x) => `<b>${x}</b>`);
+    for (let i = 0; i < dow(first); i++) out.push('<span></span>');
     for (let i = 1; i <= new Date(y, m, 0).getDate(); i++) out.push(cell(`${ym}-${pad(i)}`, i));
     return `<div class="cal">${out.join('')}</div>`;
   }
