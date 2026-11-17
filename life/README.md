@@ -20,6 +20,11 @@ Plain HTML, CSS and JavaScript: no build step and no server. It works offline an
 - **iPhone/iPad:** Dream and Journal open with the keyboard up; tap the **mic on the keyboard** and speak. Apple's keyboard dictation is far better than what web apps get (it picks up whispering), so the app uses it instead of its own mic.
 - **Android and computers:** the round mic button uses the browser's speech recognition. If it isn't allowed or keeps stopping, the app switches to keyboard dictation instead of retrying.
 
+### AI tidy-up
+Under a dream or journal entry, **Tidy up with AI** sends the dictated text to Claude, which fixes misheard words, adds punctuation and paragraphs, and drops filler, without adding anything. **Show what I said** switches back to the original, and the original is kept with the entry.
+
+It needs your own Claude API key: get one at console.anthropic.com → Settings → API keys (with a little prepaid credit), then paste it in **Settings → AI tidy-up**. The key is saved on that phone only and isn't included in backups. It uses Claude Opus 5.5 at low effort, which costs about a cent per entry. If a safety check declines a request, the API retries on a suitable model (server-side fallback).
+
 ## Coming from the old Life Tracker
 On the same phone and browser, Today offers **Bring it over** once. Your open to-dos go into the plan, your calendar events go on the **Schedule**, and your logged workouts become an **Exercise** habit (a number of times a week, using your old weekly goal). The old data isn't deleted. You can also do this later from Settings.
 
