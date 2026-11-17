@@ -17,17 +17,12 @@ Plain HTML, CSS and JavaScript: no build step and no server. It works offline an
 **Settings** (the gear on Plan): project name and target dates, light/dark, backup and restore, sample data, erase.
 
 ## Using it on your phone
-The app lives on claude.ai, like Job Tracker: **https://claude.ai/artifact/CAdPbLmaxGUk1op2xoTRs1**. There it saves to your Claude account, so your plan is the same on your phone and computer.
+Open **https://benjaminbarber236-hue.github.io/Custom-Concepts/cabins/** in Safari, tap **Share → Add to Home Screen**. It opens full screen with the cabin icon.
 
-For a home-screen icon, open **https://benjaminbarber236-hue.github.io/Custom-Concepts/cabins/open/** in Safari, tap **Share → Add to Home Screen**. The icon opens the app.
-
-The same code also runs straight from GitHub Pages at `/cabins/` (or `python3 -m http.server` in this folder), where it saves to that browser only. To move a plan from there to claude.ai: **Settings → Save backup** there, then **Restore backup** in the claude.ai app.
+Sign in with the same email and password as Job Tracker. Your plan is saved in the same Supabase database (rows named `cabins-…` in the `docs` table, so the two apps never mix) and syncs between your phone and computer. A copy stays on the phone, so it opens without signal and syncs when you're back online. **Skip** on the sign-in screen keeps the plan on that phone only.
 
 ## Your data
-On claude.ai: saved to your Claude account (the artifact's database). Elsewhere: saved in that browser only; use **Settings → Save backup** now and then.
-
-## Updating the claude.ai app
-`node tools/build-artifact.js cabins.html` bundles everything into one page; publish that page to the same artifact.
+Signed in: in your Supabase database, plus a copy on each device. Skipped: in that browser only. Either way, **Settings → Save backup** downloads everything as a file.
 
 ## Files
 ```
@@ -41,6 +36,7 @@ js/lenders.js           lender calls: loan questions and answers
 js/app.js               screens and actions
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
 tools/build-demo.js     builds a single-file demo with sample data
-tools/build-artifact.js builds the single page published on claude.ai
-open/index.html         home-screen launcher that opens the claude.ai app
+js/supabase.js          Supabase client (same file as Job Tracker)
+tools/build-artifact.js builds a single-page version for claude.ai (older, not needed for the phone)
+open/index.html         old launcher address; forwards to the app
 ```

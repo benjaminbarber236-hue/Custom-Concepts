@@ -397,9 +397,18 @@
         <h2>Look</h2>
         <div class="seg">${[['', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" ${th === v ? 'checked' : ''} data-act="theme"><span>${l}</span></label>`).join('')}</div>
       </section>
+      ${S.mode === 'cloud' ? `<section class="card sec">
+        <h2>Account</h2>
+        <p class="muted small">Signed in as <b class="ink">${esc(S.user.email)}</b>, the same account as Job Tracker. Your plan syncs between your phone and computer.</p>
+        <div class="actions"><button class="btn sm" data-act="signout">Sign out</button></div>
+      </section>` : S.mode === 'local' && S.canCloud() ? `<section class="card sec">
+        <h2>Sync</h2>
+        <p class="muted small">This plan is only on this phone. Sign in with your Job Tracker account to keep it on your phone and computer.</p>
+        <div class="actions"><button class="btn primary sm" data-act="use-cloud">Sign in to sync</button></div>
+      </section>` : ''}
       <section class="card sec">
         <h2>Your data</h2>
-        <p class="muted small">${S.mode === 'live' ? 'Saved to your Claude account. It syncs between your phone and computer when you open this page from either one. A backup file is still a good idea now and then.' : 'Everything is saved on this phone, in this browser only. Save a backup now and then.'}${s.lastBackup ? ` Last backup: ${u.relDay(s.lastBackup.slice(0, 10))}.` : ''}</p>
+        <p class="muted small">${S.mode === 'cloud' ? 'Saved to your account and kept on this phone too, so it opens without signal. A backup file is still a good idea now and then.' : S.mode === 'live' ? 'Saved to your Claude account. It syncs between your phone and computer when you open this page from either one. A backup file is still a good idea now and then.' : 'Everything is saved on this phone, in this browser only. Save a backup now and then.'}${s.lastBackup ? ` Last backup: ${u.relDay(s.lastBackup.slice(0, 10))}.` : ''}</p>
         <div class="actions"><button class="btn primary sm" data-act="backup">Save backup</button><button class="btn sm" data-act="restore">Restore backup</button></div>
       </section>
       ${installEvent ? `<section class="card sec"><h2>Home screen</h2><button class="btn sm" data-act="install">Add to home screen</button></section>` : ''}
@@ -451,6 +460,10 @@
     },
     async backup() { if (await u.download(`cabins-backup-${u.today()}.json`, S.exportJSON(), 'application/json')) { render(); u.toast('Backup saved'); } },
     start() { S.startPlan(); render(); u.toast('Your plan is ready'); },
+    async signup() { await doSignin(true); },
+    'use-local'() { S.useLocal(); render(); },
+    async 'use-cloud'() { await S.useCloud(); go('#/plan'); },
+    async signout() { if (!(await u.confirm('Sign out of Cabins on this phone? Your plan stays in your account.', 'Sign out'))) return; await S.signOut(); signinMsg = ''; render(); },
     restore() {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = 'application/json,.json';
@@ -467,6 +480,15 @@
   };
 
   Object.assign(act, L.lenders.acts);
+  let signinMsg = '', signinEmail = '';
+  async function doSignin(create) {
+    const email = (document.getElementById('si-email') || {}).value || '', password = (document.getElementById('si-pass') || {}).value || '';
+    if (!email.trim() || password.length < 6) { u.toast(create ? 'Enter your email and a password of at least 6 characters.' : 'Enter your email and password.'); return; }
+    signinEmail = email.trim();
+    const msg = await S.signIn(email.trim(), password, create);
+    signinMsg = msg; render();
+  }
+  main.addEventListener('submit', (e) => { if (e.target.dataset.form === 'signin') { e.preventDefault(); doSignin(false); } });
   main.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el || !main.contains(el) || !act[el.dataset.act]) return;
@@ -501,12 +523,12 @@
       lenders: id ? () => L.lenders.viewOne(id) : L.lenders.viewList,
     };
     const y = window.scrollY;
-    main.innerHTML = !S.loaded ? viewLoading() : S.isEmpty() ? viewStart() : (S.stale ? staleNote() : '') + (views[view] || viewPlan)();
+    main.innerHTML = S.mode === 'signin' ? viewSignin() : !S.loaded ? viewLoading() : S.isEmpty() ? viewStart() : (S.stale ? staleNote() : S.offline ? offlineNote() : '') + (views[view] || viewPlan)();
     if (render.last === route) window.scrollTo(0, y); else window.scrollTo(0, 0);
     render.last = route;
     if (view === 'lenders') L.lenders.afterRender();
     const tab = { settings: 'plan', lenders: 'money' }[view] || view;
-    document.getElementById('tabbar').hidden = !S.loaded || S.isEmpty();
+    document.getElementById('tabbar').hidden = S.mode === 'signin' || !S.loaded || S.isEmpty();
     document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></a>`).join('');
   }
 
@@ -516,6 +538,28 @@
   function staleNote() {
     return `<p class="card notice small">Can't reach your saved plan right now, so this may be out of date. Changes you make will save when the connection comes back.</p>`;
   }
+  function offlineNote() {
+    return `<p class="card notice small">No connection right now. Your changes are saved on this phone and will sync when you're back online.</p>`;
+  }
+  function viewSignin() {
+    return `<section class="welcome">
+        <div class="welcome-art" aria-hidden="true">${icon('cabins')}</div>
+        <p class="eyebrow">Land & cabins</p>
+        <h1 class="display">Sign in to Cabins</h1>
+        <p class="muted">Use the same email and password as your Job Tracker. Your plan then syncs between your phone and computer.</p>
+      </section>
+      <form class="card signin" data-form="signin" novalidate>
+        <label class="field"><span>Email</span><input id="si-email" name="email" type="email" value="${esc(signinEmail)}" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email"></label>
+        <label class="field"><span>Password</span><input id="si-pass" name="password" type="password" autocomplete="current-password"></label>
+        ${signinMsg ? `<p class="small signin-msg">${esc(signinMsg)}</p>` : ''}
+        <button class="btn primary big" type="submit">Sign in</button>
+      </form>
+      <div class="welcome-actions">
+        <button class="link small" data-act="signup">New here? Create an account with this email and password</button>
+        <button class="link small muted" data-act="use-local">Skip: keep the plan on this phone only</button>
+      </div>`;
+  }
+
   function viewStart() {
     const n = P.PHASES.reduce((t, p) => t + p.steps.length, 0);
     return `<section class="welcome">
@@ -553,7 +597,7 @@
   if (L.DEMO) S.loadSample();
   applyTheme();
   const inArtifact = !!(window.claude && typeof window.claude.use === 'function');
-  if (inArtifact) S.mode = 'loading', S.loaded = false;
+  if (inArtifact || S.canCloud()) S.mode = 'loading', S.loaded = false;
   render();
   S.connect().then(() => { applyTheme(); render(); });
   if (!inArtifact && 'serviceWorker' in navigator && !L.DEMO && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});

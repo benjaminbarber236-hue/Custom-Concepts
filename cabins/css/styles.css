@@ -527,3 +527,9 @@ button.list-row b { flex: none; }
 .compare th, .compare td { text-align: left; padding: 8px 6px; vertical-align: top; }
 .compare tr + tr th, .compare tr + tr td { border-top: 1px solid var(--line); }
 .compare th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+
+/* Sign in */
+.signin { display: flex; flex-direction: column; gap: 14px; }
+.signin-msg { color: var(--warm); font-weight: 600; }
+.welcome-actions .link.muted { color: var(--muted); }
+.welcome-actions .link { text-align: center; }

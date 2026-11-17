@@ -4,31 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cabins</title>
-<!-- Home screen launcher: the icon opens the Cabins app on claude.ai, where it saves to your Claude account. -->
+<!-- Old launcher address: Cabins now runs on its own at ../ (no claude.ai bar). -->
+<meta http-equiv="refresh" content="0; url=../">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
-<link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
-<meta name="apple-mobile-web-app-title" content="Cabins">
-<style>
-  :root { color-scheme: light dark; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 17px/1.4 system-ui, -apple-system, sans-serif; background: #3f6247; color: #fffcf7; padding: 16px; text-align: center; }
-  a { color: #fffcf7; font-weight: 600; }
-  img { width: 72px; height: 72px; border-radius: 16px; }
-</style>
-<script>
-  // Opened from the home screen icon (its address ends in ?open): go straight to the app.
-  // Opened any other way: show how to add the icon, and set the address so the icon gets ?open.
-  var APP = 'https://claude.ai/artifact/CAdPbLmaxGUk1op2xoTRs1';
-  var launch = /[?&]open\b/.test(location.search);
-  if (launch) location.replace(APP);
-  else try { history.replaceState(null, '', location.pathname + '?open'); } catch (e) {}
-</script>
+<script>location.replace('../');</script>
 </head>
-<body>
-  <div id="go" hidden><img src="../icons/apple-touch-icon.png" alt=""><p>Opening Cabins…</p><p><a href="https://claude.ai/artifact/CAdPbLmaxGUk1op2xoTRs1">Tap here if it doesn't open</a></p></div>
-  <div id="setup" hidden style="max-width:340px"><img src="../icons/apple-touch-icon.png" alt=""><h1 style="font-size:24px;margin:14px 0 8px">Add Cabins to your home screen</h1>
-    <p>Tap the <strong>Share</strong> button, then <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</p>
-    <p style="opacity:.75;font-size:15px">The icon opens your Cabins plan on claude.ai, saved to your Claude account.</p>
-    <p><a href="https://claude.ai/artifact/CAdPbLmaxGUk1op2xoTRs1">Open Cabins now</a></p></div>
-  <script>document.getElementById(launch ? 'go' : 'setup').hidden = false;</script>
-</body>
+<body style="font:17px system-ui;padding:24px;text-align:center"><a href="../">Open Cabins</a></body>
 </html>
