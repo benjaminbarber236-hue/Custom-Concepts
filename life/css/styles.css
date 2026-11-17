@@ -458,3 +458,11 @@ button.list-row { width: 100%; text-align: left; gap: 10px; }
 .ai-key input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); outline: none; }
 .steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .link-shown { word-break: break-all; color: var(--muted); }
+
+/* Several times a day: the circle fills as check-ins add up */
+.tick.multi { color: var(--ink); font-size: 11.5px; letter-spacing: -.02em; width: 40px; height: 40px;
+  border: 0; background: conic-gradient(var(--accent) var(--p, 0%), var(--line) 0); position: relative; }
+.tick.multi::before { content: ''; position: absolute; inset: 3px; border-radius: 99px; background: var(--surface); }
+.tick.multi b { position: relative; font-weight: 700; }
+.day.part .dc { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.day.part .dc small { font-size: 10.5px; font-weight: 700; }

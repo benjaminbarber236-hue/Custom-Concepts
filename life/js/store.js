@@ -67,15 +67,21 @@
   }
 
   // ---------- Habits ----------
-  const isChecked = (h, day) => !!(db.checks[h.id] && db.checks[h.id][day]);
+  // Times a day: a habit can need several check-ins a day (perDay); checks hold the count.
+  const target = (h) => (h.schedule === 'weekly' ? 1 : Math.max(1, Number(h.perDay) || 1));
+  const count = (h, day) => Number(db.checks[h.id] && db.checks[h.id][day]) || 0;
+  const isChecked = (h, day) => count(h, day) >= target(h);
+  function setCount(h, day, n) {
+    const c = (db.checks[h.id] = db.checks[h.id] || {});
+    n = Math.max(0, Math.min(target(h), n));
+    if (n) c[day] = n; else delete c[day];
+    save();
+    return n;
+  }
   const isDue = (h, day) => day >= h.created && (h.schedule !== 'days' || h.days.includes(u.dow(day)));
 
-  function toggleCheck(h, day) {
-    const c = (db.checks[h.id] = db.checks[h.id] || {});
-    if (c[day]) delete c[day]; else c[day] = 1;
-    save();
-    return !!c[day];
-  }
+  // Whole day on/off: done (all times) or nothing.
+  function toggleCheck(h, day) { return setCount(h, day, isChecked(h, day) ? 0 : target(h)) > 0; }
 
   const weekCount = (h, wk) => { let n = 0; for (let i = 0; i < 7; i++) if (isChecked(h, u.addDays(wk, i))) n++; return n; };
 
@@ -143,6 +149,7 @@
     }
     return 'Every day';
   }
+  const scheduleFull = (h) => scheduleText(h) + (target(h) > 1 ? ` · ${target(h)}× a day` : '');
 
   // ---------- Schedule ----------
   // Does a (possibly repeating) event happen on `day`?
@@ -254,7 +261,7 @@
   }
 
   const S = {
-    uid, save, isChecked, isDue, toggleCheck, weekCount, streak, best, rate, scheduleText,
+    uid, save, isChecked, isDue, toggleCheck, target, count, setCount, scheduleFull, weekCount, streak, best, rate, scheduleText,
     occursOn, agenda, attendance, serviceMinutes, readingStreak, MEETING_NAMES,
     oldSummary, importOld,
     get db() { return db; },
