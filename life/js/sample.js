@@ -113,6 +113,9 @@
       if (i > 0 && rnd() < 0.6 && notes[i % notes.length]) entries.push({ id: id(), kind: 'journal', lucid: false, date: day, time: at(20 + Math.floor(rnd() * 3), Math.floor(rnd() * 60)), text: notes[i % notes.length], created: day });
     }
 
+    // Always show at least one recent lucid dream in the sample.
+    entries.push({ id: id(), kind: 'dream', lucid: true, date: d(-4), time: '06:12', text: lucid[0], created: d(-4) });
+
     return { version: 2, habits, checks, tasks, goals: [], journal, entries, events, spiritual, settings: { theme: '', lastBackup: null, oldImport: 'skipped', oldEvents: 'skipped' } };
   };
 })();

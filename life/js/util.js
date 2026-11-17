@@ -189,5 +189,24 @@ window.L = window.L || {};
     }
   }
 
+  // Forms are submitted by hand instead of by the browser: some previews (sandboxed frames)
+  // block real form submission, which would make every Save button do nothing there.
+  function submitByHand(form, btn) {
+    if (form.getAttribute('method') === 'dialog') { const dlg = form.closest('dialog'); if (dlg) dlg.close(btn ? btn.value : ''); return; }
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || !btn.form || (btn.getAttribute('type') || 'submit') !== 'submit') return;
+    e.preventDefault();
+    submitByHand(btn.form, btn);
+  }, true);
+  document.addEventListener('keydown', (e) => {
+    const el = e.target;
+    if (e.key !== 'Enter' || e.isComposing || !el.form || el.tagName !== 'INPUT' || /^(checkbox|radio|button|submit)$/.test(el.type)) return;
+    e.preventDefault();
+    submitByHand(el.form);
+  }, true);
+
   L.u = { DOW, DOW_LONG, plural, timeText, nowHM, shiftMonth, monthName, hrs, monthGrid, ics, download, copyText, dictation, key, parse, today, addDays, daysBetween, dow, weekStart, fmt, esc, relDay, icon, toast, sheet, confirm: confirmBox };
 })();
