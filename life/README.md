@@ -21,7 +21,7 @@ Plain HTML, CSS and JavaScript: no build step and no server. It works offline an
 - **Android and computers:** the round mic button uses the browser's speech recognition. If it isn't allowed or keeps stopping, the app switches to keyboard dictation instead of retrying.
 
 ### Cleaning up dictation (free)
-Under a dream or journal entry, **Clean up with Claude** saves the entry, then opens the share sheet with the text and cleanup instructions (fix misheard words, punctuation, paragraphs; add nothing). Pick the **Claude** app (the free plan works) and send it. Copy Claude's answer, come back, and tap **Paste Claude's version**. **Show what I said** switches back to the original, which is kept with the entry. Where sharing isn't available, the request is copied so you can paste it into Claude.
+Under a dream or journal entry, **Copy & open Claude** saves the entry, copies the text with cleanup instructions (fix misheard words, punctuation, paragraphs; add nothing) and opens Claude with it filled in. There's no share sheet, so it can't go to a contact by mistake. If the chat comes up empty, paste. Send it, copy Claude's reply, come back and tap **Paste Claude's version**. **Show what I said** switches back to the original, which is kept with the entry. If the app was closed meanwhile, the Journal tab shows **Waiting for Claude's version** for that entry.
 
 On iPhones with Apple Intelligence you can also select the text and use **Writing Tools → Proofread**, which is free and built in.
 

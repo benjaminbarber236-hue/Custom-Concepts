@@ -448,3 +448,8 @@ button.list-row { width: 100%; text-align: left; gap: 10px; }
 .ai-btn .ic { color: var(--k-dream); }
 .ai-status { color: var(--muted); margin-top: -8px; }
 .ai-status:empty { display: none; }
+
+.notice.waiting { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; }
+.notice.waiting .ic { color: var(--k-dream); width: 22px; height: 22px; flex: none; }
+.notice.waiting span { display: flex; flex-direction: column; }
+.notice.waiting small { color: var(--muted); }
