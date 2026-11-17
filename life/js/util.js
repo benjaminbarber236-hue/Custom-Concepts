@@ -101,10 +101,13 @@ window.L = window.L || {};
 
   // Speech-to-text into a textarea using the browser's built-in recognition.
   // Returns null where it isn't available (then the keyboard's own mic still works).
+  // iPhone/iPad: the web speech engine there is weak (misses quiet speech) and unstable in
+  // home-screen apps, while the keyboard's own dictation is excellent, so we use that instead.
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function dictation(ta, onState) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return null;
-    let rec = null, want = false, base = '';
+    if (!SR || isIOS) return null;
+    let rec = null, want = false, base = '', startedAt = 0, quickEnds = 0;
     const join = (a, b) => (!a ? b : !b ? a : /\s$/.test(a) ? a + b.trimStart() : a + ' ' + b.trimStart());
     const cap = (t) => t.replace(/^\s*\w/, (c) => c.toUpperCase());
     function begin() {
@@ -114,6 +117,7 @@ window.L = window.L || {};
       rec.interimResults = true;
       rec.lang = navigator.language || 'en-US';
       base = ta.value;
+      startedAt = Date.now();
       rec.onresult = (e) => {
         let text = '';
         for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
@@ -122,9 +126,16 @@ window.L = window.L || {};
       };
       rec.onerror = (e) => {
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') { want = false; onState('blocked'); }
+        else if (e.error === 'network' || e.error === 'language-not-supported') { want = false; onState('failed'); }
       };
-      // Phones stop listening after a pause; keep going until the person taps stop.
-      rec.onend = () => { if (want) { try { begin(); } catch (err) { want = false; onState('off'); } } else onState('off'); };
+      // Phones stop listening after a pause; keep going until the person taps stop. If it keeps
+      // stopping straight away, give up instead of restarting in a loop (that can freeze the app).
+      rec.onend = () => {
+        if (!want) return onState('off');
+        quickEnds = Date.now() - startedAt < 1500 ? quickEnds + 1 : 0;
+        if (quickEnds >= 3) { want = false; return onState('failed'); }
+        setTimeout(() => { if (!want) return; try { begin(); } catch (err) { want = false; onState('failed'); } }, 250);
+      };
       rec.start();
     }
     return {
@@ -224,5 +235,16 @@ window.L = window.L || {};
     return confirmBox(on ? `Remove the check for “${what}” on ${when}?` : `Mark “${what}” done on ${when}?`, on ? 'Remove check' : 'Mark done', !on);
   }
 
-  L.u = { weekNav, confirmDay, DOW, DOW_LONG, plural, timeText, nowHM, shiftMonth, monthName, hrs, monthGrid, ics, download, copyText, dictation, key, parse, today, addDays, daysBetween, dow, weekStart, fmt, esc, relDay, icon, toast, sheet, confirm: confirmBox };
+  // Keep bottom sheets above the on-screen keyboard (iPhone doesn't resize the page for it).
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const fit = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--kb', kb + 'px');
+      document.documentElement.style.setProperty('--vvh', vv.height + 'px');
+    };
+    vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); fit();
+  }
+
+  L.u = { isIOS, weekNav, confirmDay, DOW, DOW_LONG, plural, timeText, nowHM, shiftMonth, monthName, hrs, monthGrid, ics, download, copyText, dictation, key, parse, today, addDays, daysBetween, dow, weekStart, fmt, esc, relDay, icon, toast, sheet, confirm: confirmBox };
 })();

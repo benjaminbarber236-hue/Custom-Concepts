@@ -17,7 +17,8 @@ Plain HTML, CSS and JavaScript: no build step and no server. It works offline an
 **Settings** (the gear on Today): light or dark mode, backup and restore, add to home screen, sample data, erase.
 
 ### Dictation
-The mic uses your phone's built-in speech recognition (Chrome on Android, Safari on iPhone). The first time, allow microphone access. Tap the mic again to stop; you can edit the text before saving. If speech recognition isn't available (some browsers, or the app opened from an iPhone home screen), use the mic on your keyboard instead.
+- **iPhone/iPad:** Dream and Journal open with the keyboard up; tap the **mic on the keyboard** and speak. Apple's keyboard dictation is far better than what web apps get (it picks up whispering), so the app uses it instead of its own mic.
+- **Android and computers:** the round mic button uses the browser's speech recognition. If it isn't allowed or keeps stopping, the app switches to keyboard dictation instead of retrying.
 
 ## Coming from the old Life Tracker
 On the same phone and browser, Today offers **Bring it over** once. Your open to-dos go into the plan, your calendar events go on the **Schedule**, and your logged workouts become an **Exercise** habit (a number of times a week, using your old weekly goal). The old data isn't deleted. You can also do this later from Settings.
