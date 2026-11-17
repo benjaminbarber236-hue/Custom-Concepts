@@ -295,7 +295,7 @@
         if (isNew) {
           const steps = kind === 'steps' ? (fd.get('steps') || '').split('\n').map((s) => s.trim()).filter(Boolean).map((s) => ({ id: S.uid(), title: s, done: false })) : [];
           const ng = S.add('goals', { ...fields, kind, log: [], steps, created: u.today(), done: false, doneOn: null });
-          location.hash = '#/goals/' + ng.id;
+          route = '#/goals/' + ng.id; go(route);
         } else { Object.assign(g, fields); S.save(); }
         render();
       },
@@ -452,7 +452,7 @@
     async 'habit-delete'(el) {
       const h = S.habit(el.dataset.id);
       if (!(await u.confirm(`Delete “${h.name}” and all its history? Archive it instead to keep the history.`))) return;
-      S.remove('habits', h.id); location.hash = '#/habits';
+      S.remove('habits', h.id); go('#/habits');
     },
 
     'goal-new': () => goalForm(),
@@ -465,7 +465,7 @@
     async 'goal-delete'(el) {
       const g = S.goal(el.dataset.id);
       if (!(await u.confirm(`Delete the goal “${g.title}”?`))) return;
-      S.remove('goals', g.id); location.hash = '#/goals';
+      S.remove('goals', g.id); go('#/goals');
     },
     'step-toggle'(el) { const g = S.goal(el.dataset.id); const s = g.steps.find((x) => x.id === el.dataset.step); s.done = !s.done; S.save(); render(); },
     'step-delete'(el) { const g = S.goal(el.dataset.id); g.steps = g.steps.filter((x) => x.id !== el.dataset.step); S.save(); render(); },
@@ -495,8 +495,8 @@
       inp.click();
     },
     async install() { if (!installEvent) return; installEvent.prompt(); await installEvent.userChoice; installEvent = null; render(); },
-    async sample() { if (!(await u.confirm('Replace everything with sample data?', 'Load sample'))) return; S.loadSample(); location.hash = '#/today'; render(); },
-    async erase() { if (!(await u.confirm('Erase all habits, goals, plans and journal entries on this device? This can’t be undone.', 'Erase'))) return; S.reset(); location.hash = '#/today'; render(); },
+    async sample() { if (!(await u.confirm('Replace everything with sample data?', 'Load sample'))) return; S.loadSample(); go('#/today'); render(); },
+    async erase() { if (!(await u.confirm('Erase all habits, goals, plans and journal entries on this device? This can’t be undone.', 'Erase'))) return; S.reset(); go('#/today'); render(); },
   };
 
   main.addEventListener('click', (e) => {
@@ -534,15 +534,23 @@
   });
 
   // ================= Shell =================
+  let route = /^#\//.test(location.hash) ? location.hash : '#/today';
+  function go(path) {
+    route = path;
+    try { if (!L.DEMO) history.pushState(null, '', path); } catch (e) { /* address can't change here; fine */ }
+    render();
+  }
+  window.addEventListener('popstate', () => { route = /^#\//.test(location.hash) ? location.hash : '#/today'; render(); });
+
   const TABS = [['today', 'Today'], ['habits', 'Habits'], ['goals', 'Goals'], ['journal', 'Journal']];
 
   function render() {
-    const [, view = 'today', id] = (location.hash || '#/today').split('/');
+    const [, view = 'today', id] = route.split('/');
     const views = { today: viewToday, habits: id ? () => viewHabit(id) : viewHabits, goals: id ? () => viewGoal(id) : viewGoals, journal: viewJournal, settings: viewSettings };
     const y = window.scrollY;
     main.innerHTML = (views[view] || viewToday)();
-    if (render.last === location.hash) window.scrollTo(0, y); else window.scrollTo(0, 0);
-    render.last = location.hash;
+    if (render.last === route) window.scrollTo(0, y); else window.scrollTo(0, 0);
+    render.last = route;
     document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${view === k ? 'on' : ''}" ${view === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></a>`).join('');
   }
 
@@ -551,11 +559,19 @@
     if (th) document.documentElement.dataset.theme = th; else delete document.documentElement.dataset.theme;
   }
 
-  window.addEventListener('hashchange', render);
+  // Page changes are handled here rather than by the browser following links, so the app also
+  // works inside preview frames where changing the address isn't allowed.
+  window.addEventListener('hashchange', () => { if (location.hash && location.hash !== route) { route = location.hash; render(); } });
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="#/"]');
+    if (!a || e.defaultPrevented) return;
+    e.preventDefault();
+    go(a.getAttribute('href'));
+  });
   // Re-render when the app comes back after midnight so "today" is right.
   let day = u.today();
   document.addEventListener('visibilitychange', () => { if (!document.hidden && u.today() !== day) { day = u.today(); journalMonth = day.slice(0, 7); render(); } });
-  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; if (location.hash === '#/settings') render(); });
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; if (route === '#/settings') render(); });
 
   if (L.DEMO) S.loadSample();
   applyTheme();
