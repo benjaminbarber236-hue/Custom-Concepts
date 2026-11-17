@@ -448,6 +448,3 @@ button.list-row { width: 100%; text-align: left; gap: 10px; }
 .ai-btn .ic { color: var(--k-dream); }
 .ai-status { color: var(--muted); margin-top: -8px; }
 .ai-status:empty { display: none; }
-.ai-status a { color: var(--accent); text-decoration: underline; }
-.ai-key { display: flex; gap: 8px; }
-.ai-key input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); outline: none; }
