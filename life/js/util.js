@@ -87,11 +87,12 @@ window.L = window.L || {};
     return { close, form };
   }
 
-  function confirmBox(message, yes = 'Delete') {
+  // safe = true for a non-destructive yes (green instead of red).
+  function confirmBox(message, yes = 'Delete', safe = false) {
     return new Promise((resolve) => {
       const dlg = document.getElementById('confirm');
       dlg.innerHTML = `<form method="dialog" class="sheet small"><p>${esc(message)}</p>
-        <div class="sheet-foot"><span class="grow"></span><button value="no" class="btn">Cancel</button><button value="yes" class="btn primary danger-fill">${esc(yes)}</button></div></form>`;
+        <div class="sheet-foot"><span class="grow"></span><button value="no" class="btn">Cancel</button><button value="yes" class="btn primary ${safe ? '' : 'danger-fill'}">${esc(yes)}</button></div></form>`;
       dlg.onclose = () => resolve(dlg.returnValue === 'yes');
       dlg.returnValue = '';
       dlg.showModal();
@@ -208,5 +209,20 @@ window.L = window.L || {};
     submitByHand(el.form);
   }, true);
 
-  L.u = { DOW, DOW_LONG, plural, timeText, nowHM, shiftMonth, monthName, hrs, monthGrid, ics, download, copyText, dictation, key, parse, today, addDays, daysBetween, dow, weekStart, fmt, esc, relDay, icon, toast, sheet, confirm: confirmBox };
+  // "‹ This week ›" switcher; offset 0 = this week, -1 = last week…
+  function weekNav(offset, act) {
+    const ws = addDays(weekStart(today()), offset * 7);
+    const label = offset === 0 ? 'This week' : offset === -1 ? 'Last week' : `${fmt(ws, { month: 'short', day: 'numeric' })} – ${fmt(addDays(ws, 6), { month: 'short', day: 'numeric' })}`;
+    return `<div class="week-nav"><button class="icon-btn sm" data-act="${act}" data-v="-1" aria-label="Earlier week">${icon('left')}</button><span>${label}</span><button class="icon-btn sm" data-act="${act}" data-v="1" aria-label="Later week" ${offset >= 0 ? 'disabled' : ''}>${icon('right')}</button></div>`;
+  }
+
+  // Checking off a day other than today asks first, so a stray tap can't change history.
+  // Returns true to go ahead.
+  async function confirmDay(day, what, on) {
+    if (day === today()) return true;
+    const when = fmt(day, { weekday: 'long', month: 'short', day: 'numeric' });
+    return confirmBox(on ? `Remove the check for “${what}” on ${when}?` : `Mark “${what}” done on ${when}?`, on ? 'Remove check' : 'Mark done', !on);
+  }
+
+  L.u = { weekNav, confirmDay, DOW, DOW_LONG, plural, timeText, nowHM, shiftMonth, monthName, hrs, monthGrid, ics, download, copyText, dictation, key, parse, today, addDays, daysBetween, dow, weekStart, fmt, esc, relDay, icon, toast, sheet, confirm: confirmBox };
 })();

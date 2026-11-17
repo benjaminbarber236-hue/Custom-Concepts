@@ -115,8 +115,9 @@
     const t = u.today();
     const list = S.habits();
     const archived = S.db.habits.filter((h) => h.archived);
-    const days = Array.from({ length: 7 }, (_, i) => u.addDays(u.weekStart(t), i)); // this week, Sun–Sat
-    return head + `
+    const wk = L.habitWeek || 0;
+    const days = Array.from({ length: 7 }, (_, i) => u.addDays(u.weekStart(t), wk * 7 + i)); // Sun–Sat
+    return head + (list.length ? u.weekNav(wk, 'hweek') : '') + `
       ${list.length ? list.map((h) => {
         const s = S.streak(h);
         return `<article class="card hcard">
@@ -132,12 +133,13 @@
   }
 
   function dayCell(h, d) {
-    const before = d < h.created || d > u.today(); // not yet started, or still ahead this week
+    const before = d < h.created; // before the habit was added (can still be filled in)
+    const ahead = d > u.today();
     const on = S.isChecked(h, d);
     const due = S.isDue(h, d);
     const cls = on ? 'on' : d > u.today() ? 'ahead' : before ? 'before' : due ? 'due' : 'rest';
     const label = `${u.fmt(d, { weekday: 'long', month: 'short', day: 'numeric' })}: ${on ? 'done' : 'not done'}`;
-    return `<button class="day ${cls} ${d === u.today() ? 'is-today' : ''}" data-act="check" data-id="${h.id}" data-day="${d}" ${before ? 'disabled' : ''} aria-label="${label}" aria-pressed="${on}">
+    return `<button class="day ${cls} ${d === u.today() ? 'is-today' : ''}" data-act="check" data-id="${h.id}" data-day="${d}" ${ahead ? 'disabled' : ''} aria-label="${label}" aria-pressed="${on}">
       <span class="dl">${DOW[u.dow(d)].slice(0, 1)}</span><span class="dc">${on ? icon('check') : ''}</span></button>`;
   }
 
@@ -363,12 +365,19 @@
 
   // ================= Actions =================
   const act = {
-    check(el) {
+    async check(el) {
       const h = S.habit(el.dataset.id);
-      const on = S.toggleCheck(h, el.dataset.day);
+      const d = el.dataset.day;
+      if (d > u.today()) return;
+      const was = S.isChecked(h, d);
+      if (!(await u.confirmDay(d, h.name, was))) return;
+      if (!was && d < h.created) h.created = d; // filling in a day from before the habit was added
+      const on = S.toggleCheck(h, d);
       if (on && navigator.vibrate) navigator.vibrate(8);
       render();
+      if (d === u.today()) u.toast(on ? `${h.name}: done` : `${h.name}: unchecked`, { label: 'Undo', run: () => { S.toggleCheck(h, d); render(); } });
     },
+    hweek(el) { L.habitWeek = Math.min(0, (L.habitWeek || 0) + Number(el.dataset.v)); render(); },
     mood(el) {
       const t = u.today();
       const e = Object.assign({ mood: 0, energy: 0 }, S.entry(t));
