@@ -353,7 +353,7 @@ const ICON = {
 // Everything is kept on this device first (so the app works with no internet),
 // then synced to your own Supabase database whenever there's a connection.
 const S = { jobs: new Map(), events: new Map(), tasks: new Map(), meta: { contacts: [] }, loaded: false, mode: 'starting', sb: null, user: null, syncError: '', lastSync: '', msg: '' };
-const BAKED = { url: '', key: '' }; // Filled in once your database is set up, so every device just signs in.
+const BAKED = { url: 'https://zfdtnprrjhewdvepbovo.supabase.co', key: 'sb_publishable_gRPjEWbBBObRIwLcyvhvrw_Jo41UBPC' }; // Filled in once your database is set up, so every device just signs in.
 const CFG_KEY = 'jt-config';
 
 // Tiny IndexedDB helper: 'kv' holds saved data, 'blobs' holds files kept on this device.
