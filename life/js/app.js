@@ -275,6 +275,27 @@
 
   // What gets sent to the Claude app: cleanup instructions plus the dictation.
   const CLAUDE_MARK = 'Reply with only the cleaned-up text';
+  // Instructions for a Claude project (pasted once into the project's instructions).
+  const PROJECT_INSTRUCTIONS = `Each message I send is a dream or journal entry I dictated with speech-to-text, often whispered right after waking up, so words may be misheard. Clean it up:
+- Fix words that were clearly misheard, using the rest of the story to work out what I said.
+- Add punctuation, and paragraph breaks where the scene or topic changes.
+- Drop filler words ("um", "like") and false starts.
+- Keep my voice, first person, and every detail I mentioned, even strange ones (in a dream they are real content, not mistakes).
+- Don't add events, feelings, explanations, interpretations or a title.
+- If a word can't be worked out, give your best guess followed by [?].
+Reply with only the cleaned-up text so I can copy it.`;
+  const projectLink = () => S.db.settings.claudeProject || '';
+  // With a project, its instructions do the explaining, so only the entry is sent.
+  function claudeMessage(text, e, fd) {
+    if (!projectLink()) return claudePrompt(text, e.kind);
+    const when = u.fmt(fd.get('date') || u.today(), { weekday: 'long', month: 'long', day: 'numeric' });
+    const label = e.kind === 'dream' ? (fd.get('lucid') ? 'Lucid dream' : 'Dream') : 'Journal entry';
+    return `${label}, ${when}${fd.get('time') ? ', ' + u.timeText(fd.get('time')) : ''}:\n\n${text}`;
+  }
+  function claudeURL(message) {
+    const base = projectLink() || 'https://claude.ai/new';
+    return base + (base.includes('?') ? '&' : '?') + 'q=' + encodeURIComponent(message);
+  }
   function claudePrompt(text, kind) {
     const what = kind === 'dream' ? 'a dream I dictated right after waking up (speech-to-text, often whispered, so words may be misheard)' : 'a journal entry I dictated (speech-to-text, so words may be misheard)';
     return `Please clean up ${what}.
@@ -354,7 +375,7 @@ ${text}`;
         const pasteBtn = form.querySelector('[data-paste]');
         const origBtn = form.querySelector('[data-original]');
         const aiStatus = form.querySelector('.ai-status');
-        let showingClean = true, cleaned = '';
+        let showingClean = true, cleaned = '', lastSent = '';
         const say = (msg) => { aiStatus.textContent = msg; aiStatus.scrollIntoView({ block: 'nearest' }); };
         claudeBtn.onclick = async () => {
           const text = ta.value.trim();
@@ -363,21 +384,23 @@ ${text}`;
           // Save first: iOS may close the app while you're in Claude, and nothing should be lost.
           persist(form, { sentToClaude: true });
           pasteBtn.hidden = false;
-          const prompt = claudePrompt(text, e.kind);
+          const prompt = claudeMessage(text, e, new FormData(form));
+          lastSent = prompt;
           ta.blur();
           // Copy and open Claude in the same tap (no share sheet, so it can't go to a contact by
           // mistake). The link also pre-fills the chat; if it doesn't, the copy is ready to paste.
           const copied = u.copyText(prompt);
-          window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+          window.open(claudeURL(prompt), '_blank', 'noopener');
+          const where = projectLink() ? 'your Claude project' : 'Claude';
           say((await copied)
-            ? 'Copied and opening Claude. If the chat is empty, paste it there. Send, copy Claude’s reply, then come back and tap “Paste Claude’s version”.'
+            ? `Copied and opening ${where}. If the chat is empty, paste it there. Send, copy Claude’s reply, then come back and tap “Paste Claude’s version”.`
             : 'Opening Claude. Send the message, copy Claude’s reply, then come back and tap “Paste Claude’s version”.');
         };
         pasteBtn.onclick = async () => {
           let got = '';
           try { got = (await navigator.clipboard.readText()).trim(); } catch (err) { /* not allowed here */ }
           if (!got) { ta.focus(); ta.select(); return say('Press and hold in the box, then tap Paste to replace the text with Claude’s version.'); }
-          if (got.includes(CLAUDE_MARK)) return say('That’s still the request, not Claude’s answer. In Claude, copy the reply, then try again.');
+          if (got.includes(CLAUDE_MARK) || (lastSent && got === lastSent.trim())) return say('That’s still the request, not Claude’s answer. In Claude, copy the reply, then try again.');
           const current = ta.value.trim();
           if (!raw || current !== cleaned) raw = current; // keep what you said as the original
           cleaned = got; ta.value = got; showingClean = true;
@@ -419,6 +442,17 @@ ${text}`;
       <section class="card">
         <div class="sec-head"><h2>Appearance</h2></div>
         <div class="seg">${[['', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" data-act="theme" ${st.theme === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
+      </section>
+      <section class="card">
+        <div class="sec-head"><h2>Claude project</h2><span class="count ${projectLink() ? 'all' : ''}">${projectLink() ? 'Linked' : 'Not linked'}</span></div>
+        <p class="muted small">“Copy & open Claude” on a dream or journal entry can open a project of yours, like “Journal”, instead of a new chat.</p>
+        ${projectLink() ? `<p class="small link-shown">${esc(projectLink())}</p><div class="row wrap"><button class="btn sm" data-act="copy-instructions">${icon('copy')} Copy instructions</button><button class="btn sm ghost danger" data-act="unlink-project">Unlink</button></div>`
+          : `<form class="ai-key" data-form="claude-project"><input name="url" type="url" inputmode="url" placeholder="https://claude.ai/project/…" autocomplete="off" aria-label="Claude project link"><button class="btn sm primary">Link</button></form>`}
+        <ol class="muted small steps">
+          <li>In Safari, go to <b>claude.ai</b>, open your <b>Journal</b> project, and copy the address from the address bar (it has <b>/project/</b> in it). Paste it here.</li>
+          <li>Tap <b>Copy instructions</b> and paste them into the project’s <b>Instructions</b> in Claude. After that, the app sends just your dream, and Claude knows what to do.</li>
+        </ol>
+        ${projectLink() ? '' : `<button class="btn sm" data-act="copy-instructions">${icon('copy')} Copy instructions</button>`}
       </section>
       <section class="card">
         <div class="sec-head"><h2>Backup</h2></div>
@@ -505,6 +539,8 @@ ${text}`;
     },
 
     'habit-new': () => habitForm(),
+    async 'copy-instructions'() { u.toast((await u.copyText(PROJECT_INSTRUCTIONS)) ? 'Instructions copied. Paste them into your Claude project’s Instructions.' : 'Couldn’t copy here.'); },
+    async 'unlink-project'() { if (!(await u.confirm('Unlink your Claude project? Copy & open Claude will start a new chat instead.', 'Unlink'))) return; S.db.settings.claudeProject = ''; S.save(); render(); },
     'habits-tab'(el) { L.habitsTab = el.value; render(); },
     'habit-edit': (el) => habitForm(S.habit(el.dataset.id)),
     'habit-archive'(el) { const h = S.habit(el.dataset.id); h.archived = !h.archived; S.save(); render(); u.toast(h.archived ? 'Archived. Its history is kept.' : 'Restored'); },
@@ -560,6 +596,11 @@ ${text}`;
       S.add('tasks', { title, date: u.today(), done: false, doneOn: null });
       render();
       main.querySelector('[data-form="quick"] input').focus();
+    } else if (f.dataset.form === 'claude-project') {
+      const url = (fd.get('url') || '').trim();
+      const m = url.match(/^https:\/\/claude\.ai\/project\/[\w-]+/);
+      if (!m) { u.toast('That isn’t a Claude project link. It should start with https://claude.ai/project/'); return; }
+      S.db.settings.claudeProject = m[0]; S.save(); render(); u.toast('Linked. Next, copy the instructions into the project.');
     } else if (L.forms && L.forms[f.dataset.form]) L.forms[f.dataset.form](fd, f);
   });
 
