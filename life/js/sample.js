@@ -113,9 +113,19 @@
       if (i > 0 && rnd() < 0.6 && notes[i % notes.length]) entries.push({ id: id(), kind: 'journal', lucid: false, date: day, time: at(20 + Math.floor(rnd() * 3), Math.floor(rnd() * 60)), text: notes[i % notes.length], created: day });
     }
 
+    const log = (pairs) => pairs.map(([n, a]) => ({ id: id(), date: d(n), amount: a }));
+    const goals = [
+      { id: id(), title: 'Run 100 miles this year', why: 'Feel strong for the half marathon in spring.', kind: 'count', target: 100, unit: 'miles', created: d(-46), due: `${t.slice(0, 4)}-12-31`,
+        log: log([[-44, 3], [-41, 4], [-38, 3.5], [-35, 5], [-31, 3], [-27, 6], [-24, 4], [-20, 3], [-16, 5], [-12, 4.5], [-9, 3], [-5, 6], [-2, 4]]), steps: [], done: false, doneOn: null },
+      { id: id(), title: 'Read 12 books this year', why: '', kind: 'count', target: 12, unit: 'books', created: d(-320), due: `${t.slice(0, 4)}-12-31`,
+        log: log([[-300, 1], [-270, 1], [-230, 1], [-200, 1], [-170, 1], [-130, 1], [-95, 1], [-60, 1], [-25, 1]]), steps: [], done: false, doneOn: null },
+      { id: id(), title: 'Plan the family reunion', why: 'Everyone together for the first time since 2022.', kind: 'steps', target: 0, unit: '', created: d(-20), due: d(60), log: [],
+        steps: [['Pick a date', true], ['Book the pavilion', true], ['Send invitations', false], ['Order food', false], ['Make a slideshow', false]].map(([x, done]) => ({ id: id(), title: x, done })), done: false, doneOn: null },
+    ];
+
     // Always show at least one recent lucid dream in the sample.
     entries.push({ id: id(), kind: 'dream', lucid: true, date: d(-4), time: '06:12', text: lucid[0], created: d(-4) });
 
-    return { version: 2, habits, checks, tasks, goals: [], journal, entries, events, spiritual, settings: { theme: '', lastBackup: null, oldImport: 'skipped', oldEvents: 'skipped' } };
+    return { version: 2, habits, checks, tasks, goals, journal, entries, events, spiritual, settings: { theme: '', lastBackup: null, oldImport: 'skipped', oldEvents: 'skipped' } };
   };
 })();

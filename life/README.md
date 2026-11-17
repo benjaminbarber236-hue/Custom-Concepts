@@ -10,7 +10,7 @@ Plain HTML, CSS and JavaScript: no build step and no server. It works offline an
 |---|---|
 | **Today** | The date, a one-tap **mood check-in** with quick **Dream** and **Journal** mic buttons, today's **schedule** (with the next plan if today is empty), today's **habits** (tap to check off), your **plan** for today with a quick-add box (unfinished items from earlier days carry over, and **Coming up** holds later and someday items). |
 | **Schedule** | Plans with a time and place: dinner, movies, a Bible study and so on. Quick picks fill in the name and kind (**Social**, **Spiritual**, **Work**, **Personal**). Plans can repeat weekly, every 2 weeks, monthly and more. A month **calendar** has a colored dot for each kind of plan; tap a day to see it, with any to-dos for that day. **Coming up** shows the next 3 weeks. Meetings, meetings for field service, your parts and return visits show up automatically. Open a plan and tap **Add to phone calendar** to get a reminder 30 minutes before. |
-| **Habits** | Each habit with its streak and the last 7 days. Tap any day to fill in one you missed. Open a habit to see its current and best streak, how often you did it in the last 30 days, and a 20-week grid. A habit can be **every day**, **certain days** (such as weekdays) or **a number of times a week**. |
+| **Habits** | Two sides, switched at the top. **Habits:** Each habit with its streak and the last 7 days. Tap any day to fill in one you missed. Open a habit to see its current and best streak, how often you did it in the last 30 days, and a 20-week grid. A habit can be **every day**, **certain days** (such as weekdays) or **a number of times a week**. **Goals:** a number to reach by a date (run 100 miles this year, read 12 books) where you log progress as you go, or a list of steps you tick off. Shortcuts set the finish date to **this year** or **this month**. Each goal shows days left, whether you're **ahead**, **on track** or **behind**, and how much a week finishes it on time. |
 | **Spiritual** | Four sections. **Meetings:** this week's meetings with a **Went?** check, how many you attended this month, **my parts** (date, assistant, notes, prepared) and your meeting times. **Service:** log time, count Bible studies, set an optional hour goal and **Copy report** to text your group overseer. It also keeps **return visits** with a next-visit date. **Group:** group overseer and assistant, **meetings for field service**, and members, with tap-to-call or text. **Study:** a daily Bible reading tracker with a streak and where you're reading, and a study log. |
 | **Journal** | Two big buttons: **Dream** and **Journal**. Each opens with the **microphone already listening**, so you can speak a dream right after waking. The words are written down along with the date and time, and a switch marks a **lucid dream**. Below them is a month **calendar with a dot for each kind of entry** (green: journal, purple: dream, gold: lucid dream). Tap a day to read its entries, or filter to just Journal or Dreams. |
 
@@ -22,7 +22,7 @@ The mic uses your phone's built-in speech recognition (Chrome on Android, Safari
 ## Coming from the old Life Tracker
 On the same phone and browser, Today offers **Bring it over** once. Your open to-dos go into the plan, your calendar events go on the **Schedule**, and your logged workouts become an **Exercise** habit (a number of times a week, using your old weekly goal). The old data isn't deleted. You can also do this later from Settings.
 
-The per-area tabs and notes from the old version are gone, to keep the app uncluttered. Goals were replaced by the Spiritual tab.
+The per-area tabs and notes from the old version are gone, to keep the app uncluttered. Goals now live on the Habits tab.
 
 ## Using it on your phone
 The app is served by GitHub Pages at **https://benjaminbarber236-hue.github.io/Custom-Concepts/life/**, from whichever branch Pages is set to deploy (Settings → Pages in the repository).
@@ -44,6 +44,7 @@ js/store.js             data (localStorage), streaks, goal progress, old-app imp
 js/sample.js            sample data
 js/schedule.js          Schedule tab, plans, agenda rows
 js/spiritual.js         Spiritual tab: meetings, service, group, study
+js/goals.js             Goals (inside the Habits tab)
 js/app.js               screens and actions
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
 tools/build-demo.js     builds a single-file demo with sample data

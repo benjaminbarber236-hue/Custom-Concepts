@@ -1,4 +1,4 @@
-// Screens and actions. Tabs: Today, Schedule, Habits, Spiritual, Journal (+ Settings from the gear).
+// Screens and actions. Tabs: Today, Schedule, Habits (+ Goals), Spiritual, Journal (+ Settings from the gear).
 (function () {
   const u = L.u, S = L.store, esc = u.esc, icon = u.icon;
   const main = document.getElementById('main');
@@ -105,13 +105,18 @@
   }
 
   // ================= Habits =================
+  // The Habits tab has two sides: habits and goals.
+  L.habitsTab = 'habits';
   function viewHabits() {
+    const goals = L.habitsTab === 'goals';
+    const head = `<header class="page-head"><h1>${goals ? 'Goals' : 'Habits'}</h1><button class="btn primary sm" data-act="${goals ? 'goal-new' : 'habit-new'}">${icon('plus')} New</button></header>
+      <div class="seg sp-tabs">${[['habits', 'Habits'], ['goals', 'Goals']].map(([k, l]) => `<label><input type="radio" name="h-tab" value="${k}" data-act="habits-tab" ${L.habitsTab === k ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>`;
+    if (goals) return head + L.goalsHTML();
     const t = u.today();
     const list = S.habits();
     const archived = S.db.habits.filter((h) => h.archived);
     const days = Array.from({ length: 7 }, (_, i) => u.addDays(t, i - 6));
-    return `
-      <header class="page-head"><h1>Habits</h1><button class="btn primary sm" data-act="habit-new">${icon('plus')} New</button></header>
+    return head + `
       ${list.length ? list.map((h) => {
         const s = S.streak(h);
         return `<article class="card hcard">
@@ -410,6 +415,7 @@
     },
 
     'habit-new': () => habitForm(),
+    'habits-tab'(el) { L.habitsTab = el.value; render(); },
     'habit-edit': (el) => habitForm(S.habit(el.dataset.id)),
     'habit-archive'(el) { const h = S.habit(el.dataset.id); h.archived = !h.archived; S.save(); render(); u.toast(h.archived ? 'Archived. Its history is kept.' : 'Restored'); },
     async 'habit-delete'(el) {
@@ -443,7 +449,7 @@
     },
     async install() { if (!installEvent) return; installEvent.prompt(); await installEvent.userChoice; installEvent = null; render(); },
     async sample() { if (!(await u.confirm('Replace everything with sample data?', 'Load sample'))) return; S.loadSample(); go('#/today'); render(); },
-    async erase() { if (!(await u.confirm('Erase everything: habits, plans, schedule, spiritual records, journal and dream entries on this device? This can’t be undone.', 'Erase'))) return; S.reset(); go('#/today'); render(); },
+    async erase() { if (!(await u.confirm('Erase everything: habits, goals, plans, schedule, spiritual records, journal and dream entries on this device? This can’t be undone.', 'Erase'))) return; S.reset(); go('#/today'); render(); },
   };
 
   Object.assign(act, L.acts);
@@ -476,17 +482,19 @@
   }
   window.addEventListener('popstate', () => { route = /^#\//.test(location.hash) ? location.hash : '#/today'; render(); });
 
+  L.views.habitsTab = () => viewHabits();
   const TABS = [['today', 'Today'], ['schedule', 'Schedule'], ['habits', 'Habits'], ['spiritual', 'Spiritual'], ['journal', 'Journal']];
   L.app = { render: () => render(), go: (p) => go(p) };
 
   function render() {
     const [, view = 'today', id] = route.split('/');
-    const views = { today: viewToday, schedule: L.views.schedule, habits: id ? () => viewHabit(id) : viewHabits, spiritual: L.views.spiritual, journal: viewJournal, settings: viewSettings };
+    const views = { today: viewToday, schedule: L.views.schedule, habits: id ? () => viewHabit(id) : viewHabits, goals: () => L.views.goals(id), spiritual: L.views.spiritual, journal: viewJournal, settings: viewSettings };
     const y = window.scrollY;
     main.innerHTML = (views[view] || viewToday)();
     if (render.last === route) window.scrollTo(0, y); else window.scrollTo(0, 0);
     render.last = route;
-    document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${view === k ? 'on' : ''}" ${view === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></a>`).join('');
+    const tab = view === 'goals' ? 'habits' : view;
+    document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></a>`).join('');
   }
 
   function applyTheme() {
