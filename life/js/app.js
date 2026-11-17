@@ -162,7 +162,7 @@
       </div>
       <section class="card">
         <div class="sec-head"><h2>Last 20 weeks</h2></div>
-        <div class="heat-wrap"><div class="heat-labels"><span>M</span><span></span><span>W</span><span></span><span>F</span><span></span><span>S</span></div><div class="heat">${cells.join('')}</div></div>
+        <div class="heat-wrap"><div class="heat-labels"><span></span><span>M</span><span></span><span>W</span><span></span><span>F</span><span></span></div><div class="heat">${cells.join('')}</div></div>
         <p class="muted small">Tap the days on the Habits tab to fill in anything you missed.</p>
       </section>
       <div class="actions">
@@ -219,7 +219,7 @@
     const [y, m] = journalMonth.split('-').map(Number);
     const first = `${journalMonth}-01`;
     const daysIn = new Date(y, m, 0).getDate();
-    const offset = (u.dow(first) + 6) % 7;
+    const offset = u.dow(first);
     const show = (e) => journalFilter === 'all' || (journalFilter === 'dream' ? e.kind === 'dream' : e.kind === 'journal');
     const cells = Array.from({ length: offset }, () => '<span></span>');
     let monthCount = 0;
@@ -247,7 +247,7 @@
           <button class="icon-btn" data-act="month" data-v="1" aria-label="Next month" ${canNext ? '' : 'disabled'}>${icon('right')}</button>
         </div>
         <div class="seg filter">${[['all', 'All'], ['journal', 'Journal'], ['dream', 'Dreams']].map(([v, l]) => `<label><input type="radio" name="jf" value="${v}" data-act="filter" ${journalFilter === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
-        <div class="cal">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((x) => `<b>${x}</b>`).join('')}${cells.join('')}</div>
+        <div class="cal">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((x) => `<b>${x}</b>`).join('')}${cells.join('')}</div>
         <div class="legend"><span><i class="sw k-journal"></i>Journal</span><span><i class="sw k-dream"></i>Dream</span><span><i class="sw k-lucid"></i>Lucid dream</span></div>
         <p class="muted small center">${monthCount ? `${monthCount} ${monthCount === 1 ? 'entry' : 'entries'} this month` : 'No entries this month yet'}</p>
       </section>
