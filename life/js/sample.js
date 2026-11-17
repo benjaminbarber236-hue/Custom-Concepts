@@ -14,7 +14,8 @@
       { id: id(), name: 'Morning prayer', schedule: 'daily', days: [], perWeek: 0, created: d(-90), archived: false, hit: 0.93 },
       { id: id(), name: 'Exercise', schedule: 'weekly', days: [], perWeek: 4, created: d(-80), archived: false, hit: 0.6 },
       { id: id(), name: 'Inbox to zero', schedule: 'days', days: [1, 2, 3, 4, 5], perWeek: 0, created: d(-40), archived: false, hit: 0.75 },
-      { id: id(), name: 'Drink 8 glasses of water', schedule: 'daily', days: [], perWeek: 0, created: d(-20), archived: false, hit: 0.7 },
+      { id: id(), name: 'Drink water', schedule: 'daily', days: [], perWeek: 0, perDay: 8, created: d(-20), archived: false, hit: 0.7 },
+      { id: id(), name: 'Brush teeth', schedule: 'daily', days: [], perWeek: 0, perDay: 2, created: d(-30), archived: false, hit: 0.9 },
     ];
     const checks = {};
     for (const h of habits) {
@@ -22,11 +23,13 @@
       for (let i = u.daysBetween(h.created, t); i >= 1; i--) {
         const day = d(-i);
         if (h.schedule === 'days' && !h.days.includes(u.dow(day))) continue;
-        if (rnd() < h.hit || i <= 6) checks[h.id][day] = 1; // a clean recent run
+        if (rnd() < h.hit || i <= 6) checks[h.id][day] = h.perDay || 1; // a clean recent run
       }
       delete h.hit;
     }
     checks[habits[1].id][t] = 1;
+    checks[habits[4].id][t] = 3; // water: 3 of 8 so far today
+    checks[habits[5].id][t] = 1; // teeth: morning done
 
     const tasks = [
       { title: 'Call the dentist to reschedule', date: d(-1) },

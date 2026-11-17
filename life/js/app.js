@@ -91,11 +91,16 @@
   function habitRow(h, t) {
     const on = S.isChecked(h, t);
     const s = S.streak(h);
+    const tgt = S.target(h), cnt = S.count(h, t);
     let sub;
     if (h.schedule === 'weekly') sub = `${S.weekCount(h, u.weekStart(t))} of ${h.perWeek} this week`;
+    else if (tgt > 1) sub = `${cnt} of ${tgt} today${s ? ` · ${icon('flame', 'sm')} ${plural(s, 'day')}` : ''}`;
     else sub = s ? `${icon('flame', 'sm')} ${plural(s, 'day')}` : u.esc(S.scheduleText(h));
-    return `<button class="habit-row ${on ? 'on' : ''}" data-act="check" data-id="${h.id}" data-day="${t}" aria-pressed="${on}">
-      <span class="hname">${esc(h.name)}<small>${sub}</small></span><span class="tick">${icon('check')}</span></button>`;
+    // Several times a day: the circle fills up as each one is checked in.
+    const part = !on && tgt > 1 && cnt > 0;
+    const ring = tgt > 1 && !on ? ` style="--p:${Math.round((cnt / tgt) * 100)}%"` : '';
+    return `<button class="habit-row ${on ? 'on' : ''}" data-act="check" data-id="${h.id}" data-day="${t}" aria-pressed="${on}" aria-label="${esc(h.name)}: ${tgt > 1 ? `${cnt} of ${tgt} today` : on ? 'done' : 'not done'}">
+      <span class="hname">${esc(h.name)}<small>${sub}</small></span><span class="tick ${tgt > 1 && !on ? 'multi' : ''} ${part ? 'part' : ''}"${ring}>${tgt > 1 && !on ? `<b>${cnt}/${tgt}</b>` : icon('check')}</span></button>`;
   }
 
   function taskRow(x, tag) {
@@ -122,7 +127,7 @@
         const s = S.streak(h);
         return `<article class="card hcard">
           <a href="#/habits/${h.id}" class="hcard-top">
-            <div><h3>${esc(h.name)}</h3><p class="muted">${esc(S.scheduleText(h))}</p></div>
+            <div><h3>${esc(h.name)}</h3><p class="muted">${esc(S.scheduleFull(h))}</p></div>
             <div class="streak ${s ? 'hot' : ''}"><b>${s}</b><small>${h.schedule === 'weekly' ? (s === 1 ? 'week' : 'weeks') : (s === 1 ? 'day' : 'days')}</small></div>
           </a>
           <div class="week">${days.map((d) => dayCell(h, d)).join('')}</div>
@@ -137,10 +142,11 @@
     const ahead = d > u.today();
     const on = S.isChecked(h, d);
     const due = S.isDue(h, d);
-    const cls = on ? 'on' : d > u.today() ? 'ahead' : before ? 'before' : due ? 'due' : 'rest';
-    const label = `${u.fmt(d, { weekday: 'long', month: 'short', day: 'numeric' })}: ${on ? 'done' : 'not done'}`;
+    const cnt = S.count(h, d), tgt = S.target(h);
+    const cls = (on ? 'on' : d > u.today() ? 'ahead' : before ? 'before' : due ? 'due' : 'rest') + (!on && cnt ? ' part' : '');
+    const label = `${u.fmt(d, { weekday: 'long', month: 'short', day: 'numeric' })}: ${on ? 'done' : tgt > 1 ? `${cnt} of ${tgt}` : 'not done'}`;
     return `<button class="day ${cls} ${d === u.today() ? 'is-today' : ''}" data-act="check" data-id="${h.id}" data-day="${d}" ${ahead ? 'disabled' : ''} aria-label="${label}" aria-pressed="${on}">
-      <span class="dl">${DOW[u.dow(d)].slice(0, 1)}</span><span class="dc">${on ? icon('check') : ''}</span></button>`;
+      <span class="dl">${DOW[u.dow(d)].slice(0, 1)}</span><span class="dc">${on ? icon('check') : cnt ? `<small>${cnt}/${tgt}</small>` : ''}</span></button>`;
   }
 
   function viewHabit(id) {
@@ -160,7 +166,7 @@
     const total = Object.keys(S.db.checks[h.id] || {}).length;
     return `
       <a href="#/habits" class="back">${icon('left')} Habits</a>
-      <header class="page-head"><div><h1>${esc(h.name)}</h1><p class="muted">${esc(S.scheduleText(h))} · since ${u.fmt(h.created, { month: 'short', day: 'numeric', year: 'numeric' })}${h.archived ? ' · archived' : ''}</p></div></header>
+      <header class="page-head"><div><h1>${esc(h.name)}</h1><p class="muted">${esc(S.scheduleFull(h))} · since ${u.fmt(h.created, { month: 'short', day: 'numeric', year: 'numeric' })}${h.archived ? ' · archived' : ''}</p></div></header>
       <div class="stats">
         <div class="card stat"><b>${S.streak(h)}</b><span>Current streak (${unit})</span></div>
         <div class="card stat"><b>${S.best(h)}</b><span>Best streak (${unit})</span></div>
@@ -182,33 +188,35 @@
 
   function habitForm(h) {
     const isNew = !h;
-    h = h || { name: '', schedule: 'daily', days: [1, 2, 3, 4, 5], perWeek: 3 };
+    h = h || { name: '', schedule: 'daily', days: [1, 2, 3, 4, 5], perWeek: 3, perDay: 1 };
     u.sheet({
       title: isNew ? 'New habit' : 'Edit habit',
       submit: isNew ? 'Add habit' : 'Save',
       body: `
-        <label class="field"><span>Name</span><input name="name" value="${esc(h.name)}" placeholder="Read 20 minutes" required autofocus autocomplete="off"></label>
+        <label class="field"><span>Name</span><input name="habitTitle" value="${esc(h.name)}" placeholder="Read 20 minutes" required autofocus autocomplete="off" autocorrect="on" spellcheck="true"></label>
         <fieldset class="field"><legend>How often</legend>
           <div class="seg">${[['daily', 'Every day'], ['days', 'Certain days'], ['weekly', 'Times a week']].map(([v, l]) => `<label><input type="radio" name="schedule" value="${v}" ${h.schedule === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
         </fieldset>
         <fieldset class="field" data-show="days"><legend>On these days</legend>
           <div class="dow-pick">${[1, 2, 3, 4, 5, 6, 0].map((d) => `<label><input type="checkbox" name="days" value="${d}" ${(h.days || []).includes(d) ? 'checked' : ''}><span>${DOW[d].slice(0, 2)}</span></label>`).join('')}</div>
         </fieldset>
+        <label class="field" data-show="daily days"><span>Times a day</span><input name="perDay" type="number" inputmode="numeric" min="1" max="24" value="${h.perDay || 1}"></label>
         <label class="field" data-show="weekly"><span>Times per week</span><input name="perWeek" type="number" inputmode="numeric" min="1" max="7" value="${h.perWeek || 3}"></label>
       `,
       onMount(form) {
-        const sync = () => { const v = form.schedule.value; form.querySelectorAll('[data-show]').forEach((el) => (el.hidden = el.dataset.show !== v)); };
+        const sync = () => { const v = form.schedule.value; form.querySelectorAll('[data-show]').forEach((el) => (el.hidden = !el.dataset.show.split(' ').includes(v))); };
         form.addEventListener('change', sync); sync();
       },
       onSubmit(fd) {
-        const name = (fd.get('name') || '').trim();
+        const name = (fd.get('habitTitle') || '').trim();
         if (!name) { u.toast('Give the habit a name.'); return false; }
         const schedule = fd.get('schedule');
         const days = fd.getAll('days').map(Number);
         if (schedule === 'days' && !days.length) { u.toast('Pick at least one day.'); return false; }
         const perWeek = Math.max(1, Math.min(7, Number(fd.get('perWeek')) || 3));
-        if (isNew) S.add('habits', { name, schedule, days, perWeek, created: u.today(), archived: false });
-        else { Object.assign(h, { name, schedule, days, perWeek }); S.save(); }
+        const perDay = schedule === 'weekly' ? 1 : Math.max(1, Math.min(24, Math.round(Number(fd.get('perDay'))) || 1));
+        if (isNew) S.add('habits', { name, schedule, days, perWeek, perDay, created: u.today(), archived: false });
+        else { Object.assign(h, { name, schedule, days, perWeek, perDay }); S.save(); }
         render();
       },
     });
@@ -489,12 +497,15 @@ ${text}`;
       const d = el.dataset.day;
       if (d > u.today()) return;
       const was = S.isChecked(h, d);
+      const before = S.count(h, d), tgt = S.target(h);
       if (!(await u.confirmDay(d, h.name, was))) return;
       if (!was && d < h.created) h.created = d; // filling in a day from before the habit was added
-      const on = S.toggleCheck(h, d);
-      if (on && navigator.vibrate) navigator.vibrate(8);
+      // Today, a several-times-a-day habit goes up by one per tap; otherwise a tap is done/undone.
+      const n = d === u.today() && tgt > 1 && !was ? S.setCount(h, d, before + 1) : S.setCount(h, d, was ? 0 : tgt);
+      if (n > before && navigator.vibrate) navigator.vibrate(8);
       render();
-      if (d === u.today()) u.toast(on ? `${h.name}: done` : `${h.name}: unchecked`, { label: 'Undo', run: () => { S.toggleCheck(h, d); render(); } });
+      const msg = n >= tgt ? `${h.name}: done` : n > before ? `${h.name}: ${n} of ${tgt}` : `${h.name}: unchecked`;
+      if (d === u.today()) u.toast(msg, { label: 'Undo', run: () => { S.setCount(h, d, before); render(); } });
     },
     hweek(el) { L.habitWeek = Math.min(0, (L.habitWeek || 0) + Number(el.dataset.v)); render(); },
     mood(el) {
