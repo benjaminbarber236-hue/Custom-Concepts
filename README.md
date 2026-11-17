@@ -61,6 +61,8 @@ It then opens full screen like a regular app, works offline, and updates itself 
 
 The same site also hosts **Life Tracker** (work, congregation, recreation and fitness) at **https://benjaminbarber236-hue.github.io/Custom-Concepts/life/**. See `life/README.md`.
 
+And **Cabins**, a planner for buying land and building cabins on it, at **https://benjaminbarber236-hue.github.io/Custom-Concepts/cabins/**. See `cabins/README.md`.
+
 ### On a computer
 Open `index.html` directly in a browser, or run `python3 -m http.server` in this folder and go to http://localhost:8000.
 
