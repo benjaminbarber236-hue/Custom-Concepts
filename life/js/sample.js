@@ -120,6 +120,8 @@
     const goals = [
       { id: id(), title: 'Run 100 miles this year', why: 'Feel strong for the half marathon in spring.', kind: 'count', target: 100, unit: 'miles', created: d(-46), due: `${t.slice(0, 4)}-12-31`,
         log: log([[-44, 3], [-41, 4], [-38, 3.5], [-35, 5], [-31, 3], [-27, 6], [-24, 4], [-20, 3], [-16, 5], [-12, 4.5], [-9, 3], [-5, 6], [-2, 4]]), steps: [], done: false, doneOn: null },
+      { id: id(), title: 'Run 15 miles a month', why: '', kind: 'count', target: 15, unit: 'miles', repeat: 'month', created: d(-100), due: null,
+        log: log([[-95, 5], [-88, 6], [-80, 5], [-66, 4], [-60, 5], [-50, 4], [-40, 5], [-33, 6], [-25, 5], [-18, 4], [-12, 3], [-8, 4], [-3, 3]]), steps: [], done: false, doneOn: null },
       { id: id(), title: 'Read 12 books this year', why: '', kind: 'count', target: 12, unit: 'books', created: d(-320), due: `${t.slice(0, 4)}-12-31`,
         log: log([[-300, 1], [-270, 1], [-230, 1], [-200, 1], [-170, 1], [-130, 1], [-95, 1], [-60, 1], [-25, 1]]), steps: [], done: false, doneOn: null },
       { id: id(), title: 'Plan the family reunion', why: 'Everyone together for the first time since 2022.', kind: 'steps', target: 0, unit: '', created: d(-20), due: d(60), log: [],

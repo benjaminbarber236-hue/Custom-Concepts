@@ -466,3 +466,6 @@ button.list-row { width: 100%; text-align: left; gap: 10px; }
 .tick.multi b { position: relative; font-weight: 700; }
 .day.part .dc { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .day.part .dc small { font-size: 10.5px; font-weight: 700; }
+
+.met { color: var(--accent); font-weight: 600; display: inline-flex; }
+.met .ic { width: 16px; height: 16px; stroke-width: 3; }
