@@ -1,12 +1,15 @@
 // Offline support: serve the app from cache, refresh it in the background.
-const CACHE = 'life-v4';
+// Change CACHE with every release: phones see the new sw.js, download the new files,
+// and the app shows "Updated — tap to refresh".
+const CACHE = 'life-v5';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'js/util.js', 'js/store.js', 'js/sample.js', 'js/schedule.js', 'js/spiritual.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache so the new version really is new.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
