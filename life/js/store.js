@@ -10,7 +10,8 @@
     checks: {},   // habitId -> { 'YYYY-MM-DD': 1 }
     tasks: [],    // { id, title, date|null, done, doneOn }
     goals: [],    // { id, title, why, kind: 'count'|'steps', target, unit, log: [{ id, date, amount }], steps: [{ id, title, done }], due, created, done, doneOn }
-    journal: {},  // 'YYYY-MM-DD' -> { mood 1-5, energy 1-5, note }
+    journal: {},  // 'YYYY-MM-DD' -> { mood 1-5, energy 1-5 }: the day's check-in
+    entries: [],  // { id, kind: 'journal'|'dream', lucid, date, time: 'HH:MM', text, created }
     settings: { theme: '', lastBackup: null, oldImport: '' },
   });
 
@@ -18,6 +19,12 @@
     const base = empty();
     for (const k of Object.keys(base)) if (!(k in d)) d[k] = base[k];
     d.settings = Object.assign(base.settings, d.settings);
+    // Earlier versions kept one note per day on the check-in; move those into journal entries.
+    for (const [day, j] of Object.entries(d.journal)) {
+      if (j.note && j.note.trim()) d.entries.push({ id: uid(), kind: 'journal', lucid: false, date: day, time: '', text: j.note.trim(), created: new Date().toISOString() });
+      delete j.note;
+      if (!j.mood && !j.energy) delete d.journal[day];
+    }
     return d;
   }
 
@@ -27,8 +34,8 @@
     return null;
   }
 
-  let db = load() || empty();
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  let db = load() || empty();
 
   function save() {
     if (L.DEMO) return;
@@ -182,8 +189,11 @@
     remove(coll, id) { db[coll] = db[coll].filter((x) => x.id !== id); if (coll === 'habits') delete db.checks[id]; save(); },
 
     entry: (day) => db.journal[day] || null,
+    // Written entries for a day, earliest first. `kind` 'dream' includes lucid dreams.
+    entriesOn: (day, kind) => db.entries.filter((e) => e.date === day && (!kind || e.kind === kind)).sort((a, b) => (a.time || '').localeCompare(b.time || '')),
+    entryById: (id) => db.entries.find((e) => e.id === id),
     setEntry(day, e) {
-      if (!e.mood && !e.energy && !(e.note || '').trim()) delete db.journal[day];
+      if (!e.mood && !e.energy) delete db.journal[day];
       else db.journal[day] = e;
       save();
     },

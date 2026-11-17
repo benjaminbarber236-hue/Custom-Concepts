@@ -53,9 +53,28 @@
     for (let i = 1; i <= 40; i++) {
       if (rnd() < 0.2) continue;
       const mood = Math.max(1, Math.min(5, Math.round(3.4 + (rnd() - 0.4) * 3)));
-      journal[d(-i)] = { mood, energy: Math.max(1, Math.min(5, mood + Math.round(rnd() * 2 - 1))), note: notes[i % notes.length] };
+      journal[d(-i)] = { mood, energy: Math.max(1, Math.min(5, mood + Math.round(rnd() * 2 - 1))) };
+    }
+    const entries = [];
+    const at = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const dreams = [
+      'I was back in my old high school but the hallways kept stretching longer. Someone was calling my name from the gym but I never got there.',
+      'Flying over a city made of glass. The ocean was purple and warm. My brother was there selling umbrellas.',
+      'Missed a flight again. The airport turned into a grocery store and I couldn’t find my gate between the cereal aisles.',
+      'A big friendly dog led me through a forest to a cabin where my grandma was baking bread.',
+      'Driving a car with no brakes down a hill, but it slowly turned into a bicycle and I was fine.',
+    ];
+    const lucid = [
+      'Realized I was dreaming when the clock had no numbers. Decided to fly and went straight up through the clouds. It lasted maybe a minute before I woke up.',
+      'Noticed my hands looked strange, did a reality check and was lucid! Walked through a wall into a huge library.',
+    ];
+    for (let i = 0; i <= 40; i++) {
+      const day = d(-i);
+      if (rnd() < 0.45) entries.push({ id: id(), kind: 'dream', lucid: false, date: day, time: at(5 + Math.floor(rnd() * 3), Math.floor(rnd() * 60)), text: dreams[i % dreams.length], created: day });
+      if (rnd() < 0.08) entries.push({ id: id(), kind: 'dream', lucid: true, date: day, time: at(6, Math.floor(rnd() * 60)), text: lucid[i % lucid.length], created: day });
+      if (i > 0 && rnd() < 0.6 && notes[i % notes.length]) entries.push({ id: id(), kind: 'journal', lucid: false, date: day, time: at(20 + Math.floor(rnd() * 3), Math.floor(rnd() * 60)), text: notes[i % notes.length], created: day });
     }
 
-    return { version: 2, habits, checks, tasks, goals, journal, settings: { theme: '', lastBackup: null, oldImport: 'skipped' } };
+    return { version: 2, habits, checks, tasks, goals, journal, entries, settings: { theme: '', lastBackup: null, oldImport: 'skipped' } };
   };
 })();

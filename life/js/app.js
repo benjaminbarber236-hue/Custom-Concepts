@@ -3,9 +3,10 @@
   const u = L.u, S = L.store, esc = u.esc, icon = u.icon;
   const main = document.getElementById('main');
   const MOODS = ['', 'Rough', 'Low', 'Okay', 'Good', 'Great'];
-  const ENERGY = ['', 'Drained', 'Low', 'Steady', 'Good', 'Charged'];
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   let journalMonth = u.today().slice(0, 7);
+  let journalDay = u.today();
+  let journalFilter = 'all';
   let installEvent = null;
 
   const face = (m) => {
@@ -23,6 +24,8 @@
     const habits = S.habits().filter((h) => S.isDue(h, t));
     const doneH = habits.filter((h) => S.isChecked(h, t)).length;
     const e = S.entry(t) || {};
+    const dreamsToday = S.entriesOn(t, 'dream').length;
+    const notesToday = S.entriesOn(t, 'journal').length;
     const open = db.tasks.filter((x) => !x.done);
     const overdue = open.filter((x) => x.date && x.date < t).sort((a, b) => a.date.localeCompare(b.date));
     const todays = open.filter((x) => x.date === t);
@@ -33,7 +36,7 @@
 
     const old = !db.settings.oldImport && S.oldSummary();
     const oldBits = old ? [old.tasks && plural(old.tasks, 'open to-do'), old.workouts && plural(old.workouts, 'workout')].filter(Boolean) : [];
-    const checks = Object.values(db.checks).reduce((s, c) => s + Object.keys(c).length, 0) + Object.keys(db.journal).length;
+    const checks = Object.values(db.checks).reduce((s, c) => s + Object.keys(c).length, 0) + Object.keys(db.journal).length + db.entries.length;
     const lb = db.settings.lastBackup;
     const needBackup = !L.DEMO && checks > 25 && (!lb || u.daysBetween(lb.slice(0, 10), t) > 30);
 
@@ -51,7 +54,10 @@
       <section class="card checkin">
         <h2>How are you today?</h2>
         <div class="moods">${[1, 2, 3, 4, 5].map((i) => `<button class="mood m${i} ${e.mood === i ? 'on' : ''}" data-act="mood" data-v="${i}" aria-pressed="${e.mood === i}">${face(i)}<span>${MOODS[i]}</span></button>`).join('')}</div>
-        <button class="link note-link" data-act="entry" data-day="${t}">${e.note ? `“${esc(e.note.length > 90 ? e.note.slice(0, 90) + '…' : e.note)}”` : (e.mood ? 'Add a few lines about today' : 'Or write a few lines')}</button>
+        <div class="quick-rec">
+          <button class="chip-btn" data-act="new-entry" data-kind="dream" data-mic="1">${icon('mic')} Dream${dreamsToday ? ` · ${dreamsToday}` : ''}</button>
+          <button class="chip-btn" data-act="new-entry" data-kind="journal" data-mic="1">${icon('mic')} Journal${notesToday ? ` · ${notesToday}` : ''}</button>
+        </div>
       </section>
 
       <section class="sec">
@@ -303,58 +309,113 @@
   }
 
   // ================= Journal =================
+  const KIND_LABEL = (e) => (e.kind === 'dream' ? (e.lucid ? 'Lucid dream' : 'Dream') : 'Journal');
+  const KIND_CLS = (e) => (e.kind === 'dream' ? (e.lucid ? 'lucid' : 'dream') : 'journal');
+  const timeText = (hm) => { if (!hm) return ''; const [h, m] = hm.split(':').map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); };
+  const nowHM = () => { const n = new Date(); return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; };
+
   function viewJournal() {
     const t = u.today();
+    if (!journalDay.startsWith(journalMonth)) journalDay = journalMonth === t.slice(0, 7) ? t : `${journalMonth}-01`;
     const [y, m] = journalMonth.split('-').map(Number);
     const first = `${journalMonth}-01`;
     const daysIn = new Date(y, m, 0).getDate();
     const offset = (u.dow(first) + 6) % 7;
+    const show = (e) => journalFilter === 'all' || (journalFilter === 'dream' ? e.kind === 'dream' : e.kind === 'journal');
     const cells = Array.from({ length: offset }, () => '<span></span>');
-    const entries = [];
+    let monthCount = 0;
     for (let i = 1; i <= daysIn; i++) {
       const d = `${journalMonth}-${String(i).padStart(2, '0')}`;
-      const e = S.entry(d);
-      if (e) entries.push([d, e]);
-      cells.push(`<button class="cal-day ${e && e.mood ? 'm' + e.mood : ''} ${e ? 'has' : ''} ${d === t ? 'is-today' : ''}" data-act="entry" data-day="${d}" ${d > t ? 'disabled' : ''} aria-label="${u.fmt(d, { month: 'long', day: 'numeric' })}${e && e.mood ? ': ' + MOODS[e.mood] : ''}">${i}${e && e.note ? '<i></i>' : ''}</button>`);
+      const list = S.entriesOn(d).filter(show);
+      monthCount += list.length;
+      const kinds = ['journal', 'dream', 'lucid'].filter((k) => list.some((e) => KIND_CLS(e) === k));
+      cells.push(`<button class="cal-day ${d === t ? 'is-today' : ''} ${d === journalDay ? 'sel' : ''}" data-act="pick-day" data-day="${d}" ${d > t ? 'disabled' : ''} aria-label="${u.fmt(d, { month: 'long', day: 'numeric' })}${kinds.length ? ': ' + kinds.join(', ') : ''}" aria-pressed="${d === journalDay}">
+        <span>${i}</span><span class="marks">${kinds.map((k) => `<i class="k-${k}"></i>`).join('')}</span></button>`);
     }
-    const moods = entries.filter(([, e]) => e.mood);
-    const avg = moods.length ? moods.reduce((s, [, e]) => s + e.mood, 0) / moods.length : 0;
     const canNext = journalMonth < t.slice(0, 7);
-    entries.reverse();
+    const dayList = S.entriesOn(journalDay).filter(show);
+    const mood = (S.entry(journalDay) || {}).mood;
     return `
-      <header class="page-head"><h1>Journal</h1><button class="btn primary sm" data-act="entry" data-day="${t}">${S.entry(t) ? 'Today’s entry' : `${icon('plus')} Today`}</button></header>
+      <header class="page-head"><h1>Journal</h1></header>
+      <div class="rec-buttons">
+        <button class="rec-btn dream" data-act="new-entry" data-kind="dream" data-mic="1">${icon('moon')}<span><b>Dream</b><small>Speak it as you wake</small></span>${icon('mic', 'mic')}</button>
+        <button class="rec-btn journal" data-act="new-entry" data-kind="journal" data-mic="1">${icon('pen')}<span><b>Journal</b><small>Talk or type</small></span>${icon('mic', 'mic')}</button>
+      </div>
       <section class="card">
         <div class="month-nav">
           <button class="icon-btn" data-act="month" data-v="-1" aria-label="Previous month">${icon('left')}</button>
           <h2>${new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h2>
           <button class="icon-btn" data-act="month" data-v="1" aria-label="Next month" ${canNext ? '' : 'disabled'}>${icon('right')}</button>
         </div>
-        <div class="cal"><b>M</b><b>T</b><b>W</b><b>T</b><b>F</b><b>S</b><b>S</b>${cells.join('')}</div>
-        <div class="legend">${[1, 2, 3, 4, 5].map((i) => `<span><i class="sw m${i}"></i>${MOODS[i]}</span>`).join('')}</div>
-        ${moods.length ? `<p class="muted small center">${plural(entries.length, 'entry').replace('entrys', 'entries')} this month · average mood <b class="ink">${MOODS[Math.round(avg)]}</b></p>` : ''}
+        <div class="seg filter">${[['all', 'All'], ['journal', 'Journal'], ['dream', 'Dreams']].map(([v, l]) => `<label><input type="radio" name="jf" value="${v}" data-act="filter" ${journalFilter === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
+        <div class="cal">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((x) => `<b>${x}</b>`).join('')}${cells.join('')}</div>
+        <div class="legend"><span><i class="sw k-journal"></i>Journal</span><span><i class="sw k-dream"></i>Dream</span><span><i class="sw k-lucid"></i>Lucid dream</span></div>
+        <p class="muted small center">${monthCount ? `${monthCount} ${monthCount === 1 ? 'entry' : 'entries'} this month` : 'No entries this month yet'}</p>
       </section>
-      ${entries.map(([d, e]) => `<button class="card entry" data-act="entry" data-day="${d}">
-        <div class="row"><span class="entry-date">${u.relDay(d)}<small>${u.fmt(d, { weekday: 'short', month: 'short', day: 'numeric' })}</small></span>
-        <span class="row tags">${e.mood ? `<span class="mood-tag m${e.mood}">${face(e.mood)} ${MOODS[e.mood]}</span>` : ''}${e.energy ? `<span class="muted small">Energy: ${ENERGY[e.energy]}</span>` : ''}</span></div>
-        ${e.note ? `<p>${esc(e.note)}</p>` : ''}
-      </button>`).join('') || `<div class="empty"><p>No entries this month yet.</p></div>`}
+      <section class="sec">
+        <div class="sec-head"><h2>${journalDay === t ? 'Today' : u.fmt(journalDay, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>${mood ? `<span class="mood-tag m${mood}">${face(mood)} ${MOODS[mood]}</span>` : ''}</div>
+        ${dayList.length ? dayList.map(entryCard).join('') : `<div class="empty"><p>Nothing written ${journalDay === t ? 'yet today' : 'this day'}.</p>
+          <div class="row"><button class="btn sm" data-act="new-entry" data-kind="dream" data-day="${journalDay}">${icon('moon')} Add dream</button><button class="btn sm" data-act="new-entry" data-kind="journal" data-day="${journalDay}">${icon('pen')} Add entry</button></div></div>`}
+      </section>
     `;
   }
 
-  function entryForm(day) {
-    const e = S.entry(day) || { mood: 0, energy: 0, note: '' };
-    const rad = (name, val, label, extra = '') => `<label class="${name}-opt ${name === 'mood' ? 'm' + val : ''}"><input type="radio" name="${name}" value="${val}" ${e[name] === val ? 'checked' : ''}>${extra}<span>${label}</span></label>`;
+  function entryCard(e) {
+    return `<button class="card entry k-${KIND_CLS(e)}" data-act="edit-entry" data-id="${e.id}">
+      <div class="row"><span class="kind-tag">${icon(e.kind === 'dream' ? (e.lucid ? 'sparkle' : 'moon') : 'pen')} ${KIND_LABEL(e)}</span><span class="muted small">${timeText(e.time)}</span></div>
+      <p>${esc(e.text)}</p></button>`;
+  }
+
+  // New or existing entry. With `mic`, dictation starts as soon as it opens.
+  function entrySheet({ kind, day, entry, mic }) {
+    const isNew = !entry;
+    const e = entry || { kind, lucid: false, date: day || u.today(), time: nowHM(), text: '' };
+    const dream = e.kind === 'dream';
+    const dayMood = (S.entry(e.date) || {}).mood || 0;
+    let dict = null;
     u.sheet({
-      title: day === u.today() ? 'Today' : u.fmt(day, { weekday: 'long', month: 'long', day: 'numeric' }),
+      title: isNew ? (dream ? 'Dream' : 'Journal') : KIND_LABEL(e),
+      submit: 'Save',
       body: `
-        <fieldset class="field"><legend>Mood</legend><div class="mood-pick">${[1, 2, 3, 4, 5].map((i) => rad('mood', i, MOODS[i], face(i))).join('')}</div></fieldset>
-        <fieldset class="field"><legend>Energy</legend><div class="seg five">${[1, 2, 3, 4, 5].map((i) => rad('energy', i, ENERGY[i])).join('')}</div></fieldset>
-        <label class="field"><span>Notes</span><textarea name="note" rows="6" placeholder="What happened? What are you grateful for?" ${e.note || e.mood ? 'autofocus' : ''}>${esc(e.note)}</textarea></label>
+        <div class="when"><input type="date" name="date" value="${e.date}" max="${u.today()}" aria-label="Date"><input type="time" name="time" value="${e.time}" aria-label="Time"></div>
+        ${dream ? `<label class="toggle"><input type="checkbox" name="lucid" ${e.lucid ? 'checked' : ''}><span class="sw-track"></span><span>Lucid dream <em>(you knew you were dreaming)</em></span></label>` : ''}
+        <div class="dictate">
+          <textarea name="text" rows="8" placeholder="${dream ? 'What happened in the dream? Places, people, feelings…' : 'What’s on your mind?'}">${esc(e.text)}</textarea>
+          <button type="button" class="mic-btn" data-mic aria-label="Start dictation">${icon('mic')}</button>
+        </div>
+        <p class="mic-status muted small" aria-live="polite"></p>
+        ${!dream ? `<fieldset class="field"><legend>Mood that day <em>(optional)</em></legend><div class="mood-pick">${[1, 2, 3, 4, 5].map((i) => `<label class="mood-opt m${i}"><input type="radio" name="mood" value="${i}" ${dayMood === i ? 'checked' : ''}>${face(i)}<span>${MOODS[i]}</span></label>`).join('')}</div></fieldset>` : ''}
       `,
-      danger: S.entry(day) ? { label: 'Delete', run: async () => { if (!(await u.confirm('Delete this journal entry?'))) return false; S.setEntry(day, {}); render(); } } : null,
+      danger: isNew ? null : { label: 'Delete', run: async () => { if (!(await u.confirm(`Delete this ${KIND_LABEL(e).toLowerCase()} entry?`))) return false; S.remove('entries', e.id); render(); } },
+      onMount(form) {
+        const btn = form.querySelector('[data-mic]');
+        const status = form.querySelector('.mic-status');
+        const ta = form.text;
+        const setState = (st) => {
+          btn.classList.toggle('on', st === 'on');
+          btn.setAttribute('aria-label', st === 'on' ? 'Stop dictation' : 'Start dictation');
+          status.textContent = st === 'on' ? 'Listening… tap the mic again to stop.' : st === 'blocked' ? 'The microphone isn’t available here. Allow it in your browser settings, or tap the mic on your keyboard.' : '';
+        };
+        dict = u.dictation(ta, setState);
+        btn.onclick = () => {
+          if (!dict) { status.textContent = 'Tap the text box, then the mic on your keyboard to dictate.'; ta.focus(); return; }
+          if (dict.on) dict.stop(); else dict.start();
+        };
+        if (mic && dict) dict.start();
+        else if (isNew) setTimeout(() => ta.focus(), 60);
+      },
+      onClose() { if (dict) dict.stop(); },
       onSubmit(fd) {
-        S.setEntry(day, { mood: Number(fd.get('mood')) || 0, energy: Number(fd.get('energy')) || 0, note: (fd.get('note') || '').trim() });
+        if (dict) dict.stop();
+        const text = (fd.get('text') || '').trim();
+        if (!text) { u.toast(isNew ? 'Nothing to save yet.' : 'Write something, or delete the entry.'); return false; }
+        const fields = { text, date: fd.get('date') || u.today(), time: fd.get('time') || '', lucid: dream && !!fd.get('lucid') };
+        if (isNew) S.add('entries', { kind: e.kind, created: new Date().toISOString(), ...fields });
+        else { Object.assign(e, fields); S.save(); }
+        if (!dream && fd.get('mood')) { const j = Object.assign({ mood: 0, energy: 0 }, S.entry(fields.date)); j.mood = Number(fd.get('mood')); S.setEntry(fields.date, j); }
+        journalDay = fields.date; journalMonth = fields.date.slice(0, 7);
         render();
+        u.toast(isNew ? `${KIND_LABEL(fields.lucid ? { kind: 'dream', lucid: true } : e)} saved` : 'Saved');
       },
     });
   }
@@ -406,13 +467,16 @@
     },
     mood(el) {
       const t = u.today();
-      const e = Object.assign({ mood: 0, energy: 0, note: '' }, S.entry(t));
+      const e = Object.assign({ mood: 0, energy: 0 }, S.entry(t));
       const v = Number(el.dataset.v);
       e.mood = e.mood === v ? 0 : v;
       S.setEntry(t, e);
       render();
     },
-    entry: (el) => entryForm(el.dataset.day),
+    'new-entry': (el) => entrySheet({ kind: el.dataset.kind, day: el.dataset.day, mic: !!el.dataset.mic }),
+    'edit-entry': (el) => entrySheet({ entry: S.entryById(el.dataset.id) }),
+    'pick-day'(el) { journalDay = el.dataset.day; render(); },
+    filter(el) { journalFilter = el.value; render(); },
     month(el) {
       const [y, m] = journalMonth.split('-').map(Number);
       const d = new Date(y, m - 1 + Number(el.dataset.v), 1);
@@ -496,13 +560,13 @@
     },
     async install() { if (!installEvent) return; installEvent.prompt(); await installEvent.userChoice; installEvent = null; render(); },
     async sample() { if (!(await u.confirm('Replace everything with sample data?', 'Load sample'))) return; S.loadSample(); go('#/today'); render(); },
-    async erase() { if (!(await u.confirm('Erase all habits, goals, plans and journal entries on this device? This can’t be undone.', 'Erase'))) return; S.reset(); go('#/today'); render(); },
+    async erase() { if (!(await u.confirm('Erase all habits, goals, plans, journal and dream entries on this device? This can’t be undone.', 'Erase'))) return; S.reset(); go('#/today'); render(); },
   };
 
   main.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el || !main.contains(el) || !act[el.dataset.act]) return;
-    if (el.dataset.act !== 'theme') e.preventDefault();
+    if (el.dataset.act !== 'theme' && el.dataset.act !== 'filter') e.preventDefault();
     act[el.dataset.act](el);
   });
 

@@ -8,12 +8,15 @@ Plain HTML, CSS and JavaScript: no build step and no server. It works offline an
 
 | Tab | What's there |
 |---|---|
-| **Today** | The date, a one-tap **mood check-in**, today's **habits** (tap to check off), your **plan** for today with a quick-add box (unfinished items from earlier days carry over, and **Coming up** holds later and someday items), and your top goals at a glance. |
+| **Today** | The date, a one-tap **mood check-in** with quick **Dream** and **Journal** mic buttons, today's **habits** (tap to check off), your **plan** for today with a quick-add box (unfinished items from earlier days carry over, and **Coming up** holds later and someday items), and your top goals at a glance. |
 | **Habits** | Each habit with its streak and the last 7 days. Tap any day to fill in one you missed. Open a habit to see its current and best streak, how often you did it in the last 30 days, and a 20-week grid. A habit can be **every day**, **certain days** (such as weekdays) or **a number of times a week**. |
 | **Goals** | Goals tracked by **a number** (run 100 miles, read 12 books), where you log progress as you go, or by **steps** (plan the reunion) that you tick off. An optional finish date shows days left and whether you're **ahead**, **on track** or **behind**. An optional "why it matters" line keeps you going. |
-| **Journal** | A month calendar colored by mood, plus your entries. Each entry has mood, energy and notes. |
+| **Journal** | Two big buttons: **Dream** and **Journal**. Each opens with the **microphone already listening**, so you can speak a dream right after waking. The words are written down along with the date and time, and a switch marks a **lucid dream**. Below them is a month **calendar with a dot for each kind of entry** (green: journal, purple: dream, gold: lucid dream). Tap a day to read its entries, or filter to just Journal or Dreams. |
 
 **Settings** (the gear on Today): light or dark mode, backup and restore, add to home screen, sample data, erase.
+
+### Dictation
+The mic uses your phone's built-in speech recognition (Chrome on Android, Safari on iPhone). The first time, allow microphone access. Tap the mic again to stop; you can edit the text before saving. If speech recognition isn't available (some browsers, or the app opened from an iPhone home screen), use the mic on your keyboard instead.
 
 ## Coming from the old Life Tracker
 On the same phone and browser, Today offers **Bring it over** once. Your open to-dos go into the plan, and your logged workouts become an **Exercise** habit (a number of times a week, using your old weekly goal). The old data isn't deleted. You can also do this later from Settings.
