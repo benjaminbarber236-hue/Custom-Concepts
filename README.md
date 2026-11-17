@@ -61,7 +61,7 @@ It then opens full screen like a regular app, works offline, and updates itself 
 
 The same site also hosts **Life Tracker** (work, congregation, recreation and fitness) at **https://benjaminbarber236-hue.github.io/Custom-Concepts/life/**. See `life/README.md`.
 
-**Cabins**, a planner for buying land and building cabins, is a claude.ai app at **https://claude.ai/artifact/CAdPbLmaxGUk1op2xoTRs1**. Its home-screen launcher is **https://benjaminbarber236-hue.github.io/Custom-Concepts/cabins/open/**. See `cabins/README.md`.
+**Cabins**, a planner for buying land and building cabins, is at **https://benjaminbarber236-hue.github.io/Custom-Concepts/cabins/** (sign in with the Job Tracker account). See `cabins/README.md`.
 
 ### On a computer
 Open `index.html` directly in a browser, or run `python3 -m http.server` in this folder and go to http://localhost:8000.

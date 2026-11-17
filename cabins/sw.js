@@ -1,7 +1,7 @@
 // Offline support: serve the app from cache, refresh it in the background.
-const CACHE = 'cabins-v2';
+const CACHE = 'cabins-v3';
 const SHELL = [
-  './', 'index.html', 'css/styles.css', 'js/util.js', 'js/plan.js', 'js/store.js', 'js/sample.js', 'js/lenders.js', 'js/app.js',
+  './', 'index.html', 'css/styles.css', 'js/supabase.js', 'js/util.js', 'js/plan.js', 'js/store.js', 'js/sample.js', 'js/lenders.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 

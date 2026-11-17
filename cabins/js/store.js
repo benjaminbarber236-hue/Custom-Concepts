@@ -123,7 +123,8 @@
   }
 
   async function connect() {
-    if (L.DEMO || !(window.claude && typeof window.claude.use === 'function')) return false;
+    if (L.DEMO) return false;
+    if (!(window.claude && typeof window.claude.use === 'function')) return cloudStart();
     S.mode = 'loading'; S.loaded = false;
     let cap = null;
     try { cap = await window.claude.use('db'); } catch (e) { cap = null; }
@@ -159,8 +160,151 @@
     return true;
   }
 
+  // ---------- Cloud mode (your Supabase database, shared with Job Tracker) ----------
+  // Rows live in the same "docs" table as Job Tracker, under their own names ("cabins-steps", …),
+  // so the two apps never touch each other's data. A copy is kept on the phone so it opens offline.
+  const SB = { url: 'https://zfdtnprrjhewdvepbovo.supabase.co', key: 'sb_publishable_gRPjEWbBBObRIwLcyvhvrw_Jo41UBPC' };
+  const PFX = 'cabins-';
+  const MODE_KEY = 'cabins-mode';
+  let sb = null, user = null, cSynced = {}, lastPull = '', pushTimer = null, pushing = null, pulling = false;
+  const cacheKey = () => 'cabins-cloud-' + user.id;
+  const wantsLocal = () => { try { return localStorage.getItem(MODE_KEY) === 'local'; } catch (e) { return false; } };
+  const canCloud = () => !L.DEMO && !!window.supabase && !(window.claude && window.claude.use);
+  function cache() { try { localStorage.setItem(cacheKey(), JSON.stringify({ db, synced: cSynced, lastPull })); } catch (e) { /* full: the cloud copy is still there */ } }
+
+  async function cloudStart() {
+    if (!canCloud() || wantsLocal()) { S.mode = 'local'; S.loaded = true; return false; }
+    try { sb = sb || window.supabase.createClient(SB.url, SB.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } }); } catch (e) { S.mode = 'local'; S.loaded = true; return false; }
+    let session = null;
+    try { const { data } = await sb.auth.getSession(); session = data && data.session; } catch (e) { console.error(e); }
+    if (session) { openUser(session.user); return true; }
+    S.mode = 'signin'; S.loaded = true;
+    return true;
+  }
+
+  function openUser(u2) {
+    user = u2; S.user = { email: u2.email || '' }; S.mode = 'cloud';
+    let c = null;
+    try { c = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); } catch (e) { c = null; }
+    db = c && c.db ? normalize(c.db) : blank(); S.db = db;
+    cSynced = (c && c.synced) || {}; lastPull = (c && c.lastPull) || '';
+    S.loaded = !!lastPull; S.hasMeta = !!lastPull;
+    if (L.app && L.app.applyTheme) L.app.applyTheme();
+    rerender();
+    try {
+      sb.channel('cabins-' + user.id)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'docs', filter: 'user_id=eq.' + user.id }, (p) => { if (p.new && p.new.coll && p.new.coll.startsWith(PFX)) { applyRow(p.new); cache(); rerender(); } })
+        .subscribe();
+    } catch (e) { console.error(e); }
+    pull();
+  }
+
+  const cDirty = (path, j) => (pushing && pushing.has(path)) || (pushTimer && cSynced[path] !== j);
+  function applyRow(r) {
+    const c = r.coll.slice(PFX.length), path = c + '/' + r.id;
+    if (c === 'meta') {
+      if (r.id !== 'main' || cDirty(path, JSON.stringify(meta()))) return;
+      const m = r.body || {};
+      cSynced[path] = JSON.stringify(m);
+      db.version = m.version || 1;
+      db.project = Object.assign(fresh().project, m.project);
+      db.budget = Object.assign(Object.fromEntries(P.BUDGET.map(([k]) => [k, 0])), m.budget);
+      db.settings = Object.assign(fresh().settings, m.settings);
+      S.hasMeta = true;
+      if (L.app && L.app.applyTheme) L.app.applyTheme();
+      return;
+    }
+    if (!COLLS.includes(c)) return;
+    const list = db[c], i = list.findIndex((x) => x.id === r.id), cur = list[i];
+    if (cur && cDirty(path, JSON.stringify(cur))) return;
+    if (r.deleted) { if (i >= 0) list.splice(i, 1); delete cSynced[path]; return; }
+    const body = Object.assign({}, r.body, { id: r.id }), j = JSON.stringify(body);
+    cSynced[path] = j;
+    if (cur) { for (const k of Object.keys(cur)) if (!(k in body)) delete cur[k]; Object.assign(cur, JSON.parse(j)); } else list.push(JSON.parse(j));
+    if (c === 'steps' || c === 'cabins') list.sort((a, b) => (a.n || 0) - (b.n || 0));
+  }
+
+  async function pull() {
+    if (!user || pulling) return;
+    pulling = true;
+    const first = !lastPull;
+    let got = 0, failed = false;
+    try {
+      for (;;) {
+        let q = sb.from('docs').select('coll,id,body,deleted,updated_at').like('coll', PFX + '%').order('updated_at', { ascending: true }).limit(1000);
+        if (lastPull) q = q.gt('updated_at', lastPull);
+        const { data, error } = await q;
+        if (error) throw error;
+        (data || []).forEach(applyRow);
+        got += (data || []).length;
+        if (data && data.length) lastPull = data[data.length - 1].updated_at;
+        if (!data || data.length < 1000) break;
+      }
+    } catch (e) { console.error(e); failed = true; S.stale = !S.loaded; }
+    pulling = false;
+    if (!failed) {
+      S.stale = false;
+      if (first && !got) {
+        // A new account for Cabins: bring over this phone's plan if there is one, else the starting plan.
+        const local = loadLocal();
+        replaceAll(local || fresh());
+        lastPull = lastPull || new Date(0).toISOString();
+      }
+      S.loaded = true;
+    } else if (!S.loaded) { S.loaded = true; }
+    cache(); rerender();
+  }
+
+  async function push() {
+    pushTimer = null;
+    if (!user || pushing) { if (user) pushTimer = setTimeout(push, 800); return; }
+    const want = desired(), rows = [], paths = new Map();
+    for (const [p, j] of Object.entries(want)) if (cSynced[p] !== j) paths.set(p, j);
+    for (const p of Object.keys(cSynced)) if (!(p in want)) paths.set(p, null);
+    if (!paths.size) return;
+    for (const [p, j] of paths) { const [c, id] = p.split('/'); rows.push({ user_id: user.id, coll: PFX + c, id, body: j === null ? {} : JSON.parse(j), deleted: j === null }); }
+    pushing = paths;
+    try {
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await sb.from('docs').upsert(rows.slice(i, i + 200), { onConflict: 'user_id,coll,id' });
+        if (error) throw error;
+      }
+      for (const [p, j] of paths) { if (j === null) delete cSynced[p]; else cSynced[p] = j; }
+      S.offline = false;
+    } catch (e) {
+      console.error(e);
+      if (!S.offline) { S.offline = true; rerender(); }
+      pushing = null; cache();
+      pushTimer = setTimeout(push, 15000);
+      return;
+    }
+    pushing = null; cache(); rerender();
+  }
+
+  async function signIn(email, password, create) {
+    const r = create ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
+    if (r.error) return /confirm/i.test(r.error.message) ? 'Tap the link in the email from Supabase first, then sign in.' : create ? r.error.message : 'That email and password didn’t work.';
+    if (!r.data.session) return 'Account created. Check your email, tap the confirm link, then sign in here.';
+    openUser(r.data.user);
+    return '';
+  }
+  async function signOut() {
+    if (pushTimer) { clearTimeout(pushTimer); await push(); }
+    try { await sb.auth.signOut(); } catch (e) { /* signed out locally anyway */ }
+    try { sb.removeAllChannels(); } catch (e) { /* none */ }
+    user = null; S.user = null; S.mode = 'signin'; S.loaded = true; db = blank(); S.db = db; rerender();
+  }
+  function useLocal() { try { localStorage.setItem(MODE_KEY, 'local'); } catch (e) { /* per visit then */ } S.mode = 'local'; db = loadLocal() || fresh(); S.db = db; S.loaded = true; rerender(); }
+  async function useCloud() { try { localStorage.removeItem(MODE_KEY); } catch (e) { /* fine */ } S.mode = 'loading'; S.loaded = false; rerender(); await cloudStart(); rerender(); }
+  if (typeof window !== 'undefined') {
+    setInterval(() => { if (S.mode === 'cloud' && !document.hidden) pull(); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (S.mode === 'cloud' && !document.hidden) pull(); });
+    window.addEventListener('online', () => { if (S.mode === 'cloud') { push(); pull(); } });
+  }
+
   function save() {
     if (L.DEMO) return;
+    if (S.mode === 'cloud') { cache(); clearTimeout(pushTimer); pushTimer = setTimeout(push, 400); return; }
     if (S.mode === 'live') { clearTimeout(flushTimer); flushTimer = setTimeout(flush, 300); return; }
     if (S.mode !== 'local') return;
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { u.toast('Could not save. Save a backup now.'); }
@@ -228,7 +372,7 @@
 
   db = loadLocal() || fresh();
   Object.assign(S, {
-    db, uid, save, connect, isEmpty, startPlan, newCabin, phaseSteps, phaseProgress, overall, currentPhase, nextSteps, toggleStep,
+    db, uid, save, connect, signIn, signOut, useLocal, useCloud, canCloud, isEmpty, startPlan, newCabin, phaseSteps, phaseProgress, overall, currentPhase, nextSteps, toggleStep,
     stagesDone, cabinStage, toggleStage, spent, cabinSpent, estimateTotal, landScore, ourLand,
     add, remove, restore, find, exportJSON, importJSON, reset, loadSample,
   });
