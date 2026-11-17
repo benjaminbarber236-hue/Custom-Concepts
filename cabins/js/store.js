@@ -6,7 +6,7 @@
 (function () {
   const KEY = 'cabins-v1';
   const u = L.u, P = L.plan;
-  const COLLS = ['steps', 'cabins', 'land', 'expenses', 'team'];
+  const COLLS = ['steps', 'cabins', 'land', 'expenses', 'team', 'lenders'];
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   function fresh() {
@@ -21,6 +21,7 @@
       budget: Object.fromEntries(P.BUDGET.map(([k]) => [k, 0])), // category -> estimate
       expenses: [], // { id, date, title, amount, cat, cabin }
       team: [],    // { id, role, name, phone, email, notes }
+      lenders: [], // { id, name, person, phone, email, when, checks: { q1: 1 }, answers: { q1: '...' } }
       settings: { theme: '', lastBackup: null },
     };
   }
@@ -94,7 +95,13 @@
   function rerender() {
     if (renderQueued) return;
     renderQueued = true;
-    requestAnimationFrame(() => { renderQueued = false; if (L.app) L.app.render(); });
+    requestAnimationFrame(() => {
+      renderQueued = false;
+      // Don't redraw under someone typing on the page; catch up when they leave the field.
+      const a = document.activeElement;
+      if (a && a.closest && a.closest('#main') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { a.addEventListener('blur', rerender, { once: true }); return; }
+      if (L.app) L.app.render();
+    });
   }
 
   function applyCollection(c, snap) {

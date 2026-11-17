@@ -7,7 +7,7 @@ const root = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 const out = process.argv[2] || path.join(root, 'artifact.html');
 const body = read('index.html').match(/<body>([\s\S]*?)<script/)[1];
-const js = ['js/util.js', 'js/plan.js', 'js/store.js', 'js/sample.js', 'js/app.js'].map(read).join('\n');
+const js = ['js/util.js', 'js/plan.js', 'js/store.js', 'js/sample.js', 'js/lenders.js', 'js/app.js'].map(read).join('\n');
 // The artifact frame pads the page for the phone's safe areas itself, and needs the side gutter as max().
 const css = read('css/styles.css').replace(
   /padding: calc\(env\(safe-area-inset-top, 0px\) \+ 20px\) 16px calc\(env\(safe-area-inset-bottom, 0px\) \+ 96px\);/,
