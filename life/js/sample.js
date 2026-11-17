@@ -38,15 +38,53 @@
       { title: 'Clean out the garage', date: null },
     ].map((x) => ({ id: id(), done: false, doneOn: null, ...x }));
 
-    const log = (pairs) => pairs.map(([n, a]) => ({ id: id(), date: d(n), amount: a }));
-    const goals = [
-      { id: id(), title: 'Run 100 miles', why: 'Feel strong for the half marathon in spring.', kind: 'count', target: 100, unit: 'miles', created: d(-46), due: d(44),
-        log: log([[-44, 3], [-41, 4], [-38, 3.5], [-35, 5], [-31, 3], [-27, 6], [-24, 4], [-20, 3], [-16, 5], [-12, 4.5], [-9, 3], [-5, 6], [-2, 4]]), steps: [], done: false, doneOn: null },
-      { id: id(), title: 'Read 12 books this year', why: '', kind: 'count', target: 12, unit: 'books', created: d(-320), due: `${t.slice(0, 4)}-12-31`,
-        log: log([[-300, 1], [-270, 1], [-230, 1], [-200, 1], [-170, 1], [-130, 1], [-95, 1], [-60, 1], [-25, 1]]), steps: [], done: false, doneOn: null },
-      { id: id(), title: 'Plan the family reunion', why: 'Everyone together for the first time since 2022.', kind: 'steps', target: 0, unit: '', created: d(-20), due: d(60), log: [],
-        steps: [['Pick a date', true], ['Book the pavilion', true], ['Send invitations', false], ['Order food', false], ['Make a slideshow', false]].map(([s, done]) => ({ id: id(), title: s, done })), done: false, doneOn: null },
+    // Next given weekday (0 = Sunday) on or after today, plus whole weeks.
+    const next = (dw, weeks = 0) => { let x = t; while (u.dow(x) !== dw) x = u.addDays(x, 1); return u.addDays(x, weeks * 7); };
+    const ev = (o) => ({ id: id(), time: '', end: '', place: '', notes: '', repeat: '', until: '', skips: [], ...o });
+    const events = [
+      ev({ title: 'Dinner with Sam & Jess', date: next(5), time: '18:30', place: 'Olive Garden on Main St', cat: 'social', notes: 'Sam’s birthday. Bring the card.' }),
+      ev({ title: 'Movies: the new space one', date: next(6), time: '19:15', end: '21:30', place: 'Regal 12', cat: 'social' }),
+      ev({ title: 'Bible study with Marcus', date: next(2, -3), time: '18:00', place: 'His place, 412 Elm', cat: 'spiritual', repeat: 'weekly', notes: 'Chapter 6 of the Enjoy Life Forever book.' }),
+      ev({ title: 'Family worship', date: next(1, -3), time: '19:30', cat: 'spiritual', repeat: 'weekly' }),
+      ev({ title: 'Dentist', date: d(9), time: '08:15', place: 'Bright Smile Dental', cat: 'personal' }),
+      ev({ title: 'Team lunch', date: d(1), time: '12:00', place: 'Taco Spot', cat: 'work' }),
+      ev({ title: 'Game night at the Hendersons', date: d(12), time: '19:00', cat: 'social' }),
+      ev({ title: 'Hiking with the group', date: d(-3), time: '08:00', place: 'Eagle Ridge trail', cat: 'social' }),
     ];
+
+    const service = [];
+    for (let i = 1; i <= 45; i++) if (rnd() < 0.18) service.push({ id: id(), date: d(-i), minutes: [60, 90, 105, 120, 150][Math.floor(rnd() * 5)], notes: rnd() < 0.4 ? 'Door to door with Brother Kim' : '' });
+    const reading = {};
+    for (let i = 0; i < 30; i++) if (i > 0 && (i < 9 || rnd() < 0.8)) reading[d(-i)] = 1;
+    const attended = {};
+    for (let i = 1; i <= 40; i++) { const x = d(-i); if (u.dow(x) === 4 && rnd() < 0.9) attended[x + ':midweek'] = 1; if (u.dow(x) === 0 && rnd() < 0.95) attended[x + ':weekend'] = 1; }
+    const spiritual = {
+      meetings: { midweek: { day: 4, time: '19:00' }, weekend: { day: 0, time: '10:00' }, place: 'Kingdom Hall, 200 Cedar Rd' },
+      attended,
+      parts: [
+        { id: id(), date: next(4), title: 'Starting a conversation', assistant: 'Brother Ortiz', notes: 'Lesson 3, point 4. Setting: informal witnessing.', prepared: false },
+        { id: id(), date: next(4, 3), title: 'Bible reading', assistant: '', notes: 'Isaiah 41:1-13', prepared: false },
+        { id: id(), date: d(-15), title: 'Following up', assistant: 'Brother Lee', notes: '', prepared: true },
+      ],
+      service, studies: { [t.slice(0, 7)]: 1, [u.shiftMonth(t.slice(0, 7), -1)]: 1 }, serviceGoal: 15,
+      rvs: [
+        { id: id(), name: 'Maria', where: '88 Birch Ln, blue door', phone: '', notes: 'Asked why God allows suffering. Bring the brochure.', last: d(-6), next: d(3) },
+        { id: id(), name: 'Mr. Thompson', where: 'Corner of 5th & Pine', phone: '', notes: 'Likes Psalms. Retired teacher.', last: d(-12), next: d(-1) },
+      ],
+      group: { name: 'Group 3', overseer: 'Brother James Carter', overseerPhone: '555-201-4410', assistant: 'Brother Kim', assistantPhone: '555-201-7782' },
+      fsm: [
+        { id: id(), day: 6, time: '09:30', place: 'The Carters’ home', conductor: 'Bro. Carter' },
+        { id: id(), day: 3, time: '10:00', place: 'Kingdom Hall', conductor: 'Bro. Kim' },
+      ],
+      members: [['Brother James Carter', '555-201-4410'], ['Sister Ana Carter', '555-201-4411'], ['Brother Kim', '555-201-7782'], ['Sister Lopez', '555-302-1190'], ['Brother Ortiz', '555-302-5521'], ['Sister Hendricks', '']].map(([name, phone]) => ({ id: id(), name, phone })),
+      reading, readingAt: 'Isaiah 40',
+      study: [
+        { id: id(), date: d(-1), topic: 'Watchtower study', minutes: 45, notes: '' },
+        { id: id(), date: d(-2), topic: 'Meeting prep', minutes: 40, notes: '' },
+        { id: id(), date: d(-4), topic: 'Research', minutes: 30, notes: 'Why did Jesus speak in illustrations?' },
+        { id: id(), date: d(-8), topic: 'Bible reading', minutes: 20, notes: '' },
+      ],
+    };
 
     const notes = ['Slow morning, good talk with J.', 'Long day at work but finished the report.', 'Felt tired, went to bed early.', 'Great hike with friends!', '', 'Meeting went well.', 'Stressed about the deadline.', '', 'Quiet evening reading.'];
     const journal = {};
@@ -75,6 +113,6 @@
       if (i > 0 && rnd() < 0.6 && notes[i % notes.length]) entries.push({ id: id(), kind: 'journal', lucid: false, date: day, time: at(20 + Math.floor(rnd() * 3), Math.floor(rnd() * 60)), text: notes[i % notes.length], created: day });
     }
 
-    return { version: 2, habits, checks, tasks, goals, journal, entries, settings: { theme: '', lastBackup: null, oldImport: 'skipped' } };
+    return { version: 2, habits, checks, tasks, goals: [], journal, entries, events, spiritual, settings: { theme: '', lastBackup: null, oldImport: 'skipped', oldEvents: 'skipped' } };
   };
 })();

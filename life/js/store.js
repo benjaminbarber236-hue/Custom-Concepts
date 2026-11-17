@@ -9,16 +9,40 @@
     habits: [],   // { id, name, schedule: 'daily'|'days'|'weekly', days: [0-6], perWeek, created, archived }
     checks: {},   // habitId -> { 'YYYY-MM-DD': 1 }
     tasks: [],    // { id, title, date|null, done, doneOn }
-    goals: [],    // { id, title, why, kind: 'count'|'steps', target, unit, log: [{ id, date, amount }], steps: [{ id, title, done }], due, created, done, doneOn }
+    goals: [],    // kept from earlier versions; no longer shown
     journal: {},  // 'YYYY-MM-DD' -> { mood 1-5, energy 1-5 }: the day's check-in
     entries: [],  // { id, kind: 'journal'|'dream', lucid, date, time: 'HH:MM', text, created }
-    settings: { theme: '', lastBackup: null, oldImport: '' },
+    events: [],   // { id, title, date, time, end, place, notes, cat: 'social'|'spiritual'|'work'|'personal', repeat, until, skips: [] }
+    spiritual: spiritualDefaults(),
+    settings: { theme: '', lastBackup: null, oldImport: '', oldEvents: '' },
   });
+
+  function spiritualDefaults() {
+    return {
+      meetings: { midweek: { day: 4, time: '19:00' }, weekend: { day: 0, time: '10:00' }, place: 'Kingdom Hall' },
+      attended: {},   // 'YYYY-MM-DD:midweek' -> 1
+      parts: [],      // { id, date, title, assistant, notes, prepared }
+      service: [],    // { id, date, minutes, notes }
+      studies: {},    // 'YYYY-MM' -> Bible studies conducted that month
+      serviceGoal: 0, // hours a month (0 = no goal)
+      rvs: [],        // return visits { id, name, where, phone, notes, last, next }
+      group: { name: '', overseer: '', overseerPhone: '', assistant: '', assistantPhone: '' },
+      fsm: [],        // meetings for field service { id, day, time, place, conductor }
+      members: [],    // { id, name, phone }
+      reading: {},    // daily Bible reading 'YYYY-MM-DD' -> 1
+      readingAt: '',  // where I'm reading now
+      study: [],      // personal study sessions { id, date, topic, minutes, notes }
+    };
+  }
 
   function normalize(d) {
     const base = empty();
     for (const k of Object.keys(base)) if (!(k in d)) d[k] = base[k];
     d.settings = Object.assign(base.settings, d.settings);
+    d.spiritual = Object.assign(base.spiritual, d.spiritual);
+    d.spiritual.meetings = Object.assign(spiritualDefaults().meetings, d.spiritual.meetings);
+    d.spiritual.group = Object.assign(spiritualDefaults().group, d.spiritual.group);
+    d.events.forEach((e) => { e.skips = e.skips || []; });
     // Earlier versions kept one note per day on the check-in; move those into journal entries.
     for (const [day, j] of Object.entries(d.journal)) {
       if (j.note && j.note.trim()) d.entries.push({ id: uid(), kind: 'journal', lucid: false, date: day, time: '', text: j.note.trim(), created: new Date().toISOString() });
@@ -120,23 +144,65 @@
     return 'Every day';
   }
 
-  // ---------- Goals ----------
-  function progress(g) {
-    if (g.kind === 'steps') { const n = g.steps.length; const d = g.steps.filter((s) => s.done).length; return { have: d, want: n, pct: n ? d / n : 0 }; }
-    const have = g.log.reduce((s, l) => s + (Number(l.amount) || 0), 0);
-    return { have, want: g.target, pct: g.target ? Math.min(1, have / g.target) : 0 };
+  // ---------- Schedule ----------
+  // Does a (possibly repeating) event happen on `day`?
+  function occursOn(e, day) {
+    if (!e.date || day < e.date || (e.until && day > e.until) || e.skips.includes(day)) return false;
+    if (day === e.date) return true;
+    const diff = u.daysBetween(e.date, day);
+    const a = u.parse(e.date), b = u.parse(day);
+    switch (e.repeat) {
+      case 'daily': return true;
+      case 'weekdays': return b.getDay() % 6 !== 0;
+      case 'weekly': return diff % 7 === 0;
+      case 'biweekly': return diff % 14 === 0;
+      case 'monthly': return a.getDate() === b.getDate();
+      case 'yearly': return a.getDate() === b.getDate() && a.getMonth() === b.getMonth();
+      default: return false;
+    }
   }
 
-  // 'ahead' | 'on' | 'behind' | null, by comparing progress with time used up to the due date.
-  function pace(g) {
-    if (!g.due || g.done) return null;
-    const total = u.daysBetween(g.created, g.due);
-    if (total <= 0) return null;
-    const used = Math.min(1, Math.max(0, u.daysBetween(g.created, u.today()) / total));
-    const p = progress(g).pct;
-    if (p >= used + 0.1) return 'ahead';
-    if (p >= used - 0.05) return 'on';
-    return 'behind';
+  const MEETING_NAMES = { midweek: 'Midweek meeting', weekend: 'Weekend meeting' };
+
+  // Everything on the calendar for one day, sorted by time: your events, congregation meetings,
+  // meetings for field service, your meeting parts and planned return visits.
+  function agenda(day) {
+    const out = [];
+    const sp = db.spiritual;
+    const dw = u.dow(day);
+    for (const e of db.events) if (occursOn(e, day)) out.push({ type: 'event', id: e.id, title: e.title, time: e.time, end: e.end, place: e.place, cat: e.cat || 'personal', repeat: !!e.repeat });
+    for (const key of ['midweek', 'weekend']) {
+      const m = sp.meetings[key];
+      if (m.day === dw) out.push({ type: 'meeting', key, title: MEETING_NAMES[key], time: m.time, place: sp.meetings.place, cat: 'spiritual', attended: !!sp.attended[day + ':' + key] });
+    }
+    for (const f of sp.fsm) if (Number(f.day) === dw) out.push({ type: 'fsm', id: f.id, title: 'Meeting for field service', time: f.time, place: f.place, who: f.conductor, cat: 'spiritual' });
+    for (const p of sp.parts) if (p.date === day) {
+      const m = ['midweek', 'weekend'].map((k) => sp.meetings[k]).find((x) => x.day === dw);
+      out.push({ type: 'part', id: p.id, title: 'My part: ' + p.title, time: m ? m.time : '', cat: 'spiritual', prepared: p.prepared });
+    }
+    for (const r of sp.rvs) if (r.next === day) out.push({ type: 'rv', id: r.id, title: 'Return visit: ' + r.name, time: '', place: r.where, cat: 'spiritual' });
+    return out.sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00') || (a.type === 'part') - (b.type === 'part'));
+  }
+
+  // Meetings on or before today in the month, and how many were marked attended.
+  function attendance(month) {
+    const sp = db.spiritual;
+    const t = u.today();
+    let held = 0, went = 0;
+    for (let d = month + '-01'; d.startsWith(month) && d <= t; d = u.addDays(d, 1)) {
+      for (const key of ['midweek', 'weekend']) if (sp.meetings[key].day === u.dow(d)) { held++; if (sp.attended[d + ':' + key]) went++; }
+    }
+    return { held, went };
+  }
+
+  const serviceMinutes = (month) => db.spiritual.service.filter((s) => s.date.startsWith(month)).reduce((n, s) => n + (Number(s.minutes) || 0), 0);
+
+  function readingStreak() {
+    const r = db.spiritual.reading;
+    let d = u.today(), n = 0;
+    if (!r[d]) d = u.addDays(d, -1);
+    while (r[d]) { n++; d = u.addDays(d, -1); }
+    return n;
   }
 
   // ---------- Old Life Tracker ----------
@@ -149,14 +215,25 @@
     const d = oldData();
     if (!d) return null;
     const tasks = d.items.filter((i) => i.kind === 'task' && !i.done);
-    return { tasks: tasks.length, workouts: (d.workouts || []).length };
+    return { tasks: tasks.length, workouts: (d.workouts || []).length, events: d.items.filter((i) => i.kind === 'event').length };
   }
 
-  // Open to-dos become plan items; logged workouts become check-ins on an "Exercise" habit.
+  // Open to-dos become plan items, workouts become check-ins on an "Exercise" habit, and
+  // calendar events come over to the Schedule (each part only once).
   function importOld() {
     const d = oldData();
     if (!d) return 0;
     let n = 0;
+    if (db.settings.oldEvents !== 'done') {
+      const cat = { work: 'work', congregation: 'spiritual', recreation: 'social', fitness: 'personal' };
+      for (const i of d.items) {
+        if (i.kind !== 'event' || !i.date) continue;
+        db.events.push({ id: uid(), title: i.title, date: i.date, time: i.time || '', end: i.endTime || '', place: i.location || '', notes: i.notes || '', cat: cat[i.area] || 'personal', repeat: i.repeat || '', until: i.until || '', skips: i.skips || [] });
+        n++;
+      }
+      db.settings.oldEvents = 'done';
+    }
+    if (db.settings.oldImport === 'done') { save(); return n; }
     for (const i of d.items) {
       if (i.kind !== 'task' || i.done) continue;
       db.tasks.push({ id: uid(), title: i.title, date: i.date || null, done: false, doneOn: null });
@@ -177,12 +254,16 @@
   }
 
   const S = {
-    uid, save, isChecked, isDue, toggleCheck, weekCount, streak, best, rate, scheduleText, progress, pace,
+    uid, save, isChecked, isDue, toggleCheck, weekCount, streak, best, rate, scheduleText,
+    occursOn, agenda, attendance, serviceMinutes, readingStreak, MEETING_NAMES,
     oldSummary, importOld,
     get db() { return db; },
     habits: () => db.habits.filter((h) => !h.archived),
     habit: (id) => db.habits.find((h) => h.id === id),
-    goal: (id) => db.goals.find((g) => g.id === id),
+    event: (id) => db.events.find((e) => e.id === id),
+    sp: (coll, id) => db.spiritual[coll].find((x) => x.id === id),
+    spAdd(coll, obj) { obj.id = uid(); db.spiritual[coll].push(obj); save(); return obj; },
+    spRemove(coll, id) { db.spiritual[coll] = db.spiritual[coll].filter((x) => x.id !== id); save(); },
     task: (id) => db.tasks.find((t) => t.id === id),
 
     add(coll, obj) { obj.id = uid(); db[coll].push(obj); save(); return obj; },
@@ -204,7 +285,7 @@
       if (!d || d.version !== 2 || !Array.isArray(d.habits)) throw new Error('This is not a backup from this app.');
       db = normalize(d); save();
     },
-    reset() { db = empty(); db.settings.oldImport = 'skipped'; save(); },
+    reset() { db = empty(); db.settings.oldImport = 'skipped'; db.settings.oldEvents = 'skipped'; save(); },
     loadSample() { db = normalize(L.sample()); save(); },
   };
 

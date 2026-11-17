@@ -1,4 +1,4 @@
-// Screens and actions. Four tabs: Today, Habits, Goals, Journal (+ Settings from the gear).
+// Screens and actions. Tabs: Today, Schedule, Habits, Spiritual, Journal (+ Settings from the gear).
 (function () {
   const u = L.u, S = L.store, esc = u.esc, icon = u.icon;
   const main = document.getElementById('main');
@@ -31,11 +31,13 @@
     const todays = open.filter((x) => x.date === t);
     const doneToday = db.tasks.filter((x) => x.done && x.doneOn === t);
     const later = open.filter((x) => !x.date || x.date > t).sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
-    const goals = db.goals.filter((g) => !g.done).slice(0, 3);
+    const agenda = S.agenda(t);
+    const nextPlan = agenda.length ? null : L.nextPlan();
     const left = overdue.length + todays.length;
 
     const old = !db.settings.oldImport && S.oldSummary();
-    const oldBits = old ? [old.tasks && plural(old.tasks, 'open to-do'), old.workouts && plural(old.workouts, 'workout')].filter(Boolean) : [];
+    const oldEv = db.settings.oldEvents !== 'done' && db.settings.oldEvents !== 'skipped' && (S.oldSummary() || {}).events;
+    const oldBits = old ? [old.tasks && plural(old.tasks, 'open to-do'), old.workouts && plural(old.workouts, 'workout'), old.events && plural(old.events, 'calendar event')].filter(Boolean) : oldEv ? [plural(oldEv, 'calendar event')] : [];
     const checks = Object.values(db.checks).reduce((s, c) => s + Object.keys(c).length, 0) + Object.keys(db.journal).length + db.entries.length;
     const lb = db.settings.lastBackup;
     const needBackup = !L.DEMO && checks > 25 && (!lb || u.daysBetween(lb.slice(0, 10), t) > 30);
@@ -47,7 +49,7 @@
       </header>
 
       ${oldBits.length ? `<section class="card notice">
-        <p><b>Bring over your old data?</b><br>Your old Life Tracker has ${oldBits.join(' and ')}. To-dos go into your plan; workouts become an Exercise habit.</p>
+        <p><b>Bring over your old data?</b><br>Your old Life Tracker has ${oldBits.join(', ')}. To-dos go into your plan, workouts become an Exercise habit and events go on your Schedule.</p>
         <div class="row"><button class="btn primary sm" data-act="old-import">Bring it over</button><button class="btn ghost sm" data-act="old-skip">Not now</button></div>
       </section>` : ''}
 
@@ -58,6 +60,11 @@
           <button class="chip-btn" data-act="new-entry" data-kind="dream" data-mic="1">${icon('mic')} Dream${dreamsToday ? ` · ${dreamsToday}` : ''}</button>
           <button class="chip-btn" data-act="new-entry" data-kind="journal" data-mic="1">${icon('mic')} Journal${notesToday ? ` · ${notesToday}` : ''}</button>
         </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-head"><h2>Schedule</h2><button class="count link" data-act="ev-new" data-day="${t}">${icon('plus', 'sm')} Add plan</button></div>
+        ${L.agendaHTML(t, agenda) || `<a class="empty slim" href="#/schedule"><p>Nothing scheduled today.${nextPlan ? ` Next: <b class="ink">${esc(nextPlan.item.title)}</b>, ${esc(u.relDay(nextPlan.day))}${nextPlan.item.time ? ' at ' + u.timeText(nextPlan.item.time) : ''}.` : ''}</p></a>`}
       </section>
 
       <section class="sec">
@@ -76,11 +83,6 @@
         </ul>
         ${later.length ? `<details class="later"><summary>Coming up · ${later.length}</summary><ul class="tasks">${later.map((x) => taskRow(x, x.date ? u.relDay(x.date) : 'Someday')).join('')}</ul></details>` : ''}
       </section>
-
-      ${goals.length ? `<section class="sec">
-        <div class="sec-head"><h2>Goals</h2><a href="#/goals" class="count">See all</a></div>
-        <div class="card list">${goals.map((g) => { const p = S.progress(g); return `<a class="goal-mini" href="#/goals/${g.id}"><div class="row"><span>${esc(g.title)}</span><span class="muted">${pct(p.pct)}</span></div><div class="bar"><i style="width:${pct(p.pct)}"></i></div></a>`; }).join('')}</div>
-      </section>` : ''}
 
       ${needBackup ? `<p class="footnote"><a href="#/settings">It’s been a while since your last backup. Save one in Settings.</a></p>` : ''}
     `;
@@ -200,109 +202,6 @@
         const perWeek = Math.max(1, Math.min(7, Number(fd.get('perWeek')) || 3));
         if (isNew) S.add('habits', { name, schedule, days, perWeek, created: u.today(), archived: false });
         else { Object.assign(h, { name, schedule, days, perWeek }); S.save(); }
-        render();
-      },
-    });
-  }
-
-  // ================= Goals =================
-  function goalCard(g) {
-    const p = S.progress(g);
-    const pc = S.pace(g);
-    const left = g.due ? u.daysBetween(u.today(), g.due) : null;
-    const amount = g.kind === 'steps' ? `${p.have} of ${p.want} steps` : `${num(p.have)} of ${num(p.want)} ${esc(g.unit)}`;
-    const when = g.done ? `Done ${u.relDay(g.doneOn)}` : g.due ? (left < 0 ? `${plural(-left, 'day')} past due` : left === 0 ? 'Due today' : `${plural(left, 'day')} left`) : '';
-    return `<a class="card gcard ${g.done ? 'is-done' : ''}" href="#/goals/${g.id}">
-      <div class="row"><h3>${esc(g.title)}</h3><b class="gpct">${pct(p.pct)}</b></div>
-      <div class="bar"><i style="width:${pct(p.pct)}"></i></div>
-      <div class="row muted small"><span>${amount}</span><span>${when}${pc ? ` · <span class="pace ${pc}">${{ ahead: 'Ahead', on: 'On track', behind: 'Behind' }[pc]}</span>` : ''}</span></div>
-    </a>`;
-  }
-
-  function viewGoals() {
-    const active = S.db.goals.filter((g) => !g.done);
-    const done = S.db.goals.filter((g) => g.done);
-    return `
-      <header class="page-head"><h1>Goals</h1><button class="btn primary sm" data-act="goal-new">${icon('plus')} New</button></header>
-      ${active.length ? active.map(goalCard).join('') : `<div class="empty big"><p>Something bigger you’re working toward, like a number to reach (run 100 miles, read 12 books) or a set of steps (plan a trip).</p><button class="btn primary" data-act="goal-new">${icon('plus')} Set a goal</button></div>`}
-      ${done.length ? `<details class="later"><summary>Completed · ${done.length}</summary>${done.map(goalCard).join('')}</details>` : ''}
-    `;
-  }
-
-  function viewGoal(id) {
-    const g = S.goal(id);
-    if (!g) return notFound('#/goals');
-    const p = S.progress(g);
-    const t = u.today();
-    let body;
-    if (g.kind === 'steps') {
-      body = `<section class="card">
-        <div class="sec-head"><h2>Steps</h2><span class="count">${p.have} of ${p.want}</span></div>
-        <ul class="tasks">${g.steps.map((s) => `<li class="task ${s.done ? 'done' : ''}"><button class="tick-sm" data-act="step-toggle" data-id="${g.id}" data-step="${s.id}" aria-label="${s.done ? 'Mark not done' : 'Mark done'}">${icon('check')}</button><span class="task-title">${esc(s.title)}</span><button class="icon-btn sm" data-act="step-delete" data-id="${g.id}" data-step="${s.id}" aria-label="Remove step">${icon('x')}</button></li>`).join('')}</ul>
-        <form class="quick" data-form="step" data-id="${g.id}"><input name="title" placeholder="Add a step" autocomplete="off" aria-label="New step"><button class="icon-btn" aria-label="Add">${icon('plus')}</button></form>
-      </section>`;
-    } else {
-      const log = g.log.slice().sort((a, b) => b.date.localeCompare(a.date));
-      body = `<section class="card">
-        <div class="sec-head"><h2>Add progress</h2></div>
-        <form class="log-form" data-form="log" data-id="${g.id}">
-          <input name="amount" type="number" step="any" inputmode="decimal" placeholder="0" aria-label="Amount" required>
-          <span class="muted">${esc(g.unit)}</span>
-          <input name="date" type="date" value="${t}" max="${t}" aria-label="Date">
-          <button class="btn primary sm">Add</button>
-        </form>
-      </section>
-      ${log.length ? `<section class="card"><div class="sec-head"><h2>History</h2></div><div class="list">${log.map((l) => `<div class="list-row"><span>${u.relDay(l.date)}</span><span class="row"><b>+${num(l.amount)}</b> <button class="icon-btn sm" data-act="log-delete" data-id="${g.id}" data-log="${l.id}" aria-label="Remove entry">${icon('x')}</button></span></div>`).join('')}</div></section>` : ''}`;
-    }
-    return `
-      <a href="#/goals" class="back">${icon('left')} Goals</a>
-      ${goalCard(g).replace('<a class="card gcard', '<div class="card gcard big').replace(/<\/a>$/, '</div>').replace(/href="[^"]*"/, '')}
-      ${g.why ? `<p class="why">${esc(g.why)}</p>` : ''}
-      ${body}
-      <div class="actions">
-        <button class="btn" data-act="goal-done" data-id="${g.id}">${g.done ? 'Reopen' : 'Mark complete'}</button>
-        <button class="btn" data-act="goal-edit" data-id="${g.id}">Edit</button>
-        <button class="btn ghost danger" data-act="goal-delete" data-id="${g.id}">Delete</button>
-      </div>
-    `;
-  }
-
-  function goalForm(g) {
-    const isNew = !g;
-    g = g || { title: '', why: '', kind: 'count', target: '', unit: '', due: '' };
-    u.sheet({
-      title: isNew ? 'New goal' : 'Edit goal',
-      submit: isNew ? 'Add goal' : 'Save',
-      body: `
-        <label class="field"><span>Goal</span><input name="title" value="${esc(g.title)}" placeholder="Run 100 miles" required autofocus autocomplete="off"></label>
-        ${isNew ? `<fieldset class="field"><legend>Track it by</legend>
-          <div class="seg"><label><input type="radio" name="kind" value="count" checked><span>A number</span></label><label><input type="radio" name="kind" value="steps"><span>Steps</span></label></div>
-        </fieldset>` : ''}
-        <div class="two" data-show="count" ${g.kind === 'steps' ? 'hidden' : ''}>
-          <label class="field"><span>Target</span><input name="target" type="number" step="any" inputmode="decimal" min="0" value="${esc(g.target)}" placeholder="100"></label>
-          <label class="field"><span>Unit</span><input name="unit" value="${esc(g.unit)}" placeholder="miles" autocomplete="off"></label>
-        </div>
-        ${isNew ? `<label class="field" data-show="steps" hidden><span>Steps, one per line</span><textarea name="steps" rows="4" placeholder="Pick a date&#10;Book the place&#10;Send invitations"></textarea></label>` : ''}
-        <label class="field"><span>Finish by <em>(optional)</em></span><input name="due" type="date" value="${esc(g.due || '')}"></label>
-        <label class="field"><span>Why it matters <em>(optional)</em></span><textarea name="why" rows="2" placeholder="A line to keep you going">${esc(g.why)}</textarea></label>
-      `,
-      onMount(form) {
-        if (!isNew) return;
-        const sync = () => { const v = form.kind.value; form.querySelectorAll('[data-show]').forEach((el) => (el.hidden = el.dataset.show !== v)); };
-        form.addEventListener('change', sync); sync();
-      },
-      onSubmit(fd) {
-        const title = (fd.get('title') || '').trim();
-        if (!title) { u.toast('Give the goal a name.'); return false; }
-        const kind = isNew ? fd.get('kind') : g.kind;
-        const target = Number(fd.get('target'));
-        if (kind === 'count' && !(target > 0)) { u.toast('Set a target number.'); return false; }
-        const fields = { title, why: (fd.get('why') || '').trim(), due: fd.get('due') || null, target: kind === 'count' ? target : 0, unit: (fd.get('unit') || '').trim() };
-        if (isNew) {
-          const steps = kind === 'steps' ? (fd.get('steps') || '').split('\n').map((s) => s.trim()).filter(Boolean).map((s) => ({ id: S.uid(), title: s, done: false })) : [];
-          const ng = S.add('goals', { ...fields, kind, log: [], steps, created: u.today(), done: false, doneOn: null });
-          route = '#/goals/' + ng.id; go(route);
-        } else { Object.assign(g, fields); S.save(); }
         render();
       },
     });
@@ -445,8 +344,8 @@
       </section>` : ''}
       ${old ? `<section class="card">
         <div class="sec-head"><h2>Old Life Tracker</h2></div>
-        <p class="muted small">Found ${plural(old.tasks, 'open to-do')} and ${plural(old.workouts, 'workout')} from the old version.${st.oldImport === 'done' ? ' Already brought over.' : ''}</p>
-        <button class="btn" data-act="old-import">${st.oldImport === 'done' ? 'Bring over again' : 'Bring it over'}</button>
+        <p class="muted small">Found ${plural(old.tasks, 'open to-do')}, ${plural(old.workouts, 'workout')} and ${plural(old.events, 'calendar event')} from the old version.${st.oldImport === 'done' && st.oldEvents === 'done' ? ' Already brought over.' : ''}</p>
+        ${st.oldImport === 'done' && st.oldEvents === 'done' ? '' : `<button class="btn" data-act="old-import">Bring it over</button>`}
       </section>` : ''}
       <section class="card">
         <div class="sec-head"><h2>Start over</h2></div>
@@ -519,24 +418,8 @@
       S.remove('habits', h.id); go('#/habits');
     },
 
-    'goal-new': () => goalForm(),
-    'goal-edit': (el) => goalForm(S.goal(el.dataset.id)),
-    'goal-done'(el) {
-      const g = S.goal(el.dataset.id);
-      g.done = !g.done; g.doneOn = g.done ? u.today() : null; S.save(); render();
-      if (g.done) u.toast('Goal complete. Well done!');
-    },
-    async 'goal-delete'(el) {
-      const g = S.goal(el.dataset.id);
-      if (!(await u.confirm(`Delete the goal “${g.title}”?`))) return;
-      S.remove('goals', g.id); go('#/goals');
-    },
-    'step-toggle'(el) { const g = S.goal(el.dataset.id); const s = g.steps.find((x) => x.id === el.dataset.step); s.done = !s.done; S.save(); render(); },
-    'step-delete'(el) { const g = S.goal(el.dataset.id); g.steps = g.steps.filter((x) => x.id !== el.dataset.step); S.save(); render(); },
-    'log-delete'(el) { const g = S.goal(el.dataset.id); g.log = g.log.filter((x) => x.id !== el.dataset.log); S.save(); render(); },
-
     'old-import'() { const n = S.importOld(); render(); u.toast(n ? 'Brought over from the old app' : 'Nothing to bring over'); },
-    'old-skip'() { S.db.settings.oldImport = 'skipped'; S.save(); render(); u.toast('You can still bring it over from Settings.'); },
+    'old-skip'() { if (S.db.settings.oldImport !== 'done') S.db.settings.oldImport = 'skipped'; if (S.db.settings.oldEvents !== 'done') S.db.settings.oldEvents = 'skipped'; S.save(); render(); u.toast('You can still bring it over from Settings.'); },
 
     theme(el) { S.db.settings.theme = el.value; S.save(); applyTheme(); },
     export() {
@@ -560,13 +443,14 @@
     },
     async install() { if (!installEvent) return; installEvent.prompt(); await installEvent.userChoice; installEvent = null; render(); },
     async sample() { if (!(await u.confirm('Replace everything with sample data?', 'Load sample'))) return; S.loadSample(); go('#/today'); render(); },
-    async erase() { if (!(await u.confirm('Erase all habits, goals, plans, journal and dream entries on this device? This can’t be undone.', 'Erase'))) return; S.reset(); go('#/today'); render(); },
+    async erase() { if (!(await u.confirm('Erase everything: habits, plans, schedule, spiritual records, journal and dream entries on this device? This can’t be undone.', 'Erase'))) return; S.reset(); go('#/today'); render(); },
   };
 
+  Object.assign(act, L.acts);
   main.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el || !main.contains(el) || !act[el.dataset.act]) return;
-    if (el.dataset.act !== 'theme' && el.dataset.act !== 'filter') e.preventDefault();
+    if (el.tagName !== 'INPUT') e.preventDefault();
     act[el.dataset.act](el);
   });
 
@@ -580,21 +464,7 @@
       S.add('tasks', { title, date: u.today(), done: false, doneOn: null });
       render();
       main.querySelector('[data-form="quick"] input').focus();
-    } else if (f.dataset.form === 'step') {
-      const title = (fd.get('title') || '').trim();
-      if (!title) return;
-      S.goal(f.dataset.id).steps.push({ id: S.uid(), title, done: false });
-      S.save(); render();
-      main.querySelector('[data-form="step"] input').focus();
-    } else if (f.dataset.form === 'log') {
-      const amount = Number(fd.get('amount'));
-      if (!amount) return;
-      const g = S.goal(f.dataset.id);
-      g.log.push({ id: S.uid(), date: fd.get('date') || u.today(), amount });
-      S.save(); render();
-      const p = S.progress(g);
-      if (p.pct >= 1 && !g.done) u.toast('You hit your target!', { label: 'Mark complete', run: () => { g.done = true; g.doneOn = u.today(); S.save(); render(); } });
-    }
+    } else if (L.forms && L.forms[f.dataset.form]) L.forms[f.dataset.form](fd, f);
   });
 
   // ================= Shell =================
@@ -606,11 +476,12 @@
   }
   window.addEventListener('popstate', () => { route = /^#\//.test(location.hash) ? location.hash : '#/today'; render(); });
 
-  const TABS = [['today', 'Today'], ['habits', 'Habits'], ['goals', 'Goals'], ['journal', 'Journal']];
+  const TABS = [['today', 'Today'], ['schedule', 'Schedule'], ['habits', 'Habits'], ['spiritual', 'Spiritual'], ['journal', 'Journal']];
+  L.app = { render: () => render(), go: (p) => go(p) };
 
   function render() {
     const [, view = 'today', id] = route.split('/');
-    const views = { today: viewToday, habits: id ? () => viewHabit(id) : viewHabits, goals: id ? () => viewGoal(id) : viewGoals, journal: viewJournal, settings: viewSettings };
+    const views = { today: viewToday, schedule: L.views.schedule, habits: id ? () => viewHabit(id) : viewHabits, spiritual: L.views.spiritual, journal: viewJournal, settings: viewSettings };
     const y = window.scrollY;
     main.innerHTML = (views[view] || viewToday)();
     if (render.last === route) window.scrollTo(0, y); else window.scrollTo(0, 0);

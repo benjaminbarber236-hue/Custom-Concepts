@@ -11,6 +11,7 @@
   --accent-soft: #e0eae3;
   --danger: #b04f39;
   --warm: #c27a2c;
+  --c-social: #d0674f; --c-spiritual: #4a74b5; --c-work: #6f7b8b; --c-personal: #3b8a6a;
   --k-journal: #3b6a55; --k-dream: #6c6fc9; --k-lucid: #d39a1f;
   --m1: #c66a55; --m2: #dc9f5c; --m3: #b8b19a; --m4: #84b294; --m5: #4c8c6e;
   --shadow: 0 1px 2px rgba(40, 35, 25, .05), 0 2px 10px rgba(40, 35, 25, .04);
@@ -23,7 +24,9 @@
   :root:not([data-theme="light"]) {
     --bg: #151716; --surface: #1d201e; --surface-2: #272b28; --ink: #ecebe5; --muted: #9b9f99; --line: #2f3430;
     --accent: #84bb9e; --accent-ink: #0f1a14; --accent-soft: #233429; --danger: #e48b74; --warm: #e0a45e;
-    --k-journal: #84bb9e; --k-dream: #9a9df0; --k-lucid: #e8b84a;
+    --c-social: #e58a73; --c-spiritual: #82a6e0; --c-work: #9aa6b5; --c-personal: #7cc0a0;
+    --c-social: #e58a73; --c-spiritual: #82a6e0; --c-work: #9aa6b5; --c-personal: #7cc0a0;
+  --k-journal: #84bb9e; --k-dream: #9a9df0; --k-lucid: #e8b84a;
     --k-journal: #84bb9e; --k-dream: #9a9df0; --k-lucid: #e8b84a;
   --m1: #d27b66; --m2: #dca468; --m3: #a6a08b; --m4: #7cae8f; --m5: #5aa07f;
     --shadow: none; color-scheme: dark;
@@ -278,7 +281,7 @@ dialog::backdrop { background: rgba(20, 22, 20, .4); }
 .field > span, .field > legend { font-size: 13.5px; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 6px; }
 .field > span { margin-bottom: 0; }
 .field em { font-style: normal; font-weight: 400; }
-.field input:not([type=radio]):not([type=checkbox]), .field textarea {
+.field input:not([type=radio]):not([type=checkbox]), .field textarea, .field select {
   width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); outline: none; font-size: 16px;
 }
 .field input:focus, .field textarea:focus, .log-form input:focus { border-color: var(--accent); }
@@ -352,3 +355,68 @@ dialog::backdrop { background: rgba(20, 22, 20, .4); }
 @keyframes listen { 0%, 100% { box-shadow: 0 0 0 0 rgba(200, 71, 58, .45); } 50% { box-shadow: 0 0 0 12px rgba(200, 71, 58, 0); } }
 .mic-status { min-height: 1em; margin-top: -8px; }
 .mic-status:empty { display: none; }
+
+/* ---------- Schedule ---------- */
+.c-social { --c: var(--c-social); } .c-spiritual { --c: var(--c-spiritual); } .c-work { --c: var(--c-work); } .c-personal { --c: var(--c-personal); }
+.marks i[class*="c-"], .sw[class*="c-"] { background: var(--c); }
+.agenda { padding: 4px 0; }
+.ag-row { display: flex; align-items: center; gap: 6px; padding-right: 10px; position: relative; }
+.ag-row + .ag-row { border-top: 1px solid var(--line); }
+.ag-row::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 0 4px 4px 0; background: var(--c); }
+.ag-row.past { opacity: .55; }
+.ag-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px; text-align: left; padding: 12px 6px 12px 16px; }
+.ag-time { flex: none; width: 66px; font-size: 13.5px; font-weight: 600; color: var(--c); font-variant-numeric: tabular-nums; }
+.ag-text { display: flex; flex-direction: column; min-width: 0; }
+.ag-text b { font-weight: 600; }
+.ag-text small { color: var(--muted); font-size: 13px; }
+.rep { color: var(--muted); font-weight: 400; }
+.ag-check { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 99px; border: 1.5px solid var(--line); font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.ag-check .ic { width: 14px; height: 14px; stroke-width: 3; }
+.ag-check.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.ag-flag { flex: none; font-size: 12px; font-weight: 600; color: var(--warm); }
+.ag-flag.on { color: var(--accent); }
+.up-day { display: flex; flex-direction: column; gap: 6px; }
+.up-date { display: flex; align-items: baseline; gap: 8px; font-weight: 600; padding: 0 2px; }
+.up-date small { color: var(--muted); font-weight: 400; font-size: 13px; }
+.empty.slim { padding: 12px 16px; font-size: 14.5px; }
+.list-label { padding-top: 10px; }
+.block { display: block; }
+.overdue { color: var(--warm); font-weight: 600; }
+.seg.cats input:checked + span { color: var(--c); }
+button.count.link { display: inline-flex; align-items: center; gap: 2px; }
+
+/* ---------- Spiritual ---------- */
+.sp-tabs { margin-top: -4px; }
+.part { display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px 14px; border-left: 4px solid var(--c-spiritual); }
+.part.ready { border-left-color: var(--accent); }
+.part-main { flex: 1; min-width: 0; display: flex; gap: 12px; text-align: left; }
+.part-date { flex: none; width: 76px; display: flex; flex-direction: column; font-weight: 600; font-size: 14px; color: var(--c-spiritual); }
+.part-date small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.part-text { display: flex; flex-direction: column; min-width: 0; }
+.part-text small { color: var(--muted); font-size: 13px; }
+.report { display: flex; flex-direction: column; gap: 14px; }
+.report .month-nav { margin-bottom: 0; }
+.report-nums { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.report-nums > div:first-child { display: flex; flex-direction: column; }
+.report-nums b { font: 600 34px/1.05 var(--display); }
+.report-nums span { font-size: 13px; color: var(--muted); }
+.stepper { display: grid; grid-template-columns: 34px auto 34px; align-items: center; justify-items: center; gap: 4px 8px; }
+.stepper b { font-size: 26px; min-width: 1.4ch; text-align: center; }
+.stepper button { width: 34px; height: 34px; border-radius: 99px; background: var(--surface-2); font-size: 20px; font-weight: 600; line-height: 1; }
+.stepper span { grid-column: 1 / -1; }
+.plain-input { width: 100%; margin-top: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); outline: none; font-size: 15px; }
+.plain-input:focus { border-color: var(--accent); }
+.rv { width: 100%; text-align: left; gap: 10px; padding: 8px 0; }
+.contact { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.contact .icon-btn { color: var(--accent); }
+.contact .txt { width: auto; padding: 0 8px; font-size: 13px; font-weight: 600; }
+.member { flex: 1; text-align: left; font-weight: 500; padding: 12px 0; }
+.reading { display: flex; flex-direction: column; gap: 14px; }
+.reading .habit-row { box-shadow: none; }
+.study-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.study-form input { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); outline: none; min-width: 0; }
+.study-form input[type=number] { width: 80px; }
+.study-form .chips { margin-top: 0; }
+.toggle.plain input:checked + .sw-track { background: var(--accent); border-color: var(--accent); }
+.tabbar a { min-width: 0; }
+button.list-row { width: 100%; text-align: left; gap: 10px; }

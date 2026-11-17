@@ -1,7 +1,7 @@
 // Offline support: serve the app from cache, refresh it in the background.
-const CACHE = 'life-v3';
+const CACHE = 'life-v4';
 const SHELL = [
-  './', 'index.html', 'css/styles.css', 'js/util.js', 'js/store.js', 'js/sample.js', 'js/app.js',
+  './', 'index.html', 'css/styles.css', 'js/util.js', 'js/store.js', 'js/sample.js', 'js/schedule.js', 'js/spiritual.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 

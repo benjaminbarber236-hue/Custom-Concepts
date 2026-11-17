@@ -34,6 +34,12 @@ window.L = window.L || {};
     right: '<path d="M9 18l6-6-6-6"/>',
     flame: '<path d="M12 2c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.5 1 2.5 2 3 0-3 0-5.5 1-8.5z"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    schedule: '<rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+    spiritual: '<path d="M2 4.5h6a4 4 0 0 1 4 4V21a3 3 0 0 0-3-3H2z"/><path d="M22 4.5h-6a4 4 0 0 0-4 4V21a3 3 0 0 1 3-3h7z"/>',
+    phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
+    pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
     mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/>',
     moon: '<path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a6.5 6.5 0 0 0 10 10z"/>',
     pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
@@ -127,5 +133,61 @@ window.L = window.L || {};
     };
   }
 
-  L.u = { dictation, key, parse, today, addDays, daysBetween, dow, weekStart, fmt, esc, relDay, icon, toast, sheet, confirm: confirmBox };
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const DOW_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const plural = (n, w, pl) => `${n} ${n === 1 ? w : pl || w + 's'}`;
+  const timeText = (hm) => { if (!hm) return ''; const [h, m] = hm.split(':').map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); };
+  const nowHM = () => { const n = new Date(); return `${pad(n.getHours())}:${pad(n.getMinutes())}`; };
+  const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+  const monthName = (ym, year = true) => { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString(undefined, year ? { month: 'long', year: 'numeric' } : { month: 'long' }); };
+  // 150 -> "2h 30m"
+  const hrs = (min) => { min = Math.round(min || 0); const h = Math.floor(min / 60), m = min % 60; return h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`; };
+
+  // Month grid (Monday first). cell(day) returns the inner HTML/attrs for each date.
+  function monthGrid(ym, cell) {
+    const first = ym + '-01';
+    const [y, m] = ym.split('-').map(Number);
+    const out = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((x) => `<b>${x}</b>`);
+    for (let i = 0; i < (dow(first) + 6) % 7; i++) out.push('<span></span>');
+    for (let i = 1; i <= new Date(y, m, 0).getDate(); i++) out.push(cell(`${ym}-${pad(i)}`, i));
+    return `<div class="cal">${out.join('')}</div>`;
+  }
+
+  // Calendar file for one event so the phone's own calendar can remind you.
+  function ics({ title, date, time, end, place, notes, repeat }) {
+    const stamp = (d, t) => d.replace(/-/g, '') + (t ? 'T' + t.replace(':', '') + '00' : '');
+    const escI = (x) => String(x || '').replace(/[\\,;]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+    const rr = { daily: 'FREQ=DAILY', weekdays: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', weekly: 'FREQ=WEEKLY', biweekly: 'FREQ=WEEKLY;INTERVAL=2', monthly: 'FREQ=MONTHLY', yearly: 'FREQ=YEARLY' }[repeat];
+    let endT = end;
+    if (time && !endT) { const [h, m] = time.split(':').map(Number); endT = `${pad(Math.min(23, h + 1))}:${pad(m)}`; }
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Life//EN', 'BEGIN:VEVENT',
+      'UID:' + Date.now() + '@life', 'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z',
+      time ? 'DTSTART:' + stamp(date, time) : 'DTSTART;VALUE=DATE:' + stamp(date),
+      time ? 'DTEND:' + stamp(date, endT) : 'DTEND;VALUE=DATE:' + stamp(addDays(date, 1)),
+      'SUMMARY:' + escI(title)];
+    if (place) lines.push('LOCATION:' + escI(place));
+    if (notes) lines.push('DESCRIPTION:' + escI(notes));
+    if (rr) lines.push('RRULE:' + rr);
+    if (time) lines.push('BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY', 'DESCRIPTION:' + escI(title), 'END:VALARM');
+    lines.push('END:VEVENT', 'END:VCALENDAR');
+    return lines.join('\r\n');
+  }
+
+  function download(name, text, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) {
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch (err) { /* no clipboard */ }
+      ta.remove(); return ok;
+    }
+  }
+
+  L.u = { DOW, DOW_LONG, plural, timeText, nowHM, shiftMonth, monthName, hrs, monthGrid, ics, download, copyText, dictation, key, parse, today, addDays, daysBetween, dow, weekStart, fmt, esc, relDay, icon, toast, sheet, confirm: confirmBox };
 })();
