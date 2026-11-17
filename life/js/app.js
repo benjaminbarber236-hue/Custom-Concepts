@@ -285,6 +285,7 @@
       body: `
         <div class="when"><input type="date" name="date" value="${e.date}" max="${u.today()}" aria-label="Date"><input type="time" name="time" value="${e.time}" aria-label="Time"></div>
         ${dream ? `<label class="toggle"><input type="checkbox" name="lucid" ${e.lucid ? 'checked' : ''}><span class="sw-track"></span><span>Lucid dream <em>(you knew you were dreaming)</em></span></label>` : ''}
+        <p class="kb-hint" hidden>${icon('mic')}<span>Tap the <b>mic on your keyboard</b> and speak. Whispering works.</span></p>
         <div class="dictate">
           <textarea name="text" rows="8" placeholder="${dream ? 'What happened in the dream? Places, people, feelings…' : 'What’s on your mind?'}">${esc(e.text)}</textarea>
           <button type="button" class="mic-btn" data-mic aria-label="Start dictation">${icon('mic')}</button>
@@ -297,18 +298,22 @@
         const btn = form.querySelector('[data-mic]');
         const status = form.querySelector('.mic-status');
         const ta = form.text;
+        const hint = form.querySelector('.kb-hint');
+        const useKeyboard = () => { btn.hidden = true; hint.hidden = false; ta.focus(); };
         const setState = (st) => {
           btn.classList.toggle('on', st === 'on');
           btn.setAttribute('aria-label', st === 'on' ? 'Stop dictation' : 'Start dictation');
-          status.textContent = st === 'on' ? 'Listening… tap the mic again to stop.' : st === 'blocked' ? 'The microphone isn’t available here. Allow it in your browser settings, or tap the mic on your keyboard.' : '';
+          status.textContent = st === 'on' ? 'Listening… tap the mic again to stop.' : st === 'blocked' ? 'The microphone isn’t allowed here. Use the mic on your keyboard instead.' : st === 'failed' ? 'Voice typing stopped working here. Use the mic on your keyboard instead.' : '';
+          if (st === 'blocked' || st === 'failed') useKeyboard();
         };
         dict = u.dictation(ta, setState);
-        btn.onclick = () => {
-          if (!dict) { status.textContent = 'Tap the text box, then the mic on your keyboard to dictate.'; ta.focus(); return; }
-          if (dict.on) dict.stop(); else dict.start();
-        };
+        // Keep the text box in view above the keyboard.
+        ta.addEventListener('focus', () => setTimeout(() => ta.scrollIntoView({ block: 'nearest' }), 300));
+        btn.onclick = () => { if (dict.on) dict.stop(); else dict.start(); };
+        if (!dict) { btn.hidden = true; hint.hidden = false; }
         if (mic && dict) dict.start();
-        else if (isNew) setTimeout(() => ta.focus(), 60);
+        // Focus right away (inside the tap) so the iPhone keyboard opens, ready for its mic.
+        else if (isNew || mic) ta.focus();
       },
       onClose() { if (dict) dict.stop(); },
       onSubmit(fd) {
