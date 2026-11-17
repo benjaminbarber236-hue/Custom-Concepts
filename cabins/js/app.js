@@ -117,6 +117,7 @@
         <label class="field"><span>Phase</span><select name="phase">${P.PHASES.map((p) => `<option value="${p.id}" ${p.id === s.phase ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Due date <em>(optional)</em></span><input name="due" type="date" value="${esc(s.due)}"></label>
         <label class="field"><span>Notes</span><textarea name="notes" rows="4" placeholder="Who to call, what they said, prices, links…">${esc(s.notes)}</textarea></label>
+        ${!isNew && /lender/i.test(s.title) ? `<a href="#/lenders" class="btn sm" data-close>${icon('phone')} Open lender questions</a>` : ''}
         ${!isNew && s.due ? `<button type="button" class="btn sm" data-ics>${icon('schedule')} Add to phone calendar</button>` : ''}`,
       onMount(form) {
         const b = form.querySelector('[data-ics]');
@@ -310,6 +311,7 @@
           </button>`;
         }).join('')}</div>
       </section>
+      ${L.lenders.moneyCard()}
       <section class="sec">
         <div class="sec-head"><h2>Expenses</h2><span class="count">${db.expenses.length}</span></div>
         ${recent.length ? `<div class="card list">${recent.map(expenseRow).join('')}</div>` : '<div class="empty slim">Log every cost as you go: tests, fees, deposits, materials. It adds up fast.</div>'}
@@ -464,6 +466,7 @@
     async erase() { if (!(await u.confirm('Erase everything: steps, land, cabins, budget, expenses and team? This can’t be undone.', 'Erase'))) return; S.reset(); openPhases = null; applyTheme(); go('#/plan'); },
   };
 
+  Object.assign(act, L.lenders.acts);
   main.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el || !main.contains(el) || !act[el.dataset.act]) return;
@@ -495,12 +498,14 @@
       plan: viewPlan, steps: viewSteps, money: viewMoney, settings: viewSettings,
       land: id ? () => viewLandOne(id) : viewLand,
       cabins: id ? () => viewCabin(id) : viewCabins,
+      lenders: id ? () => L.lenders.viewOne(id) : L.lenders.viewList,
     };
     const y = window.scrollY;
     main.innerHTML = !S.loaded ? viewLoading() : S.isEmpty() ? viewStart() : (S.stale ? staleNote() : '') + (views[view] || viewPlan)();
     if (render.last === route) window.scrollTo(0, y); else window.scrollTo(0, 0);
     render.last = route;
-    const tab = view === 'settings' ? 'plan' : view;
+    if (view === 'lenders') L.lenders.afterRender();
+    const tab = { settings: 'plan', lenders: 'money' }[view] || view;
     document.getElementById('tabbar').hidden = !S.loaded || S.isEmpty();
     document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></a>`).join('');
   }
