@@ -243,6 +243,7 @@
     const mood = (S.entry(journalDay) || {}).mood;
     return `
       <header class="page-head"><h1>Journal</h1></header>
+      ${S.db.entries.filter((x) => x.sentToClaude).map((x) => `<button class="card notice waiting" data-act="edit-entry" data-id="${x.id}">${icon('sparkle')}<span><b>Waiting for Claude’s version</b><small>${KIND_LABEL(x)} · ${u.relDay(x.date)}${x.time ? ' ' + u.timeText(x.time) : ''}. Tap to paste it in.</small></span></button>`).join('')}
       <div class="rec-buttons">
         <button class="rec-btn dream" data-act="new-entry" data-kind="dream" data-mic="1">${icon('moon')}<span><b>Dream</b><small>Speak it as you wake</small></span>${icon('mic', 'mic')}</button>
         <button class="rec-btn journal" data-act="new-entry" data-kind="journal" data-mic="1">${icon('pen')}<span><b>Journal</b><small>Talk or type</small></span>${icon('mic', 'mic')}</button>
@@ -318,8 +319,8 @@ ${text}`;
         </div>
         <p class="mic-status muted small" aria-live="polite"></p>
         <div class="ai-row">
-          <button type="button" class="btn sm ai-btn" data-claude>${icon('sparkle')} Clean up with Claude</button>
-          <button type="button" class="btn sm" data-paste ${e.sentToClaude ? '' : 'hidden'}>Paste Claude’s version</button>
+          <button type="button" class="btn sm ai-btn" data-claude>${icon('sparkle')} Copy & open Claude</button>
+          <button type="button" class="btn sm" data-paste>Paste Claude’s version</button>
           <button type="button" class="btn sm ghost" data-original ${raw ? '' : 'hidden'}>Show what I said</button>
         </div>
         <p class="ai-status small" aria-live="polite"></p>
@@ -363,12 +364,14 @@ ${text}`;
           persist(form, { sentToClaude: true });
           pasteBtn.hidden = false;
           const prompt = claudePrompt(text, e.kind);
-          if (navigator.share) {
-            try { await navigator.share({ text: prompt }); say('Pick Claude, send it, then copy Claude’s answer and come back here to tap “Paste Claude’s version”.'); return; }
-            catch (err) { if (err && err.name === 'AbortError') return say('Saved. You can send it to Claude any time.'); }
-          }
-          const ok = await u.copyText(prompt);
-          say(ok ? 'Copied. Open the Claude app, paste it in a new chat and send. Then copy the answer and tap “Paste Claude’s version”.' : 'Couldn’t copy here. Select the text, copy it, and paste it into the Claude app.');
+          ta.blur();
+          // Copy and open Claude in the same tap (no share sheet, so it can't go to a contact by
+          // mistake). The link also pre-fills the chat; if it doesn't, the copy is ready to paste.
+          const copied = u.copyText(prompt);
+          window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+          say((await copied)
+            ? 'Copied and opening Claude. If the chat is empty, paste it there. Send, copy Claude’s reply, then come back and tap “Paste Claude’s version”.'
+            : 'Opening Claude. Send the message, copy Claude’s reply, then come back and tap “Paste Claude’s version”.');
         };
         pasteBtn.onclick = async () => {
           let got = '';
@@ -380,7 +383,6 @@ ${text}`;
           cleaned = got; ta.value = got; showingClean = true;
           origBtn.hidden = false; origBtn.textContent = 'Show what I said';
           persist(form, { sentToClaude: false });
-          pasteBtn.hidden = true;
           say('Claude’s version is in. Check it, then Save.');
         };
         origBtn.onclick = () => {
@@ -394,7 +396,7 @@ ${text}`;
         if (dict) dict.stop();
         const text = (fd.get('text') || '').trim();
         if (!text) { u.toast(isNew ? 'Nothing to save yet.' : 'Write something, or delete the entry.'); return false; }
-        const fields = fieldsFrom(fd, text);
+        const fields = { ...fieldsFrom(fd, text), sentToClaude: false };
         if (saved) { Object.assign(saved, fields); S.save(); }
         else S.add('entries', { kind: e.kind, created: new Date().toISOString(), ...fields });
         if (!dream && fd.get('mood')) { const j = Object.assign({ mood: 0, energy: 0 }, S.entry(fields.date)); j.mood = Number(fd.get('mood')); S.setEntry(fields.date, j); }

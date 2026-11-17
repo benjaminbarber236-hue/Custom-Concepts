@@ -238,13 +238,36 @@ window.L = window.L || {};
   // Keep bottom sheets above the on-screen keyboard (iPhone doesn't resize the page for it).
   if (window.visualViewport) {
     const vv = window.visualViewport;
+    // Only lift for the keyboard while something is actually being typed in, and never by more
+    // than most of the screen. (Coming back to the app, iPhone can report a keyboard that's gone;
+    // trusting that pushed the sheet off screen while its backdrop blocked every tap.)
     const fit = () => {
-      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      const a = document.activeElement;
+      const typing = a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|date|time|file)$/.test(a.type)));
+      const kb = typing ? Math.min(Math.max(0, window.innerHeight - vv.height - vv.offsetTop), window.innerHeight * 0.6) : 0;
       document.documentElement.style.setProperty('--kb', kb + 'px');
-      document.documentElement.style.setProperty('--vvh', vv.height + 'px');
+      document.documentElement.style.setProperty('--vvh', (typing ? vv.height : window.innerHeight) + 'px');
     };
-    vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); fit();
+    vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
+    document.addEventListener('focusin', fit);
+    document.addEventListener('focusout', () => setTimeout(fit, 60));
+    window.addEventListener('pageshow', fit);
+    fit();
   }
+
+  // Leaving the app: put the keyboard away. Coming back: reset the layout and re-show an open
+  // sheet, which clears iPhone's stuck-touch state for dialogs in home-screen apps.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); return; }
+    document.documentElement.style.setProperty('--kb', '0px');
+    document.documentElement.style.setProperty('--vvh', window.innerHeight + 'px');
+    const dlg = document.getElementById('sheet');
+    if (dlg && dlg.open) {
+      const keep = dlg.onclose; dlg.onclose = null;
+      try { dlg.close(); dlg.showModal(); } catch (e) { /* leave it */ }
+      dlg.onclose = keep;
+    }
+  });
 
   L.u = { isIOS, weekNav, confirmDay, DOW, DOW_LONG, plural, timeText, nowHM, shiftMonth, monthName, hrs, monthGrid, ics, download, copyText, dictation, key, parse, today, addDays, daysBetween, dow, weekStart, fmt, esc, relDay, icon, toast, sheet, confirm: confirmBox };
 })();
