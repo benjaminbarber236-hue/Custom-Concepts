@@ -215,8 +215,8 @@
     const t = u.today();
     const read = !!s.reading[t];
     const streak = S.readingStreak();
-    const days = Array.from({ length: 7 }, (_, i) => u.addDays(t, i - 6));
     const ws = u.weekStart(t);
+    const days = Array.from({ length: 7 }, (_, i) => u.addDays(ws, i)); // this week, Sun–Sat
     const week = s.study.filter((x) => x.date >= ws);
     const recent = s.study.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
     return `
@@ -224,7 +224,7 @@
         <button class="habit-row ${read ? 'on' : ''}" data-act="read-toggle" data-day="${t}" aria-pressed="${read}">
           <span class="hname">Daily Bible reading<small>${streak ? `${icon('flame', 'sm')} ${u.plural(streak, 'day')} in a row` : 'Tap when you’ve read today'}</small></span><span class="tick">${icon('check')}</span>
         </button>
-        <div class="week">${days.map((d) => `<button class="day ${s.reading[d] ? 'on' : 'due'} ${d === t ? 'is-today' : ''}" data-act="read-toggle" data-day="${d}" aria-pressed="${!!s.reading[d]}" aria-label="${u.fmt(d, { weekday: 'long' })}"><span class="dl">${u.DOW[u.dow(d)][0]}</span><span class="dc">${s.reading[d] ? icon('check') : ''}</span></button>`).join('')}</div>
+        <div class="week">${days.map((d) => `<button class="day ${s.reading[d] ? 'on' : d > t ? 'ahead' : 'due'} ${d === t ? 'is-today' : ''}" data-act="read-toggle" data-day="${d}" ${d > t ? 'disabled' : ''} aria-pressed="${!!s.reading[d]}" aria-label="${u.fmt(d, { weekday: 'long' })}"><span class="dl">${u.DOW[u.dow(d)][0]}</span><span class="dc">${s.reading[d] ? icon('check') : ''}</span></button>`).join('')}</div>
         <label class="field"><span>Where I’m reading</span><input data-change="reading-at" value="${esc(s.readingAt)}" placeholder="Isaiah 40" autocomplete="off"></label>
       </section>
       <section class="card">
