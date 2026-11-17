@@ -1,4 +1,4 @@
-// Screens and actions. Tabs: Plan, Steps, Land, Build (js/build.js), Money (+ Settings from the gear).
+// Screens and actions. Tabs: Plan, Steps, Land, Cabins, Money (+ Settings from the gear).
 (function () {
   const u = L.u, S = L.store, P = L.plan, esc = u.esc, icon = u.icon;
   const main = document.getElementById('main');
@@ -35,8 +35,7 @@
     const est = S.estimateTotal(), sp = S.spent();
     const land = S.ourLand();
     const looking = db.land.filter((l) => l.status !== 'passed' && l.status !== 'bought').length;
-    const cabinPct = db.buildings.length ? db.buildings.reduce((n, c) => n + S.stagesDone(c), 0) / (db.buildings.length * P.CABIN_STAGES.length) : 0;
-    const bt = S.buildingsTotal();
+    const cabinPct = db.cabins.length ? db.cabins.reduce((n, c) => n + S.stagesDone(c), 0) / (db.cabins.length * P.CABIN_STAGES.length) : 0;
     const lb = db.settings.lastBackup;
     const touched = db.steps.filter((s) => s.done).length + db.expenses.length + db.land.length;
     const needBackup = !L.DEMO && touched > 10 && (!lb || u.daysBetween(lb.slice(0, 10), t) > 30);
@@ -69,8 +68,8 @@
       <section class="stats">
         <a href="#/money" class="card stat"><b>${money(sp)}</b><span>spent of ${est ? money(est) : 'no budget yet'}</span>${est ? bar(sp / est, 'thin') : ''}</a>
         <a href="#/land" class="card stat"><b>${land ? (land.acres || '–') + ' ac' : looking}</b><span>${land ? statusName(land.status) : looking === 1 ? 'property in view' : 'properties in view'}</span></a>
-        <a href="#/build" class="card stat"><b>${db.buildings.length ? u.plural(db.buildings.length, 'building') : db.project.units + ' units'}</b><span>${db.buildings.length ? `${S.unitsPlanned()} of ${db.project.units} units decided · ${pct(cabinPct)} built` : 'duplexes or cabins: not decided'}</span>${db.buildings.length ? bar(cabinPct, 'thin') : ''}</a>
-        <a href="#/build" class="card stat"><b>${bt.high ? L.build.kRange(bt) : est ? money(Math.max(0, est - sp)) : '–'}</b><span>${bt.high ? 'to build your buildings' : 'left in the budget'}</span></a>
+        <a href="#/cabins" class="card stat"><b>${db.cabins.length}</b><span>cabins · ${pct(cabinPct)} built</span>${bar(cabinPct, 'thin')}</a>
+        <a href="#/money" class="card stat"><b>${est ? money(Math.max(0, est - sp)) : '–'}</b><span>left in the budget</span></a>
       </section>
 
       <section class="sec">
@@ -99,7 +98,7 @@
             <span class="ph-bar">${bar(pr.pct, 'thin')}</span>
           </summary>
           <p class="muted small blurb">${esc(ph.blurb)}</p>
-          ${ph.cabins ? `<div class="mini-cabins">${S.db.buildings.map((c) => `<a href="#/build/${c.id}" class="mini-cabin"><span><b>${esc(c.name)}</b><small>${esc(S.buildingStage(c))}</small></span>${bar(S.stagesDone(c) / P.CABIN_STAGES.length, 'thin')}</a>`).join('')}</div>` : ''}
+          ${ph.cabins ? `<div class="mini-cabins">${S.db.cabins.map((c) => `<a href="#/cabins/${c.id}" class="mini-cabin"><span><b>${esc(c.name)}</b><small>${esc(S.cabinStage(c))}</small></span>${bar(S.stagesDone(c) / P.CABIN_STAGES.length, 'thin')}</a>`).join('')}</div>` : ''}
           ${steps.length ? `<ul class="tasks">${steps.map((s) => stepRow(s)).join('')}</ul>` : ''}
           <button class="btn sm ghost add-step" data-act="step-new" data-phase="${ph.id}">${icon('plus')} Add a step</button>
         </details>`;
@@ -159,7 +158,7 @@
     const l = S.find('land', id);
     if (!l) return viewLand();
     const ppa = l.price && l.acres ? money(l.price / l.acres) : '–';
-    const perCabin = l.price && S.db.project.units ? money(l.price / S.db.project.units) : '–';
+    const perCabin = l.price && S.db.cabins.length ? money(l.price / S.db.cabins.length) : '–';
     return `<a href="#/land" class="back">${icon('left')} Land</a>
       ${head(l.name, esc([l.place, l.added && 'Added ' + u.relDay(l.added)].filter(Boolean).join(' · ')), `<button class="icon-btn" data-act="land-edit" data-id="${l.id}" aria-label="Edit">${icon('pen')}</button>`)}
       <div class="seg status-seg" role="group" aria-label="Status">${P.LAND_STATUS.map(([k, n]) => `<label><input type="radio" name="st" value="${k}" ${l.status === k ? 'checked' : ''} data-act="land-status" data-id="${l.id}"><span>${n}</span></label>`).join('')}</div>
@@ -167,7 +166,7 @@
         <div class="card stat"><b>${l.price ? money(l.price) : '–'}</b><span>asking price</span></div>
         <div class="card stat"><b>${l.acres || '–'}</b><span>acres</span></div>
         <div class="card stat"><b>${ppa}</b><span>per acre</span></div>
-        <div class="card stat"><b>${perCabin}</b><span>land per unit (${S.db.project.units} units)</span></div>
+        <div class="card stat"><b>${perCabin}</b><span>land cost per cabin</span></div>
       </section>
       <section class="sec">
         <div class="sec-head"><h2>Checklist</h2><span class="count">${S.landScore(l)} of ${P.LAND_CHECKS.length}</span></div>
@@ -210,17 +209,89 @@
     });
   }
 
+  // ================= Cabins =================
+  function viewCabins() {
+    const db = S.db;
+    const est = db.cabins.reduce((n, c) => n + (Number(c.estimate) || 0), 0);
+    const sqft = db.cabins.reduce((n, c) => n + (Number(c.sqft) || 0), 0);
+    return `${head('Cabins', [u.plural(db.cabins.length, 'cabin'), sqft && sqft.toLocaleString() + ' sq ft total', est && money(est) + ' to build'].filter(Boolean).join(' · '), `<button class="btn primary sm" data-act="cabin-new">${icon('plus')} Add</button>`)}
+      ${db.cabins.map((c) => {
+        const d = S.stagesDone(c), sp = S.cabinSpent(c.id);
+        return `<a href="#/cabins/${c.id}" class="card cabin-card">
+          <div class="row"><b class="grow">${esc(c.name)}</b><span class="small muted">${d} of ${P.CABIN_STAGES.length}</span></div>
+          <p class="muted small">${esc([c.style, c.sqft && c.sqft + ' sq ft', c.beds && u.plural(Number(c.beds), 'bed'), c.baths && c.baths + ' bath'].filter(Boolean).join(' · ') || 'Tap to add size and style')}</p>
+          ${bar(d / P.CABIN_STAGES.length)}
+          <div class="row small"><span class="ink">${esc(S.cabinStage(c))}</span><span class="muted">${c.estimate ? `${money(sp)} of ${money(c.estimate)}` : sp ? money(sp) + ' spent' : ''}</span></div>
+        </a>`;
+      }).join('') || `<div class="empty big">${icon('cabins')}<p>Add the cabins you plan to build.</p><button class="btn primary" data-act="cabin-new">Add a cabin</button></div>`}`;
+  }
+
+  function viewCabin(id) {
+    const c = S.find('cabins', id);
+    if (!c) return viewCabins();
+    const sp = S.cabinSpent(c.id);
+    const ex = S.db.expenses.filter((e) => e.cabin === c.id).sort((a, b) => b.date.localeCompare(a.date));
+    const nextI = P.CABIN_STAGES.findIndex((_, i) => !c.stages[i]);
+    return `<a href="#/cabins" class="back">${icon('left')} Cabins</a>
+      ${head(c.name, esc([c.style, c.sqft && c.sqft + ' sq ft', c.beds && u.plural(Number(c.beds), 'bedroom'), c.baths && u.plural(Number(c.baths), 'bath')].filter(Boolean).join(' · ')), `<button class="icon-btn" data-act="cabin-edit" data-id="${c.id}" aria-label="Edit">${icon('pen')}</button>`)}
+      <section class="stats">
+        <div class="card stat"><b>${pct(S.stagesDone(c) / P.CABIN_STAGES.length)}</b><span>built · ${esc(S.cabinStage(c))}</span></div>
+        <div class="card stat"><b>${money(sp)}</b><span>${c.estimate ? 'spent of ' + money(c.estimate) : 'spent'}</span>${c.estimate ? bar(sp / c.estimate, 'thin' + (sp > c.estimate ? ' over' : '')) : ''}</div>
+      </section>
+      <section class="sec">
+        <div class="sec-head"><h2>Build stages</h2></div>
+        <div class="card list"><ul class="tasks">${P.CABIN_STAGES.map((n, i) => `<li class="task ${c.stages[i] ? 'done' : ''} ${i === nextI ? 'next' : ''}">
+          <button class="tick-sm" data-act="stage" data-id="${c.id}" data-i="${i}" aria-label="${esc(n)}">${icon('check')}</button>
+          <button class="task-title" data-act="stage" data-id="${c.id}" data-i="${i}"><span>${esc(n)}</span>${c.stages[i] ? `<small>${u.fmt(c.stages[i], { month: 'short', day: 'numeric', year: 'numeric' })}</small>` : i === nextI ? '<small class="ink">Next</small>' : ''}</button>
+        </li>`).join('')}</ul></div>
+      </section>
+      <section class="sec">
+        <div class="sec-head"><h2>Costs for this cabin</h2><button class="count link" data-act="expense-new" data-cabin="${c.id}" data-cat="build">${icon('plus', 'sm')} Add</button></div>
+        ${ex.length ? `<div class="card list">${ex.map(expenseRow).join('')}</div>` : '<div class="empty slim">Nothing spent on this cabin yet.</div>'}
+      </section>
+      ${c.notes ? `<section class="card"><p class="pre">${esc(c.notes)}</p></section>` : ''}`;
+  }
+
+  function cabinSheet(c) {
+    const isNew = !c;
+    c = c || S.newCabin('Cabin ' + (S.db.cabins.length + 1));
+    u.sheet({
+      title: isNew ? 'New cabin' : 'Edit cabin',
+      submit: isNew ? 'Add cabin' : 'Save',
+      body: `
+        <label class="field"><span>Name</span><input name="name" value="${esc(c.name)}"></label>
+        <label class="field"><span>Style or plan</span><input name="style" value="${esc(c.style)}" placeholder="e.g. A-frame, kit cabin, modern"></label>
+        <div class="chips">${['A-frame', 'Log cabin', 'Modern cabin', 'Tiny home', 'Barndominium', 'Prefab'].map((x) => `<button type="button" data-chip="${x}">${x}</button>`).join('')}</div>
+        <div class="three">
+          <label class="field"><span>Sq ft</span><input name="sqft" inputmode="numeric" value="${esc(c.sqft)}"></label>
+          <label class="field"><span>Beds</span><input name="beds" inputmode="numeric" value="${esc(c.beds)}"></label>
+          <label class="field"><span>Baths</span><input name="baths" inputmode="decimal" value="${esc(c.baths)}"></label>
+        </div>
+        <label class="field"><span>Estimated cost to build</span><input name="estimate" inputmode="decimal" value="${c.estimate ? esc(c.estimate) : ''}" placeholder="$"></label>
+        <label class="field"><span>Notes</span><textarea name="notes" rows="4" placeholder="Layout ideas, features, builder quotes…">${esc(c.notes)}</textarea></label>`,
+      onMount(form) { form.querySelectorAll('[data-chip]').forEach((b) => (b.onclick = () => { form.style.value = b.dataset.chip; })); },
+      onSubmit(fd) {
+        const v = { name: (fd.get('name') || '').trim() || c.name, style: (fd.get('style') || '').trim(), sqft: num(fd.get('sqft')) || '', beds: num(fd.get('beds')) || '', baths: num(fd.get('baths')) || '', estimate: num(fd.get('estimate')), notes: (fd.get('notes') || '').trim() };
+        Object.assign(c, v);
+        if (isNew) { S.db.cabins.push(c); S.save(); go('#/cabins/' + c.id); } else { S.save(); render(); }
+      },
+      danger: isNew ? null : { label: 'Delete', run: async () => {
+        if (!(await u.confirm(`Delete ${c.name}? Its costs stay in Money.`))) return false;
+        S.remove('cabins', c.id); S.db.expenses.forEach((e) => { if (e.cabin === c.id) e.cabin = ''; }); S.save(); go('#/cabins');
+      } },
+    });
+  }
+
   // ================= Money =================
   function expenseRow(e) {
-    const c = e.building && S.find('buildings', e.building);
-    return `<button class="list-row" data-act="expense-edit" data-id="${e.id}"><span class="grow"><span class="block">${esc(e.title)}</span><small class="muted">${esc([u.relDay(e.date), catName(e.cat), c && c.name, e.section].filter(Boolean).join(' · '))}</small></span><b>${money(e.amount)}</b></button>`;
+    const c = e.cabin && S.find('cabins', e.cabin);
+    return `<button class="list-row" data-act="expense-edit" data-id="${e.id}"><span class="grow"><span class="block">${esc(e.title)}</span><small class="muted">${esc([u.relDay(e.date), catName(e.cat), c && c.name].filter(Boolean).join(' · '))}</small></span><b>${money(e.amount)}</b></button>`;
   }
-  L.expenseRow = expenseRow;
 
   function viewMoney() {
     const db = S.db;
     const est = S.estimateTotal(), sp = S.spent();
-    const bt = S.buildingsTotal();
+    const cabinEst = db.cabins.reduce((n, c) => n + (Number(c.estimate) || 0), 0);
     const recent = db.expenses.slice().sort((a, b) => b.date.localeCompare(a.date) || 0);
     const over = est && sp > est;
     return `${head('Money', 'Your budget and everything you spend.', `<button class="btn primary sm" data-act="expense-new">${icon('plus')} Expense</button>`)}
@@ -234,7 +305,7 @@
         <div class="card list">${P.BUDGET.map(([k, n]) => {
           const e = Number(db.budget[k]) || 0, s = S.spent(k);
           return `<button class="list-row budget-row" data-act="budget" data-k="${k}">
-            <span class="grow"><span class="block">${esc(n)}</span>${e ? bar(s / e, 'thin' + (s > e ? ' over' : '')) : ''}${k === 'build' && bt.high ? `<small class="muted">Your buildings' plans: ${L.build.range(bt)}</small>` : ''}</span>
+            <span class="grow"><span class="block">${esc(n)}</span>${e ? bar(s / e, 'thin' + (s > e ? ' over' : '')) : ''}${k === 'build' && cabinEst ? `<small class="muted">Cabin estimates add up to ${money(cabinEst)}</small>` : ''}</span>
             <span class="amt"><b>${money(s)}</b><small class="muted">${e ? 'of ' + money(e) : 'no estimate'}</small></span>
           </button>`;
         }).join('')}</div>
@@ -251,17 +322,14 @@
       title: catName(k),
       submit: 'Save',
       body: `<label class="field"><span>Estimate</span><input name="v" inputmode="decimal" value="${S.db.budget[k] ? esc(S.db.budget[k]) : ''}" placeholder="$" autofocus></label>
-        <p class="muted small">Spent so far: <b>${money(S.spent(k))}</b></p>
-        ${k === 'build' && S.buildingsTotal().high ? `<div class="chips">${['low', 'high'].map((w) => `<button type="button" data-v="${S.buildingsTotal()[w]}">Use buildings' ${w} estimate: ${money(S.buildingsTotal()[w])}</button>`).join('')}</div>` : ''}`,
-      onMount(form) { form.querySelectorAll('[data-v]').forEach((b) => (b.onclick = () => { form.v.value = b.dataset.v; })); },
+        <p class="muted small">Spent so far: <b>${money(S.spent(k))}</b></p>`,
       onSubmit(fd) { S.db.budget[k] = num(fd.get('v')); S.save(); render(); },
     });
   }
 
   function expenseSheet(e, preset = {}) {
     const isNew = !e;
-    e = e || { title: '', amount: '', date: u.today(), cat: preset.cat || 'tests', building: preset.building || '', section: '' };
-    const secs = S.sectionNames();
+    e = e || { title: '', amount: '', date: u.today(), cat: preset.cat || 'tests', cabin: preset.cabin || '' };
     u.sheet({
       title: isNew ? 'New expense' : 'Expense',
       submit: isNew ? 'Add expense' : 'Save',
@@ -272,14 +340,11 @@
           <label class="field"><span>Date</span><input name="date" type="date" value="${esc(e.date)}"></label>
         </div>
         <label class="field"><span>Budget line</span><select name="cat">${P.BUDGET.map(([k, n]) => `<option value="${k}" ${k === e.cat ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
-        <label class="field"><span>For a building <em>(optional)</em></span><select name="building"><option value="">Whole property</option>${S.db.buildings.map((c) => `<option value="${c.id}" ${c.id === e.building ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
-        <label class="field" data-sec-field><span>Part of the build</span><select name="section"><option value="">Other</option>${secs.map((n) => `<option ${n === e.section ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`,
-      onMount(form) { const sync = () => { form.querySelector('[data-sec-field]').hidden = !form.building.value; }; form.building.addEventListener('change', sync); sync(); },
+        <label class="field"><span>For a cabin <em>(optional)</em></span><select name="cabin"><option value="">Whole property</option>${S.db.cabins.map((c) => `<option value="${c.id}" ${c.id === e.cabin ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>`,
       onSubmit(fd) {
         const title = (fd.get('title') || '').trim(), amount = num(fd.get('amount'));
         if (!title || !amount) { u.toast('Add what it was for and the amount.'); return false; }
-        const building = fd.get('building') || '';
-        const v = { title, amount, date: fd.get('date') || u.today(), cat: fd.get('cat'), building, section: building ? fd.get('section') || '' : '' };
+        const v = { title, amount, date: fd.get('date') || u.today(), cat: fd.get('cat'), cabin: fd.get('cabin') || '' };
         if (isNew) S.add('expenses', v); else { Object.assign(e, v); S.save(); }
         render();
         if (isNew) u.toast(`${money(amount)} added`);
@@ -351,7 +416,7 @@
         <label class="field"><span>Project name</span><input name="name" value="${esc(p.name)}"></label>
         <div class="two">
           <label class="field"><span>Buy land by</span><input name="landBy" type="date" value="${esc(p.landBy)}"></label>
-          <label class="field"><span>Open for guests by</span><input name="openBy" type="date" value="${esc(p.openBy)}"></label>
+          <label class="field"><span>Cabins open by</span><input name="openBy" type="date" value="${esc(p.openBy)}"></label>
         </div>`,
       onSubmit(fd) { p.name = (fd.get('name') || '').trim() || 'Cabin Project'; p.landBy = fd.get('landBy') || ''; p.openBy = fd.get('openBy') || ''; S.save(); render(); },
     });
@@ -367,8 +432,11 @@
     'land-status'(el) { const l = S.find('land', el.dataset.id); l.status = el.value; S.save(); render(); },
     'land-check'(el) { const l = S.find('land', el.dataset.id), k = el.dataset.k; const nx = { '': 'yes', yes: 'no', no: '' }[l.checks[k] || '']; if (nx) l.checks[k] = nx; else delete l.checks[k]; S.save(); render(); },
     'land-rate'(el) { const l = S.find('land', el.dataset.id), v = Number(el.dataset.v); l.rating = l.rating === v ? 0 : v; S.save(); render(); },
+    'cabin-new'() { cabinSheet(); },
+    'cabin-edit'(el) { cabinSheet(S.find('cabins', el.dataset.id)); },
+    stage(el) { S.toggleStage(S.find('cabins', el.dataset.id), Number(el.dataset.i)); render(); },
     budget(el) { budgetSheet(el.dataset.k); },
-    'expense-new'(el) { expenseSheet(null, { building: el.dataset.building, cat: el.dataset.cat }); },
+    'expense-new'(el) { expenseSheet(null, { cabin: el.dataset.cabin, cat: el.dataset.cat }); },
     'expense-edit'(el) { expenseSheet(S.find('expenses', el.dataset.id)); },
     'person-new'() { personSheet(); },
     'person-edit'(el) { personSheet(S.find('team', el.dataset.id)); },
@@ -376,7 +444,7 @@
     theme(el) { S.db.settings.theme = el.value; S.save(); applyTheme(); },
     csv() {
       const q = (x) => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`;
-      const rows = [['Date', 'What', 'Amount', 'Budget line', 'Building', 'Part of the build']].concat(S.db.expenses.slice().sort((a, b) => a.date.localeCompare(b.date)).map((e) => [e.date, e.title, e.amount, catName(e.cat), (S.find('buildings', e.building) || {}).name || '', e.section || '']));
+      const rows = [['Date', 'What', 'Amount', 'Budget line', 'Cabin']].concat(S.db.expenses.slice().sort((a, b) => a.date.localeCompare(b.date)).map((e) => [e.date, e.title, e.amount, catName(e.cat), (S.find('cabins', e.cabin) || {}).name || '']));
       u.download('cabin-expenses.csv', rows.map((r) => r.map(q).join(',')).join('\n'), 'text/csv');
     },
     backup() { u.download(`cabins-backup-${u.today()}.json`, S.exportJSON(), 'application/json'); render(); u.toast('Backup saved'); },
@@ -392,10 +460,9 @@
     },
     async install() { if (!installEvent) return; installEvent.prompt(); await installEvent.userChoice; installEvent = null; render(); },
     async sample() { if (!(await u.confirm('Replace everything with sample data?', 'Load sample'))) return; S.loadSample(); openPhases = null; go('#/plan'); },
-    async erase() { if (!(await u.confirm('Erase everything: steps, land, plans, buildings, budget, expenses and team? This can’t be undone.', 'Erase'))) return; S.reset(); openPhases = null; applyTheme(); go('#/plan'); },
+    async erase() { if (!(await u.confirm('Erase everything: steps, land, cabins, budget, expenses and team? This can’t be undone.', 'Erase'))) return; S.reset(); openPhases = null; applyTheme(); go('#/plan'); },
   };
 
-  Object.assign(act, L.build.acts);
   main.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el || !main.contains(el) || !act[el.dataset.act]) return;
@@ -418,24 +485,21 @@
   }
   window.addEventListener('popstate', () => { route = /^#\//.test(location.hash) ? location.hash : '#/plan'; render(); });
 
-  L.app = { render: () => render(), go: (p) => go(p) };
-  const TABS = [['plan', 'Plan'], ['steps', 'Steps'], ['land', 'Land'], ['build', 'Build'], ['money', 'Money']];
+  const TABS = [['plan', 'Plan'], ['steps', 'Steps'], ['land', 'Land'], ['cabins', 'Cabins'], ['money', 'Money']];
 
   function render() {
     const [, view = 'plan', id] = route.split('/');
     const views = {
       plan: viewPlan, steps: viewSteps, money: viewMoney, settings: viewSettings,
       land: id ? () => viewLandOne(id) : viewLand,
-      build: id ? () => L.build.views.building(id) : L.build.views.build,
-      plans: () => L.build.views.plan(id),
-      cabins: L.build.views.build,
+      cabins: id ? () => viewCabin(id) : viewCabins,
     };
     const y = window.scrollY;
     main.innerHTML = (views[view] || viewPlan)();
     if (render.last === route) window.scrollTo(0, y); else window.scrollTo(0, 0);
     render.last = route;
-    const tab = { settings: 'plan', plans: 'build', cabins: 'build' }[view] || view;
-    document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k === 'build' ? 'cabins' : k)}<span>${l}</span></a>`).join('');
+    const tab = view === 'settings' ? 'plan' : view;
+    document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></a>`).join('');
   }
 
   function applyTheme() {
