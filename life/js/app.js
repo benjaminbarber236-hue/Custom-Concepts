@@ -115,7 +115,7 @@
     const t = u.today();
     const list = S.habits();
     const archived = S.db.habits.filter((h) => h.archived);
-    const days = Array.from({ length: 7 }, (_, i) => u.addDays(t, i - 6));
+    const days = Array.from({ length: 7 }, (_, i) => u.addDays(u.weekStart(t), i)); // this week, Sun–Sat
     return head + `
       ${list.length ? list.map((h) => {
         const s = S.streak(h);
@@ -132,10 +132,10 @@
   }
 
   function dayCell(h, d) {
-    const before = d < h.created;
+    const before = d < h.created || d > u.today(); // not yet started, or still ahead this week
     const on = S.isChecked(h, d);
     const due = S.isDue(h, d);
-    const cls = on ? 'on' : before ? 'before' : due ? 'due' : 'rest';
+    const cls = on ? 'on' : d > u.today() ? 'ahead' : before ? 'before' : due ? 'due' : 'rest';
     const label = `${u.fmt(d, { weekday: 'long', month: 'short', day: 'numeric' })}: ${on ? 'done' : 'not done'}`;
     return `<button class="day ${cls} ${d === u.today() ? 'is-today' : ''}" data-act="check" data-id="${h.id}" data-day="${d}" ${before ? 'disabled' : ''} aria-label="${label}" aria-pressed="${on}">
       <span class="dl">${DOW[u.dow(d)].slice(0, 1)}</span><span class="dc">${on ? icon('check') : ''}</span></button>`;

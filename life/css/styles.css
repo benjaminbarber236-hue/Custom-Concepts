@@ -210,6 +210,8 @@ a.count { color: var(--accent); }
 .day.on .dc { background: var(--accent); border-color: var(--accent); }
 .day.rest .dc { border-style: dashed; opacity: .5; }
 .day.before { opacity: .25; cursor: default; }
+.day.ahead { opacity: .35; cursor: default; }
+.day.ahead .dc { border-style: dotted; }
 .day.is-today .dl { color: var(--accent); }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .stat { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; }
