@@ -74,7 +74,7 @@
     if (g.kind === 'steps') {
       body = `<section class="card">
         <div class="sec-head"><h2>Steps</h2><span class="count">${p.have} of ${p.want}</span></div>
-        <ul class="tasks">${g.steps.map((s) => `<li class="task ${s.done ? 'done' : ''}"><button class="tick-sm" data-act="step-toggle" data-id="${g.id}" data-step="${s.id}" aria-label="${s.done ? 'Mark not done' : 'Mark done'}">${icon('check')}</button><span class="task-title">${esc(s.title)}</span><button class="icon-btn sm" data-act="step-delete" data-id="${g.id}" data-step="${s.id}" aria-label="Remove step">${icon('x')}</button></li>`).join('')}</ul>
+        <ul class="tasks">${g.steps.map((s) => `<li class="task ${s.done ? 'done' : ''}"><button class="tick-sm" data-act="step-toggle" data-id="${g.id}" data-step="${s.id}" aria-label="${s.done ? 'Mark not done' : 'Mark done'}">${icon('check')}</button><button class="task-title" data-act="step-edit" data-id="${g.id}" data-step="${s.id}">${esc(s.title)}</button></li>`).join('')}</ul>
         <form class="quick" data-form="step" data-id="${g.id}"><input name="title" placeholder="Add a step" autocomplete="off" aria-label="New step"><button class="icon-btn" aria-label="Add">${icon('plus')}</button></form>
       </section>`;
     } else {
@@ -88,7 +88,7 @@
           <button class="btn primary sm">Add</button>
         </form>
       </section>
-      ${log.length ? `<section class="card"><div class="sec-head"><h2>History</h2></div><div class="list">${log.map((l) => `<div class="list-row"><span>${u.relDay(l.date)}</span><span class="row"><b>+${num(l.amount)}</b> <button class="icon-btn sm" data-act="log-delete" data-id="${g.id}" data-log="${l.id}" aria-label="Remove entry">${icon('x')}</button></span></div>`).join('')}</div></section>` : ''}`;
+      ${log.length ? `<section class="card"><div class="sec-head"><h2>History</h2></div><div class="list">${log.map((l) => `<button class="list-row" data-act="log-edit" data-id="${g.id}" data-log="${l.id}"><span>${u.relDay(l.date)}</span><span class="row"><b>+${num(l.amount)}</b><span class="muted edit-hint">${icon('right')}</span></span></button>`).join('')}</div></section>` : ''}`;
     }
     return `
       <a href="#/habits" class="back" data-goals-back>${icon('left')} Goals</a>
@@ -164,8 +164,28 @@
       S.remove('goals', g.id); L.habitsTab = 'goals'; app().go('#/habits');
     },
     'step-toggle'(el) { const g = goal(el.dataset.id); const s = g.steps.find((x) => x.id === el.dataset.step); s.done = !s.done; S.save(); app().render(); },
-    'step-delete'(el) { const g = goal(el.dataset.id); g.steps = g.steps.filter((x) => x.id !== el.dataset.step); S.save(); app().render(); },
-    'log-delete'(el) { const g = goal(el.dataset.id); g.log = g.log.filter((x) => x.id !== el.dataset.log); S.save(); app().render(); },
+    // Editing a step or a progress entry opens a sheet; Delete there asks first.
+    'step-edit'(el) {
+      const g = goal(el.dataset.id);
+      const s = g.steps.find((x) => x.id === el.dataset.step);
+      u.sheet({
+        title: 'Step',
+        body: `<label class="field"><span>Step</span><input name="title" value="${esc(s.title)}" autocomplete="off"></label>`,
+        danger: { label: 'Delete', run: async () => { if (!(await u.confirm('Delete this step?'))) return false; g.steps = g.steps.filter((x) => x !== s); S.save(); app().render(); } },
+        onSubmit(fd) { const t = (fd.get('title') || '').trim(); if (!t) return false; s.title = t; S.save(); app().render(); },
+      });
+    },
+    'log-edit'(el) {
+      const g = goal(el.dataset.id);
+      const l = g.log.find((x) => x.id === el.dataset.log);
+      u.sheet({
+        title: 'Progress entry',
+        body: `<div class="two"><label class="field"><span>Amount${g.unit ? ` (${esc(g.unit)})` : ''}</span><input name="amount" type="number" step="any" inputmode="decimal" value="${l.amount}"></label>
+          <label class="field"><span>Date</span><input name="date" type="date" value="${l.date}" max="${u.today()}"></label></div>`,
+        danger: { label: 'Delete', run: async () => { if (!(await u.confirm('Delete this entry?'))) return false; g.log = g.log.filter((x) => x !== l); S.save(); app().render(); } },
+        onSubmit(fd) { const a = Number(fd.get('amount')); if (!a) { u.toast('Enter an amount.'); return false; } l.amount = a; l.date = fd.get('date') || l.date; S.save(); app().render(); },
+      });
+    },
   });
 
   Object.assign(L.forms, {

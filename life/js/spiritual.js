@@ -147,7 +147,7 @@
           <button class="btn primary sm">Add</button>
         </form>
         <input class="plain-input" name="svc-note" id="svc-note" placeholder="Note (optional): territory, who you worked with…" autocomplete="off">
-        ${log.length ? `<div class="list">${log.map((x) => `<div class="list-row"><span>${u.relDay(x.date)}${x.notes ? `<small class="muted block">${esc(x.notes)}</small>` : ''}</span><span class="row"><b>${u.hrs(x.minutes)}</b><button class="icon-btn sm" data-act="svc-del" data-id="${x.id}" aria-label="Remove">${icon('x')}</button></span></div>`).join('')}</div>` : ''}
+        ${log.length ? `<div class="list">${log.map((x) => `<button class="list-row" data-act="svc-edit" data-id="${x.id}"><span>${u.relDay(x.date)}${x.notes ? `<small class="muted block">${esc(x.notes)}</small>` : ''}</span><span class="row"><b>${u.hrs(x.minutes)}</b><span class="muted edit-hint">${icon('right')}</span></span></button>`).join('')}</div>` : ''}
       </section>
       <section class="sec">
         <div class="sec-head"><h2>Return visits</h2><button class="count link" data-act="rv-new">${icon('plus', 'sm')} Add</button></div>
@@ -234,7 +234,7 @@
           <div class="row"><input name="minutes" type="number" min="1" inputmode="numeric" placeholder="30" aria-label="Minutes"><span class="muted">min</span><span class="grow"></span><button class="btn primary sm">Log it</button></div>
           <div class="chips">${TOPICS.map((x) => `<button type="button" data-topic="${x}">${x}</button>`).join('')}</div>
         </form>
-        ${recent.length ? `<div class="list">${recent.map((x) => `<div class="list-row"><span><b>${esc(x.topic)}</b><small class="muted block">${u.relDay(x.date)}${x.notes ? ' · ' + esc(x.notes) : ''}</small></span><span class="row">${x.minutes ? `<span class="muted">${u.hrs(x.minutes)}</span>` : ''}<button class="icon-btn sm" data-act="study-del" data-id="${x.id}" aria-label="Remove">${icon('x')}</button></span></div>`).join('')}</div>` : ''}
+        ${recent.length ? `<div class="list">${recent.map((x) => `<button class="list-row" data-act="study-edit" data-id="${x.id}"><span><b>${esc(x.topic)}</b><small class="muted block">${u.relDay(x.date)}${x.notes ? ' · ' + esc(x.notes) : ''}</small></span><span class="row">${x.minutes ? `<span class="muted">${u.hrs(x.minutes)}</span>` : ''}<span class="muted edit-hint">${icon('right')}</span></span></button>`).join('')}</div>` : ''}
       </section>`;
   }
 
@@ -284,7 +284,15 @@
         onSave(v) { sp().serviceGoal = Math.max(0, Number(v.goal) || 0); S.save(); },
       });
     },
-    'svc-del'(el) { S.spRemove('service', el.dataset.id); app().render(); },
+    'svc-edit'(el) {
+      const x = S.sp('service', el.dataset.id);
+      formSheet({
+        title: 'Service time', values: { hours: Math.round((x.minutes / 60) * 100) / 100, date: x.date, notes: x.notes },
+        fields: [{ name: 'hours', label: 'Hours', type: 'number', step: '0.25' }, { name: 'date', label: 'Date', type: 'date' }, { name: 'notes', label: 'Note', optional: true }],
+        onSave(v) { const h = Number(v.hours); if (!(h > 0)) { u.toast('Enter the hours.'); return false; } Object.assign(x, { minutes: Math.round(h * 60), date: v.date || x.date, notes: v.notes }); S.save(); },
+        onDelete: () => S.spRemove('service', x.id),
+      });
+    },
     'rv-new': () => L.rvSheet(),
     'rv-edit': (el) => L.rvSheet(S.sp('rvs', el.dataset.id)),
     'group-edit'() {
@@ -303,7 +311,15 @@
     'member-new': () => memberSheet(),
     'member-edit': (el) => memberSheet(S.sp('members', el.dataset.id)),
     'read-toggle'(el) { const r = sp().reading; const d = el.dataset.day; if (r[d]) delete r[d]; else r[d] = 1; S.save(); app().render(); },
-    'study-del'(el) { S.spRemove('study', el.dataset.id); app().render(); },
+    'study-edit'(el) {
+      const x = S.sp('study', el.dataset.id);
+      formSheet({
+        title: 'Study session', values: x,
+        fields: [{ name: 'topic', label: 'What you studied' }, { name: 'minutes', label: 'Minutes', type: 'number', optional: true }, { name: 'date', label: 'Date', type: 'date' }, { name: 'notes', label: 'Notes', type: 'textarea', optional: true }],
+        onSave(v) { if (!v.topic) { u.toast('What did you study?'); return false; } Object.assign(x, { topic: v.topic, minutes: Number(v.minutes) || 0, date: v.date || x.date, notes: v.notes }); S.save(); },
+        onDelete: () => S.spRemove('study', x.id),
+      });
+    },
   });
 
   function fsmSheet(f) {
