@@ -23,7 +23,7 @@ Plain HTML, CSS and JavaScript: no build step and no server. It works offline an
 ### Cleaning up dictation (free)
 Under a dream or journal entry, **Copy & open Claude** saves the entry, copies the text with cleanup instructions (fix misheard words, punctuation, paragraphs; add nothing) and opens Claude with it filled in. There's no share sheet, so it can't go to a contact by mistake. If the chat comes up empty, paste. Send it, copy Claude's reply, come back and tap **Paste Claude's version**. **Show what I said** switches back to the original, which is kept with the entry. If the app was closed meanwhile, the Journal tab shows **Waiting for Claude's version** for that entry.
 
-**Claude project:** in **Settings → Claude project**, paste the link to one of your Claude projects (for example "Journal"; in Safari it's the claude.ai address with `/project/` in it), and copy the provided instructions into that project's Instructions. Copy & open Claude then opens that project and sends just the entry with its date and time.
+**Claude project:** in **Settings → Claude project**, paste the link to one of your Claude projects (for example "Journal"; in Safari it's the claude.ai address with `/project/` in it), and copy the provided instructions into that project's Instructions. Copy & open Claude then copies just the entry (with its date and time) and opens that project; start a new chat there and paste. (A pre-filled link would make the Claude app skip the project, so none is used.)
 
 On iPhones with Apple Intelligence you can also select the text and use **Writing Tools → Proofread**, which is free and built in.
 

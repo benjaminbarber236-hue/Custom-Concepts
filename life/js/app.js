@@ -292,9 +292,10 @@ Reply with only the cleaned-up text so I can copy it.`;
     const label = e.kind === 'dream' ? (fd.get('lucid') ? 'Lucid dream' : 'Dream') : 'Journal entry';
     return `${label}, ${when}${fd.get('time') ? ', ' + u.timeText(fd.get('time')) : ''}:\n\n${text}`;
   }
+  // A pre-filled link (?q=) makes the Claude app start a plain new chat and skip the project, so a
+  // linked project is opened as-is and the copied entry is pasted into a new chat there.
   function claudeURL(message) {
-    const base = projectLink() || 'https://claude.ai/new';
-    return base + (base.includes('?') ? '&' : '?') + 'q=' + encodeURIComponent(message);
+    return projectLink() || 'https://claude.ai/new?q=' + encodeURIComponent(message);
   }
   function claudePrompt(text, kind) {
     const what = kind === 'dream' ? 'a dream I dictated right after waking up (speech-to-text, often whispered, so words may be misheard)' : 'a journal entry I dictated (speech-to-text, so words may be misheard)';
@@ -391,9 +392,12 @@ ${text}`;
           // mistake). The link also pre-fills the chat; if it doesn't, the copy is ready to paste.
           const copied = u.copyText(prompt);
           window.open(claudeURL(prompt), '_blank', 'noopener');
-          const where = projectLink() ? 'your Claude project' : 'Claude';
-          say((await copied)
-            ? `Copied and opening ${where}. If the chat is empty, paste it there. Send, copy Claude’s reply, then come back and tap “Paste Claude’s version”.`
+          const ok = await copied;
+          if (projectLink()) return say(ok
+            ? 'Copied. In your Claude project, start a new chat, paste and send. Then copy Claude’s reply, come back and tap “Paste Claude’s version”.'
+            : 'Couldn’t copy here. Select the text and copy it, then paste it into a new chat in your Claude project.');
+          say(ok
+            ? 'Copied and opening Claude. If the chat is empty, paste it there. Send, copy Claude’s reply, then come back and tap “Paste Claude’s version”.'
             : 'Opening Claude. Send the message, copy Claude’s reply, then come back and tap “Paste Claude’s version”.');
         };
         pasteBtn.onclick = async () => {
