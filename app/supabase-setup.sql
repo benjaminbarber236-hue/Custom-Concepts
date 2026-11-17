@@ -12,6 +12,9 @@ create table if not exists public.docs (
 );
 create index if not exists docs_user_updated on public.docs (user_id, updated_at);
 alter table public.docs enable row level security;
+-- Let signed-in people use the table (the policies below still limit them to their own rows).
+grant select, insert, update, delete on public.docs to authenticated;
+revoke all on public.docs from anon;
 
 drop policy if exists "own docs select" on public.docs;
 drop policy if exists "own docs insert" on public.docs;
