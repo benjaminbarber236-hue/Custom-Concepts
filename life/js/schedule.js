@@ -81,7 +81,7 @@
       </section>
       <section class="sec">
         <div class="sec-head"><h2>Coming up</h2><span class="count">next 3 weeks · weekly plans shown once</span></div>
-        ${up.length ? up.map(([d, l]) => `<div class="up-day"><p class="up-date">${u.relDay(d)}<small>${u.fmt(d, { weekday: 'short', month: 'short', day: 'numeric' })}</small></p>${L.agendaHTML(d, l)}</div>`).join('') : `<div class="empty"><p>No plans yet. When someone invites you to dinner, a movie or a Bible study, add it here.</p><button class="btn sm" data-act="ev-new">${icon('plus')} Add plan</button></div>`}
+        ${up.length ? up.map(([d, l]) => `<div class="up-day"><p class="up-date">${u.relDay(d)}<small>${u.fmt(d, { weekday: 'short', month: 'short', day: 'numeric' })}</small></p>${L.agendaHTML(d, l)}</div>`).join('') : `<div class="empty"><p>No plans yet. Add plans here.</p><button class="btn sm" data-act="ev-new">${icon('plus')} Add plan</button></div>`}
       </section>
     `;
   };
