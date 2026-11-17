@@ -887,6 +887,11 @@ function viewMore() {
       <p class="small muted">${all('jobs').length} jobs · ${all('events').length} appointments · ${all('tasks').length} reminders${waiting ? ` · ${waiting} changes waiting` : ''}${S.lastSync ? ` · last synced ${esc(new Date(S.lastSync).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }))}` : ''}</p>
       <div class="btn-row"><button class="btn sm" data-act="sync-now">Sync now</button><button class="btn sm" data-act="signout">Sign out</button></div>
     </div></section>
+  <section class="section"><h2>iPhone Calendar</h2>
+    <div class="card next">
+      <p>See your appointments and reminders in Apple Calendar, then add Apple’s Calendar widget to your home screen. Calendar checks for changes every 15–60 minutes.</p>
+      ${calendarCard()}
+    </div></section>
   <section class="section"><h2>Bring in data</h2>
     <div class="card next">
       <p>Choose a backup file from the old Job Tracker (<strong>Settings → Export backup</strong>) or the Claude version (<strong>More → Save a backup file</strong>). Jobs, people, appointments, reminders, notes, quotes and products come over, plus attached files from the old app. Doing it twice won’t make duplicates.</p>
@@ -901,6 +906,37 @@ function viewMore() {
     </div></section>
   ${contacts.length ? `<section class="section"><div class="section-head"><h2>Contacts from the old app</h2><span class="count">${contacts.length}</span></div><p class="small muted">Search finds these too.</p><div class="list">${contacts.slice().sort((a, b) => a.name.localeCompare(b.name)).map(contactRow).join('')}</div></section>` : ''}
   ${S.jobs.size ? `<section class="section"><h2>Start over</h2><button class="btn danger" data-act="erase">Erase all jobs…</button></section>` : ''}`;
+}
+
+// ----- Calendar feed for Apple Calendar -----
+function feedUrl(token, scheme) { const host = new URL(config().url).host; return `${scheme}://${host}/functions/v1/calendar?token=${token}`; }
+function calendarCard() {
+  if (!S.cal && S.sb && navigator.onLine) { S.cal = { loading: true }; loadCalendarLink(); }
+  const c = S.cal || {};
+  if (!navigator.onLine && !c.token) return '<p class="small muted">Connect to the internet to set this up.</p>';
+  if (c.loading) return '<p class="small muted">Checking…</p>';
+  if (c.error) return `<p class="small muted">${/calendar_feeds|schema cache|does not exist/i.test(c.error) ? 'One more setup step is needed in Supabase first (the calendar code).' : 'Couldn’t check right now: ' + esc(c.error)}</p><button class="btn sm" data-act="cal-retry">Try again</button>`;
+  if (!c.token) return '<button class="btn primary big" data-act="cal-make">Set up my calendar link</button>';
+  return `<a class="btn primary big" href="${esc(feedUrl(c.token, 'webcal'))}">Subscribe on this device</a>
+    <p class="small muted">If tapping that does nothing: copy the link, then on the iPhone go to Settings → Apps → Calendar → Calendar Accounts → Add Account → Other → Add Subscribed Calendar, and paste it.</p>
+    <div class="btn-row"><button class="btn sm" data-act="copy" data-v="${esc(feedUrl(c.token, 'https'))}">Copy link</button><button class="btn sm" data-act="cal-new">Make a new link</button></div>`;
+}
+async function loadCalendarLink() {
+  const { data, error } = await S.sb.from('calendar_feeds').select('token').order('created_at', { ascending: false }).limit(1).then((r) => r, (e) => ({ error: e }));
+  S.cal = error ? { error: error.message || String(error) } : { token: (data && data[0] && data[0].token) || '' };
+  schedule();
+}
+async function makeCalendarLink(replace) {
+  if (!navigator.onLine) { toast('Connect to the internet first.'); return; }
+  if (replace && !(await ask('Make a new link?', 'The old link stops working. Any device subscribed to it will need to subscribe again.', 'Make new link'))) return;
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  const token = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  if (replace) await S.sb.from('calendar_feeds').delete().neq('token', '');
+  const { error } = await S.sb.from('calendar_feeds').insert({ token, user_id: S.user.id });
+  if (error) { S.cal = { error: error.message }; schedule(); return; }
+  S.cal = { token };
+  schedule();
+  toast('Calendar link ready');
 }
 
 // ---------- Sheets (forms, choices, confirmations) ----------
@@ -1461,6 +1497,9 @@ document.addEventListener('click', (ev) => {
     case 'export': return exportBackup();
     case 'sync-now': S.syncError = ''; toast(navigator.onLine ? 'Syncing…' : 'You’re offline. It will sync when you’re back online.'); return sync();
     case 'signout': return signOut();
+    case 'cal-make': return makeCalendarLink(false);
+    case 'cal-new': return makeCalendarLink(true);
+    case 'cal-retry': S.cal = null; return render();
     case 'signup': return signUp();
     case 'erase': return eraseAll();
   }
