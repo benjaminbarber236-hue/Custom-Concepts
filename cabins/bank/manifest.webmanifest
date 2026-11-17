@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "Land Loan Questions",
+  "short_name": "Loan Qs",
+  "description": "Questions to ask a bank about a land loan, with space for each bank's answers.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f0e8",
+  "theme_color": "#f4f0e8",
+  "icons": [
+    { "src": "../icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "../icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
