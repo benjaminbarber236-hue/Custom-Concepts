@@ -485,4 +485,22 @@ a.stat { color: inherit; }
 button.list-row b { flex: none; }
 .center-btn { align-self: center; }
 .member small { display: block; }
-.loading .ic { width: 32px; height: 32px; color: var(--accent); }
+
+/* First open: welcome and loading */
+.welcome { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.welcome .display { font-size: 34px !important; text-wrap: balance; }
+.welcome p.muted { max-width: 40ch; }
+.welcome-art { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 18px; background: var(--accent); color: var(--accent-ink); margin-bottom: 6px; }
+.welcome-art .ic { width: 34px; height: 34px; stroke-width: 1.8; }
+.phase-list { list-style: none; margin: 4px 0 0; padding: 4px 16px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.phase-list li { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+.phase-list li + li { border-top: 1px solid var(--line); }
+.phase-list .ph-num { width: 28px; height: 28px; font-size: 13px; }
+.phase-list li:first-child .ph-num { background: var(--wood); color: #fff; }
+.phase-list span:last-child { display: flex; flex-direction: column; line-height: 1.25; }
+.phase-list small { color: var(--muted); font-size: 12.5px; }
+.welcome-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 4px; }
+.btn.big { width: 100%; min-height: 52px; font-size: 17px; }
+.loading { min-height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.loading .welcome-art { animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: .55; } }

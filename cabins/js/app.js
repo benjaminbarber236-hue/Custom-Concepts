@@ -501,19 +501,29 @@
     if (render.last === route) window.scrollTo(0, y); else window.scrollTo(0, 0);
     render.last = route;
     const tab = view === 'settings' ? 'plan' : view;
+    document.getElementById('tabbar').hidden = !S.loaded || S.isEmpty();
     document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></a>`).join('');
   }
 
   function viewLoading() {
-    return `<div class="empty big loading">${icon('cabins')}<p>Opening your cabin plan…</p></div>`;
+    return `<div class="loading" role="status"><span class="welcome-art">${icon('cabins')}</span><p class="muted">Opening your cabin plan…</p></div>`;
   }
   function staleNote() {
     return `<p class="card notice small">Can't reach your saved plan right now, so this may be out of date. Changes you make will save when the connection comes back.</p>`;
   }
   function viewStart() {
-    return `<header class="page-head"><div><p class="eyebrow">Land & cabins</p><h1 class="display">Cabin Project</h1></div></header>
-      <section class="card notice"><p><b>Start your plan.</b> This adds the 8 phases and ${P.PHASES.reduce((n, p) => n + p.steps.length, 0)} starting steps, 4 cabins to track and an empty budget. It saves to your Claude account, so it's on your phone and computer.</p>
-      <div class="row"><button class="btn primary" data-act="start">Start my plan</button><button class="btn ghost sm" data-act="restore">Restore a backup</button></div></section>`;
+    const n = P.PHASES.reduce((t, p) => t + p.steps.length, 0);
+    return `<section class="welcome">
+        <div class="welcome-art" aria-hidden="true">${icon('cabins')}</div>
+        <p class="eyebrow">Land & cabins</p>
+        <h1 class="display">Plan your cabins, step by step</h1>
+        <p class="muted">From saving for the land to welcoming your first guests: ${n} steps in 8 phases, 4 cabins to track, and a budget. It saves to your Claude account, so it's on your phone and your computer.</p>
+      </section>
+      <ol class="phase-list">${P.PHASES.map((ph, i) => `<li><span class="ph-num">${i + 1}</span><span><b>${esc(ph.name)}</b><small>${u.plural(ph.steps.length, 'step')}</small></span></li>`).join('')}</ol>
+      <div class="welcome-actions">
+        <button class="btn primary big" data-act="start">Start my plan</button>
+        <button class="link small" data-act="restore">Or restore a backup</button>
+      </div>`;
   }
 
   function applyTheme() {
