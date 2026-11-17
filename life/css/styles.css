@@ -435,3 +435,7 @@ button.list-row { width: 100%; text-align: left; gap: 10px; }
 .need { color: var(--muted); margin-top: -2px; } .need b { color: var(--accent); }
 
 .edit-hint .ic { width: 16px; height: 16px; opacity: .6; }
+
+.week-nav { display: flex; align-items: center; justify-content: center; gap: 6px; margin: -4px 0 -6px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.week-nav span { min-width: 120px; text-align: center; }
+.reading .week-nav { margin: -4px 0 -8px; }

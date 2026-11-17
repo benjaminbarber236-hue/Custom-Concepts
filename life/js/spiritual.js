@@ -13,6 +13,7 @@
   const PARTS = ['Bible reading', 'Starting a conversation', 'Following up', 'Making disciples', 'Explaining your beliefs', 'Talk', 'Spiritual gems', 'Treasures talk', 'Public talk', 'Reader', 'Prayer', 'Householder'];
   const TOPICS = ['Meeting prep', 'Watchtower study', 'Bible reading', 'Research', 'Book study', 'Family worship'];
   let tab = 'meetings';
+  let readWeek = 0;
   let month = u.today().slice(0, 7);
   L.spTab = (t) => { tab = t; };
 
@@ -216,7 +217,7 @@
     const read = !!s.reading[t];
     const streak = S.readingStreak();
     const ws = u.weekStart(t);
-    const days = Array.from({ length: 7 }, (_, i) => u.addDays(ws, i)); // this week, Sun–Sat
+    const days = Array.from({ length: 7 }, (_, i) => u.addDays(ws, readWeek * 7 + i)); // Sun–Sat
     const week = s.study.filter((x) => x.date >= ws);
     const recent = s.study.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
     return `
@@ -224,6 +225,7 @@
         <button class="habit-row ${read ? 'on' : ''}" data-act="read-toggle" data-day="${t}" aria-pressed="${read}">
           <span class="hname">Daily Bible reading<small>${streak ? `${icon('flame', 'sm')} ${u.plural(streak, 'day')} in a row` : 'Tap when you’ve read today'}</small></span><span class="tick">${icon('check')}</span>
         </button>
+        ${u.weekNav(readWeek, 'rweek')}
         <div class="week">${days.map((d) => `<button class="day ${s.reading[d] ? 'on' : d > t ? 'ahead' : 'due'} ${d === t ? 'is-today' : ''}" data-act="read-toggle" data-day="${d}" ${d > t ? 'disabled' : ''} aria-pressed="${!!s.reading[d]}" aria-label="${u.fmt(d, { weekday: 'long' })}"><span class="dl">${u.DOW[u.dow(d)][0]}</span><span class="dc">${s.reading[d] ? icon('check') : ''}</span></button>`).join('')}</div>
         <label class="field"><span>Where I’m reading</span><input data-change="reading-at" value="${esc(s.readingAt)}" placeholder="Isaiah 40" autocomplete="off"></label>
       </section>
@@ -310,7 +312,14 @@
     'fsm-edit': (el) => fsmSheet(S.sp('fsm', el.dataset.id)),
     'member-new': () => memberSheet(),
     'member-edit': (el) => memberSheet(S.sp('members', el.dataset.id)),
-    'read-toggle'(el) { const r = sp().reading; const d = el.dataset.day; if (r[d]) delete r[d]; else r[d] = 1; S.save(); app().render(); },
+    async 'read-toggle'(el) {
+      const r = sp().reading; const d = el.dataset.day;
+      if (d > u.today() || !(await u.confirmDay(d, 'Bible reading', !!r[d]))) return;
+      if (r[d]) delete r[d]; else r[d] = 1;
+      S.save(); app().render();
+      if (d === u.today()) u.toast(r[d] ? 'Bible reading: done' : 'Bible reading: unchecked', { label: 'Undo', run: () => { if (r[d]) delete r[d]; else r[d] = 1; S.save(); app().render(); } });
+    },
+    rweek(el) { readWeek = Math.min(0, readWeek + Number(el.dataset.v)); app().render(); },
     'study-edit'(el) {
       const x = S.sp('study', el.dataset.id);
       formSheet({
