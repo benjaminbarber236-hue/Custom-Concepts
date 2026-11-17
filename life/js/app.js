@@ -511,5 +511,24 @@
   if (L.DEMO) S.loadSample();
   applyTheme();
   render();
-  if ('serviceWorker' in navigator && !L.DEMO && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Updates: when a new version has downloaded and taken over, offer a one-tap refresh.
+  if ('serviceWorker' in navigator && !L.DEMO && location.protocol !== 'file:') {
+    const hadVersion = !!navigator.serviceWorker.controller; // first install isn't an "update"
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      // Phones often resume the app instead of restarting it, so check again when it comes back.
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadVersion) showUpdate(); });
+  }
+
+  function showUpdate() {
+    if (document.getElementById('update-bar')) return;
+    const bar = document.createElement('button');
+    bar.id = 'update-bar';
+    bar.type = 'button';
+    bar.innerHTML = `${icon('sparkle')}<span><b>Updated</b> · tap to refresh</span>`;
+    bar.onclick = () => location.reload();
+    document.body.appendChild(bar);
+  }
+  L.app.showUpdate = showUpdate;
 })();
