@@ -1,7 +1,7 @@
 // Offline support: serve the app from cache, refresh it in the background.
 // Change CACHE with every release: phones see the new sw.js, download the new files,
 // and the app shows "Updated — tap to refresh".
-const CACHE = 'life-v14';
+const CACHE = 'life-v15';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'js/util.js', 'js/store.js', 'js/sample.js', 'js/schedule.js', 'js/spiritual.js', 'js/goals.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
