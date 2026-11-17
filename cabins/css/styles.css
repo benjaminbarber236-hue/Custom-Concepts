@@ -485,3 +485,4 @@ a.stat { color: inherit; }
 button.list-row b { flex: none; }
 .center-btn { align-self: center; }
 .member small { display: block; }
+.loading .ic { width: 32px; height: 32px; color: var(--accent); }

@@ -17,15 +17,17 @@ Plain HTML, CSS and JavaScript: no build step and no server. It works offline an
 **Settings** (the gear on Plan): project name and target dates, light/dark, backup and restore, sample data, erase.
 
 ## Using it on your phone
-Served by GitHub Pages at **https://benjaminbarber236-hue.github.io/Custom-Concepts/cabins/** (from whichever branch Pages deploys).
+The app lives on claude.ai, like Job Tracker: **https://claude.ai/artifact/CAdPbLmaxGUk1op2xoTRs1**. There it saves to your Claude account, so your plan is the same on your phone and computer.
 
-- **iPhone:** in **Safari**, tap **Share**, then **Add to Home Screen**.
-- **Android:** in **Chrome**, tap **⋮**, then **Install app**.
+For a home-screen icon, open **https://benjaminbarber236-hue.github.io/Custom-Concepts/cabins/open/** in Safari, tap **Share → Add to Home Screen**. The icon opens the app.
 
-On a computer, run `python3 -m http.server` in this folder and go to http://localhost:8000.
+The same code also runs straight from GitHub Pages at `/cabins/` (or `python3 -m http.server` in this folder), where it saves to that browser only. To move a plan from there to claude.ai: **Settings → Save backup** there, then **Restore backup** in the claude.ai app.
 
 ## Your data
-Everything is saved **on this device, in this browser only**. Nothing is uploaded. Use **Settings → Save backup** now and then; the Plan tab reminds you after a month without one.
+On claude.ai: saved to your Claude account (the artifact's database). Elsewhere: saved in that browser only; use **Settings → Save backup** now and then.
+
+## Updating the claude.ai app
+`node tools/build-artifact.js cabins.html` bundles everything into one page; publish that page to the same artifact.
 
 ## Files
 ```
@@ -38,4 +40,6 @@ js/sample.js            sample data
 js/app.js               screens and actions
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
 tools/build-demo.js     builds a single-file demo with sample data
+tools/build-artifact.js builds the single page published on claude.ai
+open/index.html         home-screen launcher that opens the claude.ai app
 ```

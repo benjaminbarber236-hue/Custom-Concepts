@@ -38,7 +38,7 @@
     const cabinPct = db.cabins.length ? db.cabins.reduce((n, c) => n + S.stagesDone(c), 0) / (db.cabins.length * P.CABIN_STAGES.length) : 0;
     const lb = db.settings.lastBackup;
     const touched = db.steps.filter((s) => s.done).length + db.expenses.length + db.land.length;
-    const needBackup = !L.DEMO && touched > 10 && (!lb || u.daysBetween(lb.slice(0, 10), t) > 30);
+    const needBackup = !L.DEMO && S.mode === 'local' && touched > 10 && (!lb || u.daysBetween(lb.slice(0, 10), t) > 30);
     const target = (d, label) => { if (!d) return ''; const n = u.daysBetween(t, d); return `<span>${label} <b>${u.fmt(d, { month: 'short', year: 'numeric' })}</b> <em>${n >= 0 ? u.plural(n, 'day') + ' to go' : 'passed'}</em></span>`; };
 
     return `
@@ -75,7 +75,7 @@
       <section class="sec">
         <div class="sec-head"><h2>Your team</h2><button class="count link" data-act="person-new">${icon('plus', 'sm')} Add</button></div>
         ${db.team.length ? `<div class="card list">${db.team.map((p) => `<div class="list-row">
-            <button class="member" data-act="person-edit" data-id="${p.id}"><span class="block">${esc(p.name || p.role)}</span><small class="muted">${esc(p.name ? p.role : '')}${p.notes ? (p.name ? ' · ' : '') + esc(p.notes) : ''}</small></button>
+            <button class="member" data-act="person-edit" data-id="${p.id}"><span class="block">${esc(p.name || p.role)}</span><small class="muted">${esc([p.name && p.role, p.phone, p.email, p.notes].filter(Boolean).join(' · '))}</small></button>
             <span class="contact">${p.phone ? `<a class="icon-btn sm" href="tel:${esc(p.phone)}" aria-label="Call">${icon('phone')}</a>` : ''}${p.email ? `<a class="icon-btn sm" href="mailto:${esc(p.email)}" aria-label="Email">${icon('mail')}</a>` : ''}</span>
           </div>`).join('')}</div>` : `<div class="empty slim">Keep the people helping you here: land agent, lender, surveyor, builder and more.</div>`}
       </section>`;
@@ -397,7 +397,7 @@
       </section>
       <section class="card sec">
         <h2>Your data</h2>
-        <p class="muted small">Everything is saved on this phone, in this browser only. Save a backup now and then.${s.lastBackup ? ` Last backup: ${u.relDay(s.lastBackup.slice(0, 10))}.` : ''}</p>
+        <p class="muted small">${S.mode === 'live' ? 'Saved to your Claude account. It syncs between your phone and computer when you open this page from either one. A backup file is still a good idea now and then.' : 'Everything is saved on this phone, in this browser only. Save a backup now and then.'}${s.lastBackup ? ` Last backup: ${u.relDay(s.lastBackup.slice(0, 10))}.` : ''}</p>
         <div class="actions"><button class="btn primary sm" data-act="backup">Save backup</button><button class="btn sm" data-act="restore">Restore backup</button></div>
       </section>
       ${installEvent ? `<section class="card sec"><h2>Home screen</h2><button class="btn sm" data-act="install">Add to home screen</button></section>` : ''}
@@ -447,7 +447,8 @@
       const rows = [['Date', 'What', 'Amount', 'Budget line', 'Cabin']].concat(S.db.expenses.slice().sort((a, b) => a.date.localeCompare(b.date)).map((e) => [e.date, e.title, e.amount, catName(e.cat), (S.find('cabins', e.cabin) || {}).name || '']));
       u.download('cabin-expenses.csv', rows.map((r) => r.map(q).join(',')).join('\n'), 'text/csv');
     },
-    backup() { u.download(`cabins-backup-${u.today()}.json`, S.exportJSON(), 'application/json'); render(); u.toast('Backup saved'); },
+    async backup() { if (await u.download(`cabins-backup-${u.today()}.json`, S.exportJSON(), 'application/json')) { render(); u.toast('Backup saved'); } },
+    start() { S.startPlan(); render(); u.toast('Your plan is ready'); },
     restore() {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = 'application/json,.json';
@@ -485,6 +486,7 @@
   }
   window.addEventListener('popstate', () => { route = /^#\//.test(location.hash) ? location.hash : '#/plan'; render(); });
 
+  L.app = { render: () => render(), go: (p) => go(p) };
   const TABS = [['plan', 'Plan'], ['steps', 'Steps'], ['land', 'Land'], ['cabins', 'Cabins'], ['money', 'Money']];
 
   function render() {
@@ -495,11 +497,23 @@
       cabins: id ? () => viewCabin(id) : viewCabins,
     };
     const y = window.scrollY;
-    main.innerHTML = (views[view] || viewPlan)();
+    main.innerHTML = !S.loaded ? viewLoading() : S.isEmpty() ? viewStart() : (S.stale ? staleNote() : '') + (views[view] || viewPlan)();
     if (render.last === route) window.scrollTo(0, y); else window.scrollTo(0, 0);
     render.last = route;
     const tab = view === 'settings' ? 'plan' : view;
     document.getElementById('tabbar').innerHTML = TABS.map(([k, l]) => `<a href="#/${k}" class="${tab === k ? 'on' : ''}" ${tab === k ? 'aria-current="page"' : ''}>${icon(k)}<span>${l}</span></a>`).join('');
+  }
+
+  function viewLoading() {
+    return `<div class="empty big loading">${icon('cabins')}<p>Opening your cabin plan…</p></div>`;
+  }
+  function staleNote() {
+    return `<p class="card notice small">Can't reach your saved plan right now, so this may be out of date. Changes you make will save when the connection comes back.</p>`;
+  }
+  function viewStart() {
+    return `<header class="page-head"><div><p class="eyebrow">Land & cabins</p><h1 class="display">Cabin Project</h1></div></header>
+      <section class="card notice"><p><b>Start your plan.</b> This adds the 8 phases and ${P.PHASES.reduce((n, p) => n + p.steps.length, 0)} starting steps, 4 cabins to track and an empty budget. It saves to your Claude account, so it's on your phone and computer.</p>
+      <div class="row"><button class="btn primary" data-act="start">Start my plan</button><button class="btn ghost sm" data-act="restore">Restore a backup</button></div></section>`;
   }
 
   function applyTheme() {
@@ -520,8 +534,12 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden && u.today() !== day) { day = u.today(); render(); } });
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; if (route === '#/settings') render(); });
 
+  L.app.applyTheme = applyTheme;
   if (L.DEMO) S.loadSample();
   applyTheme();
+  const inArtifact = !!(window.claude && typeof window.claude.use === 'function');
+  if (inArtifact) S.mode = 'loading', S.loaded = false;
   render();
-  if ('serviceWorker' in navigator && !L.DEMO && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  S.connect().then(() => { applyTheme(); render(); });
+  if (!inArtifact && 'serviceWorker' in navigator && !L.DEMO && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

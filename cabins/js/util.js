@@ -182,12 +182,18 @@ window.L = window.L || {};
     return lines.join('\r\n');
   }
 
-  function download(name, text, type) {
+  // Inside a claude.ai artifact files go through the downloads capability (the viewer confirms);
+  // elsewhere a normal browser download.
+  async function download(name, text, type) {
+    if (L.downloads) {
+      try { const r = await L.downloads.save({ filename: name, data: text }); return r !== 'cancelled'; } catch (e) { if (e && e.code === 'cancelled') return false; toast('Could not save the file here.'); return false; }
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([text], { type }));
     a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    return true;
   }
 
   async function copyText(text) {
