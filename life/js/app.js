@@ -279,6 +279,7 @@
     const dream = e.kind === 'dream';
     const dayMood = (S.entry(e.date) || {}).mood || 0;
     let dict = null;
+    let raw = e.raw || ''; // what was dictated, kept when AI tidies it up
     u.sheet({
       title: isNew ? (dream ? 'Dream' : 'Journal') : KIND_LABEL(e),
       submit: 'Save',
@@ -291,6 +292,11 @@
           <button type="button" class="mic-btn" data-mic aria-label="Start dictation">${icon('mic')}</button>
         </div>
         <p class="mic-status muted small" aria-live="polite"></p>
+        ${L.ai.available() ? `<div class="ai-row">
+          <button type="button" class="btn sm ai-btn" data-tidy>${icon('sparkle')} Tidy up with AI</button>
+          <button type="button" class="btn sm ghost" data-original ${raw ? '' : 'hidden'}>Show what I said</button>
+        </div>
+        <p class="ai-status small" aria-live="polite"></p>` : ''}
         ${!dream ? `<fieldset class="field"><legend>Mood that day <em>(optional)</em></legend><div class="mood-pick">${[1, 2, 3, 4, 5].map((i) => `<label class="mood-opt m${i}"><input type="radio" name="mood" value="${i}" ${dayMood === i ? 'checked' : ''}>${face(i)}<span>${MOODS[i]}</span></label>`).join('')}</div></fieldset>` : ''}
       `,
       danger: isNew ? null : { label: 'Delete', run: async () => { if (!(await u.confirm(`Delete this ${KIND_LABEL(e).toLowerCase()} entry?`))) return false; S.remove('entries', e.id); render(); } },
@@ -314,13 +320,43 @@
         if (mic && dict) dict.start();
         // Focus right away (inside the tap) so the iPhone keyboard opens, ready for its mic.
         else if (isNew || mic) ta.focus();
+
+        // AI tidy-up: rewrite the dictation into what was meant; the original is kept.
+        const tidyBtn = form.querySelector('[data-tidy]');
+        if (!tidyBtn) return;
+        const origBtn = form.querySelector('[data-original]');
+        const aiStatus = form.querySelector('.ai-status');
+        let showingTidy = true, tidied = '';
+        tidyBtn.onclick = async () => {
+          const text = ta.value.trim();
+          if (!text) { aiStatus.textContent = 'Say or type something first.'; return; }
+          if (!L.ai.getKey()) { aiStatus.innerHTML = 'To use this, add your Claude API key in <a href="#/settings" data-close-sheet>Settings</a>.'; return; }
+          if (dict && dict.on) dict.stop();
+          ta.blur();
+          tidyBtn.disabled = true; tidyBtn.innerHTML = `${icon('sparkle')} Tidying…`; aiStatus.textContent = '';
+          try {
+            const out = await L.ai.tidy(text, e.kind);
+            if (!raw || text !== tidied) raw = text; // keep the newest dictation as the original
+            tidied = out; ta.value = out; showingTidy = true;
+            origBtn.hidden = false; origBtn.textContent = 'Show what I said';
+            aiStatus.textContent = 'Tidied up. Check it, then Save.';
+          } catch (err) { aiStatus.textContent = err.message; }
+          tidyBtn.disabled = false; tidyBtn.innerHTML = `${icon('sparkle')} Tidy up with AI`;
+          aiStatus.scrollIntoView({ block: 'nearest' });
+        };
+        origBtn.onclick = () => {
+          if (showingTidy) { tidied = ta.value; ta.value = raw; origBtn.textContent = 'Show tidied version'; aiStatus.textContent = 'This is what you said. Saving now keeps this version.'; }
+          else { ta.value = tidied; origBtn.textContent = 'Show what I said'; aiStatus.textContent = ''; }
+          showingTidy = !showingTidy;
+        };
+        form.addEventListener('click', (ev) => { if (ev.target.closest('[data-close-sheet]')) document.getElementById('sheet').close(); });
       },
       onClose() { if (dict) dict.stop(); },
       onSubmit(fd) {
         if (dict) dict.stop();
         const text = (fd.get('text') || '').trim();
         if (!text) { u.toast(isNew ? 'Nothing to save yet.' : 'Write something, or delete the entry.'); return false; }
-        const fields = { text, date: fd.get('date') || u.today(), time: fd.get('time') || '', lucid: dream && !!fd.get('lucid') };
+        const fields = { text, date: fd.get('date') || u.today(), time: fd.get('time') || '', lucid: dream && !!fd.get('lucid'), raw: raw && raw !== text ? raw : '' };
         if (isNew) S.add('entries', { kind: e.kind, created: new Date().toISOString(), ...fields });
         else { Object.assign(e, fields); S.save(); }
         if (!dream && fd.get('mood')) { const j = Object.assign({ mood: 0, energy: 0 }, S.entry(fields.date)); j.mood = Number(fd.get('mood')); S.setEntry(fields.date, j); }
@@ -344,6 +380,13 @@
         <div class="sec-head"><h2>Appearance</h2></div>
         <div class="seg">${[['', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" data-act="theme" ${st.theme === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
       </section>
+      ${L.ai.available() ? `<section class="card">
+        <div class="sec-head"><h2>AI tidy-up</h2><span class="count ${L.ai.getKey() ? 'all' : ''}">${L.ai.getKey() ? 'On' : 'Off'}</span></div>
+        <p class="muted small">Turns rough dictation into the dream or entry you meant: fixes misheard words and adds punctuation, without making anything up. It uses Claude with your own API key, which is saved on this phone only (not in backups). Each tidy-up costs about a cent.</p>
+        ${L.ai.getKey() ? `<div class="row wrap"><button class="btn sm" data-act="ai-test">Test it</button><button class="btn sm ghost danger" data-act="ai-remove">Remove key</button></div>`
+          : `<form class="ai-key" data-form="ai-key"><input name="key" type="password" placeholder="Paste your API key (sk-ant-…)" autocomplete="off" aria-label="Claude API key"><button class="btn sm primary">Save</button></form>
+             <p class="muted small">Get a key at <b>console.anthropic.com</b> → Settings → API keys (needs a little prepaid credit).</p>`}
+      </section>` : ''}
       <section class="card">
         <div class="sec-head"><h2>Backup</h2></div>
         <p class="muted small">Everything is saved on this device only. Save a backup now and then, and use it to move to a new phone.${st.lastBackup ? ` Last backup: ${u.relDay(st.lastBackup.slice(0, 10))}.` : ''}</p>
@@ -429,6 +472,13 @@
     },
 
     'habit-new': () => habitForm(),
+    async 'ai-test'(el) {
+      el.disabled = true; el.textContent = 'Testing…';
+      try { const out = await L.ai.tidy('um so this is a a test of the voice typing', 'journal'); u.toast(`Works! It wrote: “${out}”`); }
+      catch (err) { u.toast(err.message); }
+      el.disabled = false; el.textContent = 'Test it';
+    },
+    async 'ai-remove'() { if (!(await u.confirm('Remove your Claude API key from this phone?', 'Remove'))) return; L.ai.setKey(''); render(); },
     'habits-tab'(el) { L.habitsTab = el.value; render(); },
     'habit-edit': (el) => habitForm(S.habit(el.dataset.id)),
     'habit-archive'(el) { const h = S.habit(el.dataset.id); h.archived = !h.archived; S.save(); render(); u.toast(h.archived ? 'Archived. Its history is kept.' : 'Restored'); },
@@ -484,6 +534,10 @@
       S.add('tasks', { title, date: u.today(), done: false, doneOn: null });
       render();
       main.querySelector('[data-form="quick"] input').focus();
+    } else if (f.dataset.form === 'ai-key') {
+      const k = (fd.get('key') || '').trim();
+      if (!/^sk-ant-/.test(k)) { u.toast('That doesn’t look like a Claude API key (it starts with sk-ant-).'); return; }
+      L.ai.setKey(k); render(); u.toast('Key saved on this phone. Tap Test it to check.');
     } else if (L.forms && L.forms[f.dataset.form]) L.forms[f.dataset.form](fd, f);
   });
 
