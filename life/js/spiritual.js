@@ -18,6 +18,12 @@
   L.spTab = (t) => { tab = t; };
 
   const tel = (p) => String(p || '').replace(/[^\d+]/g, '');
+  // "Bob Wells 555-123-4567" -> { name: 'Bob Wells', phone: '555-123-4567' }, one person per line.
+  const parsePeople = (text) => String(text || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+    const m = l.match(/^(.*?)[\s,:–-]*(\+?[\d(][\d\s().-]{5,}\d)$/);
+    return m && m[1].trim() && m[2].replace(/\D/g, '').length >= 7 ? { name: m[1].trim(), phone: m[2] } : { name: l, phone: '' };
+  });
+  const openGroups = new Set(); // which other groups are dropped open
   const contact = (phone) => phone ? `<span class="contact"><a class="icon-btn sm" href="tel:${tel(phone)}" aria-label="Call">${icon('phone')}</a><a class="icon-btn sm txt" href="sms:${tel(phone)}" aria-label="Text">Text</a></span>` : '';
   // Next date (today or later) falling on weekday `dw`.
   const nextOn = (dw) => { let d = u.today(); while (u.dow(d) !== dw) d = u.addDays(d, 1); return d; };
@@ -210,14 +216,23 @@
       </section>
       <section class="sec">
         <div class="sec-head"><h2>Other groups</h2><button class="count link" data-act="ogroup-new">${icon('plus', 'sm')} Add</button></div>
-        ${s.otherGroups.length ? s.otherGroups.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map((o) => `<div class="card ogroup">
-            <button class="ogroup-main" data-act="ogroup-edit" data-id="${o.id}">
-              <b>${esc(o.name)}</b>
-              ${o.overseer ? `<small class="muted block">Overseer: ${esc(o.overseer)}${o.assistant ? ` · Assistant: ${esc(o.assistant)}` : ''}</small>` : ''}
-              ${o.meets ? `<small class="muted block">Meets: ${esc(o.meets)}</small>` : ''}
-              ${o.members ? `<small class="muted block">${u.plural(o.members.split('\n').filter((x) => x.trim()).length, 'member')}</small>` : ''}
-            </button>${contact(o.overseerPhone)}
-          </div>`).join('')
+        ${s.otherGroups.length ? s.otherGroups.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map((o) => {
+          const people = parsePeople(o.members);
+          const row = (role, name, phone) => `<div class="list-row"><span>${role ? `<small class="muted block">${role}</small>` : ''}${esc(name)}</span>${contact(phone)}</div>`;
+          return `<details class="card ogroup" data-gid="${o.id}" ${openGroups.has(o.id) ? 'open' : ''}>
+            <summary><span class="ogroup-main"><b>${esc(o.name)}</b><small class="muted block">${esc([o.overseer && 'Overseer: ' + o.overseer, people.length && u.plural(people.length, 'member')].filter(Boolean).join(' · '))}</small></span><span class="chev">${icon('right')}</span></summary>
+            <div class="ogroup-body">
+              ${o.meets ? `<p class="small"><span class="muted">Meets:</span> ${esc(o.meets)}</p>` : ''}
+              <div class="list">
+                ${o.overseer ? row('Group overseer', o.overseer, o.overseerPhone) : ''}
+                ${o.assistant ? row('Assistant', o.assistant, o.assistantPhone) : ''}
+                ${people.map((m) => row('', m.name, m.phone)).join('')}
+              </div>
+              ${o.notes ? `<p class="small muted notes">${esc(o.notes)}</p>` : ''}
+              <button class="btn sm" data-act="ogroup-edit" data-id="${o.id}">Edit group</button>
+            </div>
+          </details>`;
+        }).join('')
           : `<div class="empty"><p>Keep track of other groups in the congregation: who oversees them, where they meet and who’s in them.</p></div>`}
       </section>`;
   }
@@ -370,7 +385,7 @@
         { name: 'overseer', label: 'Group overseer', optional: true }, { name: 'overseerPhone', label: 'Overseer’s phone', type: 'tel', optional: true },
         { name: 'assistant', label: 'Assistant', optional: true }, { name: 'assistantPhone', label: 'Assistant’s phone', type: 'tel', optional: true },
         { name: 'meets', label: 'Meets for field service', optional: true, placeholder: 'Saturdays 9:30 at the Wells’ home' },
-        { name: 'members', label: 'Members, one per line', type: 'textarea', optional: true, placeholder: 'Bob Wells\nChris & Gena' },
+        { name: 'members', label: 'Members, one per line, with a phone number after the name to call them', type: 'textarea', optional: true, placeholder: 'Bob Wells 555-123-4567\nChris & Gena 555-987-6543' },
         { name: 'notes', label: 'Notes', type: 'textarea', optional: true },
       ],
       onSave(v) { if (!v.name) { u.toast('Give the group a name.'); return false; } if (isNew) S.spAdd('otherGroups', v); else { Object.assign(o, v); S.save(); } },
@@ -406,6 +421,8 @@
   });
 
   const main = document.getElementById('main');
+  // Remember which groups are open so tapping Call/Text or editing doesn't fold them back up.
+  main.addEventListener('toggle', (e) => { const d = e.target; if (d.dataset && d.dataset.gid) { if (d.open) openGroups.add(d.dataset.gid); else openGroups.delete(d.dataset.gid); } }, true);
   main.addEventListener('change', (e) => {
     if (e.target.dataset.change === 'reading-at') { sp().readingAt = e.target.value.trim(); S.save(); u.toast('Saved'); }
   });
