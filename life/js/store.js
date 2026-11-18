@@ -29,6 +29,7 @@
       group: { name: '', overseer: '', overseerPhone: '', assistant: '', assistantPhone: '' },
       fsm: [],        // meetings for field service { id, day, time, place, conductor }
       members: [],    // { id, name, phone }
+      otherGroups: [], // other field service groups { id, name, overseer, overseerPhone, assistant, assistantPhone, meets, members, notes }
       reading: {},    // daily Bible reading 'YYYY-MM-DD' -> 1
       readingAt: '',  // where I'm reading now
       study: [],      // personal study sessions { id, date, topic, minutes, notes }

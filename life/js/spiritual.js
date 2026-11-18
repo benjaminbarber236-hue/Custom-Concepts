@@ -207,6 +207,18 @@
         <div class="sec-head"><h2>Members</h2><button class="count link" data-act="member-new">${icon('plus', 'sm')} Add</button></div>
         ${members.length ? `<div class="card list">${members.map((m) => `<div class="list-row"><button class="member" data-act="member-edit" data-id="${m.id}">${esc(m.name)}</button>${contact(m.phone)}</div>`).join('')}</div>`
           : `<div class="empty"><p>Your group’s publishers, with phone numbers to call or text.</p></div>`}
+      </section>
+      <section class="sec">
+        <div class="sec-head"><h2>Other groups</h2><button class="count link" data-act="ogroup-new">${icon('plus', 'sm')} Add</button></div>
+        ${s.otherGroups.length ? s.otherGroups.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map((o) => `<div class="card ogroup">
+            <button class="ogroup-main" data-act="ogroup-edit" data-id="${o.id}">
+              <b>${esc(o.name)}</b>
+              ${o.overseer ? `<small class="muted block">Overseer: ${esc(o.overseer)}${o.assistant ? ` · Assistant: ${esc(o.assistant)}` : ''}</small>` : ''}
+              ${o.meets ? `<small class="muted block">Meets: ${esc(o.meets)}</small>` : ''}
+              ${o.members ? `<small class="muted block">${u.plural(o.members.split('\n').filter((x) => x.trim()).length, 'member')}</small>` : ''}
+            </button>${contact(o.overseerPhone)}
+          </div>`).join('')
+          : `<div class="empty"><p>Keep track of other groups in the congregation: who oversees them, where they meet and who’s in them.</p></div>`}
       </section>`;
   }
 
@@ -311,6 +323,8 @@
     'fsm-new': () => fsmSheet(),
     'fsm-edit': (el) => fsmSheet(S.sp('fsm', el.dataset.id)),
     'member-new': () => memberSheet(),
+    'ogroup-new': () => otherGroupSheet(),
+    'ogroup-edit': (el) => otherGroupSheet(S.sp('otherGroups', el.dataset.id)),
     'member-edit': (el) => memberSheet(S.sp('members', el.dataset.id)),
     async 'read-toggle'(el) {
       const r = sp().reading; const d = el.dataset.day;
@@ -344,6 +358,23 @@
       ],
       onSave(v) { v.day = Number(v.day); if (isNew) S.spAdd('fsm', v); else { Object.assign(f, v); S.save(); } },
       onDelete: isNew ? null : () => S.spRemove('fsm', f.id),
+    });
+  }
+
+  function otherGroupSheet(o) {
+    const isNew = !o;
+    formSheet({
+      title: isNew ? 'Add a group' : o.name, values: o || {},
+      fields: [
+        { name: 'name', label: 'Group', placeholder: 'Group 2' },
+        { name: 'overseer', label: 'Group overseer', optional: true }, { name: 'overseerPhone', label: 'Overseer’s phone', type: 'tel', optional: true },
+        { name: 'assistant', label: 'Assistant', optional: true }, { name: 'assistantPhone', label: 'Assistant’s phone', type: 'tel', optional: true },
+        { name: 'meets', label: 'Meets for field service', optional: true, placeholder: 'Saturdays 9:30 at the Wells’ home' },
+        { name: 'members', label: 'Members, one per line', type: 'textarea', optional: true, placeholder: 'Bob Wells\nChris & Gena' },
+        { name: 'notes', label: 'Notes', type: 'textarea', optional: true },
+      ],
+      onSave(v) { if (!v.name) { u.toast('Give the group a name.'); return false; } if (isNew) S.spAdd('otherGroups', v); else { Object.assign(o, v); S.save(); } },
+      onDelete: isNew ? null : () => S.spRemove('otherGroups', o.id),
     });
   }
 
