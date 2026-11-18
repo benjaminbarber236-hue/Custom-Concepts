@@ -178,7 +178,7 @@
     const out = [];
     const sp = db.spiritual;
     const dw = u.dow(day);
-    for (const e of db.events) if (occursOn(e, day)) out.push({ type: 'event', id: e.id, title: e.title, time: e.time, end: e.end, place: e.place, cat: e.cat || 'personal', repeat: !!e.repeat });
+    for (const e of db.events) if (occursOn(e, day)) out.push({ type: 'event', id: e.id, title: e.title, time: e.time, end: e.end, place: e.place, cat: e.cat || 'personal', repeat: !!e.repeat, reminder: !!e.reminder, done: !!e.done });
     for (const key of ['midweek', 'weekend']) {
       const m = sp.meetings[key];
       if (m.day === dw) out.push({ type: 'meeting', key, title: MEETING_NAMES[key], time: m.time, place: sp.meetings.place, cat: 'spiritual', attended: !!sp.attended[day + ':' + key] });

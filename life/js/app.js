@@ -63,7 +63,7 @@
       </section>
 
       <section class="sec">
-        <div class="sec-head"><h2>Schedule</h2><button class="count link" data-act="ev-new" data-day="${t}">${icon('plus', 'sm')} Add plan</button></div>
+        <div class="sec-head"><h2>Schedule</h2><span class="head-acts"><button class="count link" data-act="rem-new" data-day="${t}">${icon('bell', 'sm')} Reminder</button><button class="count link" data-act="ev-new" data-day="${t}">${icon('plus', 'sm')} Add plan</button></span></div>
         ${L.agendaHTML(t, agenda) || `<a class="empty slim" href="#/schedule"><p>Nothing scheduled today.${nextPlan ? ` Next: <b class="ink">${esc(nextPlan.item.title)}</b>, ${esc(u.relDay(nextPlan.day))}${nextPlan.item.time ? ' at ' + u.timeText(nextPlan.item.time) : ''}.` : ''}</p></a>`}
       </section>
 
