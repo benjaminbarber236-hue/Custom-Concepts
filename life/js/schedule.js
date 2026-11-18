@@ -18,11 +18,12 @@
     const past = d < u.today() || (d === u.today() && it.time && it.time < u.nowHM());
     const check = it.type === 'meeting'
       ? `<button class="ag-check ${it.attended ? 'on' : ''}" data-act="meet-attend" data-key="${it.key}" data-day="${d}" aria-pressed="${it.attended}" aria-label="Attended ${esc(it.title)}">${icon('check')}<span>${it.attended ? 'Went' : 'Went?'}</span></button>`
-      : it.type === 'part' ? `<span class="ag-flag ${it.prepared ? 'on' : ''}">${it.prepared ? 'Prepared' : 'Prepare'}</span>` : '';
-    return `<div class="ag-row c-${it.cat} ${past && it.type !== 'meeting' ? 'past' : ''}">
+      : it.type === 'part' ? `<span class="ag-flag ${it.prepared ? 'on' : ''}">${it.prepared ? 'Prepared' : 'Prepare'}</span>`
+      : it.reminder ? `<button class="ag-check ${it.done ? 'on' : ''}" data-act="rem-done" data-id="${it.id}" aria-pressed="${it.done}" aria-label="Mark ${esc(it.title)} done">${icon('check')}<span>${it.done ? 'Done' : 'Done?'}</span></button>` : '';
+    return `<div class="ag-row c-${it.cat} ${(past && it.type !== 'meeting' && !it.reminder) || it.done ? 'past' : ''} ${it.reminder ? 'is-reminder' : ''} ${it.done ? 'is-done' : ''}">
       <button class="ag-main" data-act="ag-open" data-type="${it.type}" data-id="${it.id || ''}" data-day="${d}">
         <span class="ag-time">${it.time ? u.timeText(it.time) : 'Any time'}</span>
-        <span class="ag-text"><b>${esc(it.title)}${it.repeat ? ' <small class="rep" title="Repeats">↻</small>' : ''}</b>${sub ? `<small>${sub}</small>` : ''}</span>
+        <span class="ag-text"><b>${it.reminder ? icon('bell', 'sm') + ' ' : ''}${esc(it.title)}${it.repeat ? ' <small class="rep" title="Repeats">↻</small>' : ''}</b>${sub ? `<small>${sub}</small>` : ''}</span>
       </button>${check}</div>`;
   }
 
@@ -63,7 +64,7 @@
     const tasks = S.db.tasks.filter((x) => x.date === day);
     const up = upcoming(21);
     return `
-      <header class="page-head"><h1>Schedule</h1><button class="btn primary sm" data-act="ev-new" data-day="${day >= t ? day : t}">${icon('plus')} Add plan</button></header>
+      <header class="page-head"><h1>Schedule</h1><span class="head-acts"><button class="btn sm" data-act="rem-new" data-day="${day >= t ? day : t}">${icon('bell')} Reminder</button><button class="btn primary sm" data-act="ev-new" data-day="${day >= t ? day : t}">${icon('plus')} Add plan</button></span></header>
       <section class="card">
         <div class="month-nav">
           <button class="icon-btn" data-act="sched-month" data-v="-1" aria-label="Previous month">${icon('left')}</button>
@@ -75,7 +76,7 @@
         ${month !== t.slice(0, 7) || day !== t ? `<div class="center"><button class="link small" data-act="sched-today">Back to today</button></div>` : ''}
       </section>
       <section class="sec">
-        <div class="sec-head"><h2>${day === t ? 'Today' : u.fmt(day, { weekday: 'long', month: 'long', day: 'numeric' })}</h2><button class="count link" data-act="ev-new" data-day="${day}">${icon('plus', 'sm')} Add</button></div>
+        <div class="sec-head"><h2>${day === t ? 'Today' : u.fmt(day, { weekday: 'long', month: 'long', day: 'numeric' })}</h2><span class="head-acts"><button class="count link" data-act="rem-new" data-day="${day}">${icon('bell', 'sm')} Reminder</button><button class="count link" data-act="ev-new" data-day="${day}">${icon('plus', 'sm')} Add</button></span></div>
         ${L.agendaHTML(day, list) || `<div class="empty"><p>Nothing planned${day === t ? ' today' : ''}.</p></div>`}
         ${tasks.length ? `<div class="card list"><p class="muted small list-label">To-dos</p><ul class="tasks">${tasks.map((x) => `<li class="task ${x.done ? 'done' : ''}"><button class="tick-sm" data-act="task-toggle" data-id="${x.id}" aria-label="${x.done ? 'Mark not done' : 'Mark done'}">${icon('check')}</button><button class="task-title" data-act="task-edit" data-id="${x.id}">${esc(x.title)}</button></li>`).join('')}</ul></div>` : ''}
       </section>
@@ -142,8 +143,58 @@
   }
   L.eventSheet = eventSheet;
 
+  // ---------- Reminders ----------
+  // A quick "remind me to…" at a time. The app can't alert by itself, so the reminder is also
+  // handed to the phone's Calendar with an alert right at that time.
+  function reminderSheet(r, onDay) {
+    const isNew = !r;
+    const t = u.today();
+    const soon = () => { const n = new Date(Date.now() + 60 * 60000); return `${String(n.getHours()).padStart(2, '0')}:00`; };
+    const e = r || { title: '', date: onDay || t, time: (onDay || t) === t ? soon() : '09:00', notes: '' };
+    const send = (x) => { if (!x.time) return u.toast('Add a time to get an alert.'); u.download(`${x.title.replace(/[^\w ]+/g, '').trim() || 'reminder'}.ics`, u.ics({ ...x, alarm: 0 }), 'text/calendar'); };
+    u.sheet({
+      title: isNew ? 'New reminder' : 'Reminder',
+      submit: isNew ? 'Set reminder' : 'Save',
+      body: `
+        <label class="field"><span>Remind me to</span><input name="title" value="${esc(e.title)}" placeholder="Call the bank about the loan" autocomplete="off" ${isNew ? 'autofocus' : ''}></label>
+        <div class="two">
+          <label class="field"><span>Day</span><input name="date" type="date" value="${e.date}"></label>
+          <label class="field"><span>Time</span><input name="time" type="time" value="${e.time}"></label>
+        </div>
+        <div class="chips"><button type="button" data-rd="${t}">Today</button><button type="button" data-rd="${u.addDays(t, 1)}">Tomorrow</button><button type="button" data-rt="${soon()}">In an hour</button><button type="button" data-rt="20:00">Tonight</button></div>
+        ${isNew ? `<label class="toggle plain"><input type="checkbox" name="alert" checked><span class="sw-track"></span><span>Alert on my phone <em>(adds it to your Calendar)</em></span></label>`
+          : `<div class="row wrap"><button type="button" class="btn sm" data-alert>${icon('bell')} Add alert to my Calendar</button></div>`}
+        <label class="field"><span>Note <em>(optional)</em></span><input name="notes" value="${esc(e.notes || '')}" autocomplete="off"></label>
+      `,
+      onMount(form) {
+        form.querySelectorAll('[data-rd]').forEach((b) => (b.onclick = () => { form.date.value = b.dataset.rd; }));
+        form.querySelectorAll('[data-rt]').forEach((b) => (b.onclick = () => { form.time.value = b.dataset.rt; }));
+        const al = form.querySelector('[data-alert]');
+        if (al) al.onclick = () => send({ title: form.title.value.trim() || e.title, date: form.date.value, time: form.time.value, notes: form.notes.value });
+      },
+      danger: isNew ? null : { label: 'Delete', run: async () => { if (!(await u.confirm(`Delete the reminder “${e.title}”?`))) return false; S.remove('events', e.id); app().render(); } },
+      onSubmit(fd, form) {
+        const title = (fd.get('title') || '').trim();
+        if (!title) { u.toast('What should we remind you about?'); return false; }
+        const fields = { title, date: fd.get('date') || t, time: fd.get('time') || '', notes: (fd.get('notes') || '').trim() };
+        if (isNew) S.add('events', { ...fields, end: '', place: '', cat: 'personal', repeat: '', until: '', skips: [], reminder: true, done: false });
+        else { Object.assign(e, fields); S.save(); }
+        app().render();
+        if (isNew && fd.get('alert')) send(fields);
+        else u.toast(isNew ? `Reminder set for ${u.relDay(fields.date)}${fields.time ? ' at ' + u.timeText(fields.time) : ''}` : 'Saved');
+      },
+    });
+  }
+  L.reminderSheet = reminderSheet;
+
   Object.assign(L.acts, {
     'ev-new': (el) => eventSheet(null, el.dataset.day),
+    'rem-new': (el) => reminderSheet(null, el.dataset.day),
+    'rem-done'(el) {
+      const r = S.event(el.dataset.id);
+      r.done = !r.done; S.save(); app().render();
+      if (r.done) u.toast('Done', { label: 'Undo', run: () => { r.done = false; S.save(); app().render(); } });
+    },
     'sched-pick'(el) { day = el.dataset.day; app().render(); },
     'sched-month'(el) { month = u.shiftMonth(month, Number(el.dataset.v)); app().render(); },
     'sched-today'() { day = u.today(); month = day.slice(0, 7); app().render(); },
@@ -155,7 +206,8 @@
     },
     'ag-open'(el) {
       const { type, id } = el.dataset;
-      if (type === 'event') eventSheet(S.event(id), el.dataset.day);
+      if (type === 'event' && S.event(id) && S.event(id).reminder) reminderSheet(S.event(id));
+      else if (type === 'event') eventSheet(S.event(id), el.dataset.day);
       else if (type === 'part') L.partSheet(S.sp('parts', id));
       else if (type === 'rv') L.rvSheet(S.sp('rvs', id));
       else if (type === 'fsm') { L.spTab('group'); app().go('#/spiritual'); }

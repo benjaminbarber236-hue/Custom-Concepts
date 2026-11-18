@@ -487,3 +487,9 @@ button.list-row { width: 100%; text-align: left; gap: 10px; }
 .person-row input:focus { border-color: var(--accent); }
 .person-row .link { color: var(--muted); padding: 6px 2px; }
 .people > .btn { align-self: flex-start; }
+
+.head-acts { display: inline-flex; align-items: center; gap: 14px; }
+.page-head .head-acts { gap: 8px; }
+.ag-row.is-done .ag-text b { text-decoration: line-through; }
+.ag-row.is-reminder .ag-text b .ic { color: var(--warm); }
+.page-head { flex-wrap: wrap; row-gap: 10px; } .head-acts .btn { white-space: nowrap; }
