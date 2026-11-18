@@ -24,6 +24,9 @@
     return m && m[1].trim() && m[2].replace(/\D/g, '').length >= 7 ? { name: m[1].trim(), phone: m[2] } : { name: l, phone: '' };
   });
   const openGroups = new Set(); // which other groups are dropped open
+  const personRow = (m) => `<div class="person-row"><input data-pname value="${esc(m.name)}" placeholder="Name" autocomplete="off" aria-label="Member name"><input data-pphone type="tel" inputmode="tel" value="${esc(m.phone)}" placeholder="Phone" autocomplete="off" aria-label="Phone number"><button type="button" class="link small" data-remove-person>Remove</button></div>`;
+  // Members are a list of { name, phone }; older groups kept them as lines of text.
+  const groupPeople = (o) => (Array.isArray(o.people) ? o.people : parsePeople(o.members));
   const contact = (phone) => phone ? `<span class="contact"><a class="icon-btn sm" href="tel:${tel(phone)}" aria-label="Call">${icon('phone')}</a><a class="icon-btn sm txt" href="sms:${tel(phone)}" aria-label="Text">Text</a></span>` : '';
   // Next date (today or later) falling on weekday `dw`.
   const nextOn = (dw) => { let d = u.today(); while (u.dow(d) !== dw) d = u.addDays(d, 1); return d; };
@@ -38,14 +41,32 @@
         if (f.type === 'select') return `<label class="field">${label}<select name="${f.name}">${f.options.map(([ov, ol]) => `<option value="${ov}" ${String(v) === String(ov) ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select></label>`;
         if (f.type === 'textarea') return `<label class="field">${label}<textarea name="${f.name}" rows="3" placeholder="${esc(f.placeholder || '')}">${esc(v)}</textarea></label>`;
         if (f.type === 'check') return `<label class="toggle plain"><input type="checkbox" name="${f.name}" ${v ? 'checked' : ''}><span class="sw-track"></span><span>${esc(f.label)}</span></label>`;
+        if (f.type === 'people') {
+          const rows = (v && v.length ? v : [{ name: '', phone: '' }]).map(personRow).join('');
+          return `<fieldset class="field people"><legend>${esc(f.label)}</legend><div class="people-rows">${rows}</div><button type="button" class="btn sm" data-add-person>${icon('plus')} Add member</button></fieldset>`;
+        }
         if (f.type === 'chips') return `<div class="chips" data-for="${f.for}">${f.options.map((o) => `<button type="button" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>`;
         return `<label class="field">${label}<input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}" placeholder="${esc(f.placeholder || '')}" ${f.type === 'tel' ? 'inputmode="tel"' : ''} ${f.step ? `step="${f.step}"` : ''} autocomplete="off"></label>`;
       }).join(''),
-      onMount(form) { form.querySelectorAll('.chips[data-for] [data-v]').forEach((b) => (b.onclick = () => { form[b.parentNode.dataset.for].value = b.dataset.v; })); },
+      onMount(form) {
+        form.querySelectorAll('.chips[data-for] [data-v]').forEach((b) => (b.onclick = () => { form[b.parentNode.dataset.for].value = b.dataset.v; }));
+        // Member rows: add a new one, or take one out (nothing is saved until Save).
+        form.addEventListener('click', (e) => {
+          if (e.target.closest('[data-add-person]')) {
+            const box = form.querySelector('.people-rows');
+            box.insertAdjacentHTML('beforeend', personRow({ name: '', phone: '' }));
+            box.lastElementChild.querySelector('[data-pname]').focus();
+          } else if (e.target.closest('[data-remove-person]')) e.target.closest('.person-row').remove();
+        });
+      },
       danger: onDelete ? { label: 'Delete', run: async () => { if (!(await u.confirm('Delete this?'))) return false; onDelete(); app().render(); } } : null,
       onSubmit(fd, form) {
         const out = {};
-        fields.forEach((f) => { if (!f.name) return; out[f.name] = f.type === 'check' ? !!fd.get(f.name) : (fd.get(f.name) || '').toString().trim(); });
+        fields.forEach((f) => {
+          if (!f.name) return;
+          if (f.type === 'people') out[f.name] = [...form.querySelectorAll('.person-row')].map((r) => ({ name: r.querySelector('[data-pname]').value.trim(), phone: r.querySelector('[data-pphone]').value.trim() })).filter((x) => x.name);
+          else out[f.name] = f.type === 'check' ? !!fd.get(f.name) : (fd.get(f.name) || '').toString().trim();
+        });
         if (onSave(out, form) === false) return false;
         app().render();
       },
@@ -217,7 +238,7 @@
       <section class="sec">
         <div class="sec-head"><h2>Other groups</h2><button class="count link" data-act="ogroup-new">${icon('plus', 'sm')} Add</button></div>
         ${s.otherGroups.length ? s.otherGroups.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map((o) => {
-          const people = parsePeople(o.members);
+          const people = groupPeople(o);
           const row = (role, name, phone) => `<div class="list-row"><span>${role ? `<small class="muted block">${role}</small>` : ''}${esc(name)}</span>${contact(phone)}</div>`;
           return `<details class="card ogroup" data-gid="${o.id}" ${openGroups.has(o.id) ? 'open' : ''}>
             <summary><span class="ogroup-main"><b>${esc(o.name)}</b><small class="muted block">${esc([o.overseer && 'Overseer: ' + o.overseer, people.length && u.plural(people.length, 'member')].filter(Boolean).join(' · '))}</small></span><span class="chev">${icon('right')}</span></summary>
@@ -379,16 +400,16 @@
   function otherGroupSheet(o) {
     const isNew = !o;
     formSheet({
-      title: isNew ? 'Add a group' : o.name, values: o || {},
+      title: isNew ? 'Add a group' : o.name, values: o ? { ...o, people: groupPeople(o) } : {},
       fields: [
         { name: 'name', label: 'Group', placeholder: 'Group 2' },
         { name: 'overseer', label: 'Group overseer', optional: true }, { name: 'overseerPhone', label: 'Overseer’s phone', type: 'tel', optional: true },
         { name: 'assistant', label: 'Assistant', optional: true }, { name: 'assistantPhone', label: 'Assistant’s phone', type: 'tel', optional: true },
         { name: 'meets', label: 'Meets for field service', optional: true, placeholder: 'Saturdays 9:30 at the Wells’ home' },
-        { name: 'members', label: 'Members, one per line, with a phone number after the name to call them', type: 'textarea', optional: true, placeholder: 'Bob Wells 555-123-4567\nChris & Gena 555-987-6543' },
+        { name: 'people', label: 'Members', type: 'people' },
         { name: 'notes', label: 'Notes', type: 'textarea', optional: true },
       ],
-      onSave(v) { if (!v.name) { u.toast('Give the group a name.'); return false; } if (isNew) S.spAdd('otherGroups', v); else { Object.assign(o, v); S.save(); } },
+      onSave(v) { if (!v.name) { u.toast('Give the group a name.'); return false; } v.members = ''; if (isNew) S.spAdd('otherGroups', v); else { Object.assign(o, v); S.save(); } },
       onDelete: isNew ? null : () => S.spRemove('otherGroups', o.id),
     });
   }
