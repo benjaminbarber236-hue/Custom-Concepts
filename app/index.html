@@ -16,6 +16,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="leaflet.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: one narrow column like a phone app, fixed tab bar at the bottom, sheets slide up for every form.
@@ -204,9 +205,9 @@ p { margin: 0; }
 .banner.warn { background: var(--warn-soft); }
 
 /* Tab bar */
-.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1100; background: var(--surface); border-top: 1px solid var(--line);
   padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
-.tabbar nav { max-width: 680px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+.tabbar nav { max-width: 680px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
 .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; font-size: 12px; font-weight: 600; color: var(--muted); text-decoration: none; border-radius: 10px; }
 .tabbar a svg { width: 22px; height: 22px; }
 .tabbar a[aria-current="page"] { color: var(--accent); }
@@ -237,12 +238,24 @@ dialog#sheet::backdrop { background: rgba(10, 18, 15, .45); }
 .choices .btn small { display: block; color: var(--muted); font-weight: 500; }
 .sheet-context { color: var(--muted); font-size: 15px; }
 
-#toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; max-width: calc(100% - 32px); text-align: center; }
+#toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 1200; max-width: calc(100% - 32px); text-align: center; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .progress { height: 6px; border-radius: 6px; background: var(--sunk); overflow: hidden; }
 .progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
 
+/* Map tab */
+.map-slot { isolation: isolate; height: min(58vh, 520px); border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); background: var(--sunk); }
+#map { width: 100%; height: 100%; }
+.leaflet-container { font-family: var(--font-body); }
+.pin-icon { background: none; border: 0; }
+.pin-icon span { display: block; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+.pin-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; margin-top: 6px; }
+.pin-photos { display: flex; gap: 8px; flex-wrap: wrap; }
+.pin-photos img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; background: var(--sunk); }
+.pin-facts { display: flex; flex-direction: column; gap: 4px; font-size: 15px; }
+.pin-facts .tag { align-self: flex-start; }
+.choices .btn.primary small { color: inherit; opacity: .85; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -252,12 +265,14 @@ dialog#sheet::backdrop { background: rgba(10, 18, 15, .45); }
 <div class="tabbar"><nav aria-label="Main">
   <a href="#today" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 3v3M16 3v3"/><circle cx="12" cy="15" r="1.6" fill="currentColor"/></svg>Today</a>
   <a href="#jobs" data-tab="jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M3 8h18M3 12.5h18M3 17h18"/></svg>Jobs</a>
+  <a href="#map" data-tab="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/></svg>Map</a>
   <a href="#more" data-tab="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg>More</a>
 </nav></div>
 <dialog id="sheet"></dialog>
 <div id="toast" role="status"></div>
 
 <script src="supabase.js"></script>
+<script src="leaflet.js"></script>
 <script>
 (function () {
 'use strict';
@@ -294,7 +309,7 @@ const EVENT_STAGE = { sales: 'consult', measure: 'measure', install: 'install' }
 
 const NOTE_TYPES = ['Note', 'Call', 'Text', 'Email', 'Visit'];
 const ROLES = ['Homeowner', 'Interior Designer', 'Builder / GC', 'Contractor', 'Architect', 'Electrician', 'Low-voltage / AV', 'Property Manager', 'Vendor / Rep', 'Other'];
-const SOURCES = ['Referral', 'Interior designer', 'Builder / contractor', 'Website', 'Showroom', 'Repeat customer', 'Home show', 'Phone call', 'Other'];
+const SOURCES = ['Referral', 'Interior designer', 'Builder / contractor', 'Drive-by / new construction', 'Website', 'Showroom', 'Repeat customer', 'Home show', 'Phone call', 'Other'];
 const CATEGORIES = ['Shades', 'Blinds', 'Shutters', 'Drapery', 'Outdoor Screens & Shades', 'Motorization / Controls', 'Hardware / Other'];
 const BRANDS = ['Hunter Douglas', 'Lutron', 'Norman', 'Graber', 'Levolor', 'Alta', 'Lafayette', 'Draper', 'MechoShade', 'Bali', 'Sunburst', 'Polywood', 'Kirsch', 'Phantom Screens', 'Insolroll', 'Somfy', 'Hunter Douglas PowerView', 'Control4', 'Savant', 'Custom Workroom'];
 const MOUNTS = ['Inside', 'Outside', 'Ceiling', 'Wall', 'Pocket'];
@@ -352,7 +367,7 @@ const ICON = {
 // ---------- Data ----------
 // Everything is kept on this device first (so the app works with no internet),
 // then synced to your own Supabase database whenever there's a connection.
-const S = { jobs: new Map(), events: new Map(), tasks: new Map(), meta: { contacts: [] }, loaded: false, mode: 'starting', sb: null, user: null, syncError: '', lastSync: '', msg: '' };
+const S = { jobs: new Map(), events: new Map(), tasks: new Map(), pins: new Map(), meta: { contacts: [] }, loaded: false, mode: 'starting', sb: null, user: null, syncError: '', lastSync: '', msg: '' };
 const BAKED = { url: 'https://zfdtnprrjhewdvepbovo.supabase.co', key: 'sb_publishable_gRPjEWbBBObRIwLcyvhvrw_Jo41UBPC' }; // Filled in once your database is set up, so every device just signs in.
 const CFG_KEY = 'jt-config';
 
@@ -382,7 +397,7 @@ let persistT = 0;
 function persistNow() {
   clearTimeout(persistT);
   if (!S.user) return Promise.resolve();
-  return idb.set('kv', 'state:' + S.user.id, { jobs: all('jobs'), events: all('events'), tasks: all('tasks'), meta: S.meta, outbox, lastPull })
+  return idb.set('kv', 'state:' + S.user.id, { jobs: all('jobs'), events: all('events'), tasks: all('tasks'), pins: all('pins'), meta: S.meta, outbox, lastPull })
     .catch((e) => { console.error(e); toast('Couldn’t save on this device. It may be out of space.'); });
 }
 function persist() { clearTimeout(persistT); persistT = setTimeout(persistNow, 200); }
@@ -464,14 +479,14 @@ function applyRemote(r) {
   }
   schedule();
 }
-window.addEventListener('online', () => { schedule(); syncSoon(50); });
+window.addEventListener('online', () => { schedule(); syncSoon(50); setTimeout(fillMissingAddresses, 3000); });
 window.addEventListener('offline', () => schedule());
 setInterval(() => syncSoon(0), 30000);
 
 // ----- Files: kept on this device right away, uploaded when there's a connection -----
 const urlCache = new Map();
 async function uploadPendingFiles() {
-  for (const j of all('jobs')) {
+  for (const [coll, j] of [...all('jobs').map((x) => ['jobs', x]), ...all('pins').map((x) => ['pins', x])]) {
     for (const f of j.files || []) {
       if (!f.pending) continue;
       const blob = await idb.get('blobs', f.id).catch(() => null);
@@ -479,9 +494,9 @@ async function uploadPendingFiles() {
       const path = `${S.user.id}/${f.id}-${(f.name || 'file').replace(/[^\w.\-]+/g, '_')}`;
       const { error } = await S.sb.storage.from('files').upload(path, blob, { upsert: true, contentType: f.type || blob.type || undefined });
       if (error) throw error;
-      const jj = get('jobs', j.id);
+      const jj = get(coll, j.id);
       const ff = jj && (jj.files || []).find((x) => x.id === f.id);
-      if (ff) { ff.pending = false; ff.path = path; put('jobs', jj); }
+      if (ff) { ff.pending = false; ff.path = path; put(coll, jj); }
     }
   }
 }
@@ -551,7 +566,7 @@ function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; ren
 function syncBadge() {
   const el = $('#sync');
   if (!el) return;
-  const n = Object.keys(outbox).length + all('jobs').reduce((s, j) => s + (j.files || []).filter((f) => f.pending).length, 0);
+  const n = Object.keys(outbox).length + [...all('jobs'), ...all('pins')].reduce((s, j) => s + (j.files || []).filter((f) => f.pending).length, 0);
   let cls = 'sync', txt = 'Synced';
   if (!navigator.onLine) { cls = 'sync off'; txt = n ? `Offline · ${n} waiting` : 'Offline'; }
   else if (S.syncError) { cls = 'sync saving'; txt = 'Sync problem'; }
@@ -564,7 +579,7 @@ function syncBadge() {
 function parseHash() {
   const h = decodeURIComponent(location.hash.slice(1));
   if (h.startsWith('job-')) { V.route = 'job'; V.jobId = h.slice(4); }
-  else V.route = ['jobs', 'more'].includes(h) ? h : 'today';
+  else V.route = ['jobs', 'more', 'map'].includes(h) ? h : 'today';
 }
 function go(h) { if (location.hash !== '#' + h) location.hash = h; else render(); }
 
@@ -582,6 +597,7 @@ function render() {
   else if (V.route === 'job') body = viewJob();
   else if (V.route === 'jobs') body = viewJobs();
   else if (V.route === 'more') body = viewMore();
+  else if (V.route === 'map') body = viewMap();
   else body = viewToday();
   // Keep the search box (and what's typed in it) when the list re-renders.
   const search = $('#q');
@@ -594,6 +610,7 @@ function render() {
   document.body.scrollTop = keepScroll ? y : 0;
   render.last = location.hash;
   hydrateFiles();
+  placeMap();
 }
 
 function loadingNote() {
@@ -937,6 +954,218 @@ async function makeCalendarLink(replace) {
   S.cal = { token };
   schedule();
   toast('Calendar link ready');
+}
+
+// ---------- Map: pins for new construction you drive past ----------
+const PIN_STATUSES = [
+  { id: 'spotted', label: 'Spotted', color: '#4f6d8f' },
+  { id: 'talked', label: 'Talked to someone', color: '#82699a' },
+  { id: 'card', label: 'Left a card', color: '#b08a2e' },
+  { id: 'follow', label: 'Follow up', color: '#c4561c' },
+  { id: 'job', label: 'Became a job', color: '#3f8256' },
+  { id: 'no', label: 'Not a fit', color: '#8c867c' },
+];
+const pinStatus = (id) => PIN_STATUSES.find((x) => x.id === id) || PIN_STATUSES[0];
+const M = { map: null, el: null, layers: null, markers: null, me: null, base: 'map', filter: 'all', fitted: false };
+const pinName = (p) => p.title || p.builder || (p.address ? p.address.split(',')[0] : '') || `Pin from ${fmtDay((p.createdAt || nowISO()).slice(0, 10), { month: 'short', day: 'numeric' })}`;
+
+function ensureMap() {
+  if (M.map || !window.L) return;
+  M.el = document.createElement('div');
+  M.el.id = 'map';
+  M.map = L.map(M.el, { zoomControl: true, tap: true }).setView([39.5, -98.35], 4);
+  M.layers = {
+    map: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }),
+    sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imagery © Esri' }),
+  };
+  M.layers[M.base].addTo(M.map);
+  M.markers = L.layerGroup().addTo(M.map);
+  // Press and hold (or right-click) anywhere to pin that spot.
+  M.map.on('contextmenu', (e) => pinForm(null, { lat: e.latlng.lat, lng: e.latlng.lng }));
+}
+function placeMap() {
+  if (V.route !== 'map') return;
+  const slot = document.getElementById('map-slot');
+  if (!slot) return;
+  ensureMap();
+  if (!M.map) { slot.innerHTML = '<div class="empty">The map couldn’t load. Your pins are listed below.</div>'; return; }
+  slot.appendChild(M.el);
+  M.map.invalidateSize();
+  drawPins();
+  if (!M.fitted) {
+    M.fitted = true;
+    const ps = all('pins').filter((p) => isFinite(p.lat) && isFinite(p.lng));
+    if (ps.length) M.map.fitBounds(L.latLngBounds(ps.map((p) => [p.lat, p.lng])).pad(0.3), { maxZoom: 16 });
+    else locate(false);
+  }
+}
+function drawPins() {
+  if (!M.markers) return;
+  M.markers.clearLayers();
+  all('pins').filter((p) => M.filter === 'all' || p.status === M.filter).forEach((p) => {
+    if (!isFinite(p.lat) || !isFinite(p.lng)) return;
+    const icon = L.divIcon({ className: 'pin-icon', html: `<span style="background:${pinStatus(p.status).color}"></span>`, iconSize: [24, 30], iconAnchor: [12, 30] });
+    L.marker([p.lat, p.lng], { icon, title: pinName(p) }).on('click', () => pinSheet(p.id)).addTo(M.markers);
+  });
+}
+function toggleBase() {
+  if (!M.map) return;
+  M.map.removeLayer(M.layers[M.base]);
+  M.base = M.base === 'map' ? 'sat' : 'map';
+  M.layers[M.base].addTo(M.map);
+  render();
+}
+function where(highAccuracy = true) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('unsupported'));
+    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: highAccuracy, timeout: 20000, maximumAge: 5000 });
+  });
+}
+function showMe(lat, lng) {
+  if (!M.map) return;
+  if (M.me) M.me.setLatLng([lat, lng]);
+  else M.me = L.circleMarker([lat, lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2f7cf6', fillOpacity: 1 }).addTo(M.map);
+}
+async function locate(quiet) {
+  try {
+    const pos = await where(false);
+    showMe(pos.coords.latitude, pos.coords.longitude);
+    if (M.map) M.map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+  } catch (e) { if (!quiet) locError(e); }
+}
+function locError(e) {
+  toast(e && e.code === 1 ? 'Location is off for this app. Turn it on in Settings → Privacy & Security → Location Services → Safari Websites.' : 'Couldn’t find your location. Try again in a moment.');
+}
+async function dropPinHere() {
+  toast('Finding your spot…');
+  let pos;
+  try { pos = await where(true); } catch (e) { locError(e); return; }
+  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+  showMe(lat, lng);
+  if (M.map) M.map.setView([lat, lng], 17);
+  pinForm(null, { lat, lng, acc: Math.round(accuracy || 0) });
+}
+
+async function pinForm(p, pos) {
+  const isNew = !p;
+  const builders = [...new Set(all('pins').map((x) => x.builder).filter(Boolean))];
+  const d = await form({
+    title: isNew ? 'New pin' : 'Edit pin',
+    intro: isNew ? `<p class="sheet-context">${pos.acc ? `Pinned where you are (within about ${pos.acc} m).` : 'Pinned where you pressed on the map.'} Everything below is optional.</p>` : '',
+    values: p || { status: 'spotted' },
+    fields: [
+      { name: 'title', label: 'What is it?', placeholder: 'e.g. Lot 14, Oak Ridge subdivision' },
+      { name: 'status', label: 'Status', type: 'radios', options: PIN_STATUSES.filter((x) => x.id !== 'job' || (p && p.status === 'job')).map((x) => [x.id, x.label]) },
+      [{ name: 'builder', label: 'Builder / company', list: builders, placeholder: 'From the sign' }, { name: 'contact', label: 'Contact name' }],
+      { name: 'phone', label: 'Phone', type: 'tel', placeholder: 'Number on the sign' },
+      { name: 'notes', label: 'Notes', type: 'textarea', rows: 3, placeholder: 'e.g. Framing done, big windows facing west, super was friendly' },
+      { name: 'photo', label: 'Photo', type: 'file', accept: 'image/*' },
+      { name: 'remind', label: 'Remind me to follow up', type: 'radios', options: [['', 'No'], ['1', 'Tomorrow'], ['7', 'In a week'], ['14', 'In 2 weeks'], ['30', 'In a month']] },
+    ],
+    submit: isNew ? 'Save pin' : 'Save',
+  });
+  if (!d) return;
+  const pin = p ? get('pins', p.id) : { lat: pos.lat, lng: pos.lng, acc: pos.acc || 0, address: '', files: [], jobId: '' };
+  Object.assign(pin, { title: d.title, status: d.status || 'spotted', builder: d.builder, contact: d.contact, phone: d.phone, notes: d.notes });
+  if (d.photo) { const rec = await uploadFile(d.photo, 'Photo', ''); if (rec) { pin.files = pin.files || []; pin.files.push(rec); } }
+  put('pins', pin);
+  if (d.remind) put('tasks', { title: `Follow up: ${pinName(pin)}`, due: addDays(today(), Number(d.remind)), jobId: pin.jobId || '', pinId: pin.id, done: false, notes: '' });
+  toast(isNew ? 'Pin saved' : 'Saved');
+  fillAddress(pin.id);
+}
+
+function directionsUrl(p) {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return ios ? `maps://?daddr=${p.lat},${p.lng}` : `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+}
+async function pinSheet(id) {
+  const p = get('pins', id);
+  if (!p) return;
+  const st = pinStatus(p.status);
+  const photos = (p.files || []).filter((f) => /^image\//.test(f.type || ''));
+  const facts = [
+    `<span class="tag" style="background:${st.color};color:#fff">${esc(st.label)}</span>`,
+    p.address ? `<span>${esc(p.address)}</span>` : '<span class="muted">Address will fill in when you’re online.</span>',
+    p.builder || p.contact ? `<span>${esc([p.builder, p.contact].filter(Boolean).join(' · '))}</span>` : '',
+    p.phone ? `<span class="num">${esc(p.phone)} <button class="copy" data-act="copy" data-v="${esc(p.phone)}">Copy</button></span>` : '',
+    p.notes ? `<span style="white-space:pre-wrap">${esc(p.notes)}</span>` : '',
+    `<span class="small muted">Pinned ${esc(relDay((p.createdAt || nowISO()).slice(0, 10)))}</span>`,
+  ].filter(Boolean).join('');
+  const intro = `<div class="pin-facts">${facts}</div>${photos.length ? `<div class="pin-photos">${photos.map((f) => `<img data-pin-img="${f.id}" alt="">`).join('')}</div>` : ''}`;
+  const job = p.jobId && S.jobs.get(p.jobId);
+  const pr = choose(pinName(p), [
+    { value: 'directions', label: 'Directions', hint: 'Opens Maps' },
+    job ? { value: 'open-job', label: 'Open the job', hint: job.name } : { value: 'make-job', label: 'Make it a job', hint: 'Adds it to Jobs as a new lead', cls: 'primary' },
+    { value: 'edit', label: 'Edit, add a photo or a reminder' },
+    { value: 'show', label: 'Show on the map' },
+    { value: 'delete', label: 'Delete pin', cls: 'danger' },
+  ], intro);
+  photos.forEach((f) => fileUrl(f).then((u) => { const img = document.querySelector(`[data-pin-img="${f.id}"]`); if (img && u) img.src = u; }));
+  const a = await pr;
+  if (a === 'directions') { location.href = directionsUrl(p); return; }
+  if (a === 'open-job') return go('job-' + job.id);
+  if (a === 'make-job') return pinToJob(p);
+  if (a === 'edit') return pinForm(p);
+  if (a === 'show') { if (V.route !== 'map') go('map'); setTimeout(() => { if (M.map) M.map.setView([p.lat, p.lng], 18); document.body.scrollTop = 0; }, 60); return; }
+  if (a === 'delete') {
+    if (!(await ask('Delete this pin?', esc(pinName(p)) + ' will be removed from the map.', 'Delete', true))) return;
+    del('pins', p.id);
+    toast('Pin deleted');
+  }
+}
+function pinToJob(p) {
+  const street = (p.address || '').split(',')[0].trim();
+  const job = put('jobs', {
+    name: [p.builder || p.title || 'New construction', street].filter(Boolean).join(' – '),
+    stage: 'lead', address: p.address || '', source: 'Drive-by / new construction', referredBy: '', value: '',
+    about: [p.title, p.notes].filter(Boolean).join('\n'),
+    people: p.contact || p.builder || p.phone ? [{ name: p.contact || p.builder, role: 'Builder / GC', company: p.builder || '', phone: p.phone || '', email: '', notes: '' }] : [],
+    log: p.notes ? [{ id: uid(), date: (p.createdAt || nowISO()).slice(0, 10), type: 'Visit', text: `Drive-by: ${p.notes}` }] : [],
+    quotes: [], items: [], files: clone(p.files || []), stageHistory: [{ stage: 'lead', at: nowISO() }], pinId: p.id, lat: p.lat, lng: p.lng,
+  });
+  put('tasks', { title: `Call ${firstName(p.contact) || p.builder || 'the builder'} about window coverings`, due: addDays(today(), 1), jobId: job.id, done: false, forStage: 'lead' });
+  const q = get('pins', p.id);
+  q.jobId = job.id; q.status = 'job';
+  put('pins', q);
+  go('job-' + job.id);
+  toast('Added to Jobs as a new lead');
+}
+
+// Street address for a pin, looked up from its location when there's internet.
+async function fillAddress(id) {
+  const p = S.pins.get(id);
+  if (!p || p.address || !navigator.onLine) return;
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=${p.lat}&lon=${p.lng}`, { headers: { 'Accept-Language': 'en' } });
+    if (!r.ok) return;
+    const d = await r.json();
+    const a = d.address || {};
+    const line = [[a.house_number, a.road].filter(Boolean).join(' '), a.city || a.town || a.village || a.hamlet || a.county, a.state].filter(Boolean).join(', ') || d.display_name || '';
+    const q = get('pins', id);
+    if (line && q && !q.address) { q.address = line; put('pins', q); }
+  } catch (e) { /* try again next time */ }
+}
+async function fillMissingAddresses() {
+  for (const p of all('pins').filter((x) => !x.address).slice(0, 10)) {
+    if (!navigator.onLine) return;
+    await fillAddress(p.id);
+    await new Promise((r) => setTimeout(r, 1200)); // the free address service asks for one lookup per second
+  }
+}
+
+function viewMap() {
+  const pins = all('pins').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const shown = pins.filter((p) => M.filter === 'all' || p.status === M.filter);
+  const count = (id) => pins.filter((p) => p.status === id).length;
+  const chip = (id, label, n) => `<button class="chip" data-act="pin-filter" data-f="${id}" aria-pressed="${M.filter === id}">${esc(label)} <span class="muted num">${n}</span></button>`;
+  return `${loadingNote()}
+  <header class="section-head"><h1>Map</h1><div class="btn-row"><button class="btn sm" data-act="map-locate">Find me</button><button class="btn sm" data-act="map-base">${M.base === 'map' ? 'Satellite' : 'Map'}</button></div></header>
+  <button class="btn primary big" data-act="pin-here"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/></svg>Drop pin here</button>
+  <div id="map-slot" class="map-slot"></div>
+  <p class="small muted">Press and hold anywhere on the map to pin that spot instead. Pins save with no signal; the map itself needs internet to show.</p>
+  <div class="chips">${chip('all', 'All', pins.length)}${PIN_STATUSES.filter((x) => count(x.id)).map((x) => chip(x.id, x.label, count(x.id))).join('')}</div>
+  ${shown.length ? `<div class="list">${shown.map((p) => `<button class="row" data-act="pin" data-id="${p.id}"><span class="pin-dot" style="background:${pinStatus(p.status).color}"></span><span class="body"><span class="t">${esc(pinName(p))}</span><span class="s">${esc([pinStatus(p.status).label, p.address ? p.address.split(',').slice(0, 2).join(',') : '', relDay((p.createdAt || nowISO()).slice(0, 10))].filter(Boolean).join(' · '))}</span></span><span class="end">${ICON.chev}</span></button>`).join('')}</div>`
+    : `<div class="empty">${pins.length ? 'No pins with this status.' : 'No pins yet. When you pass a new build, tap <strong>Drop pin here</strong>.'}</div>`}`;
 }
 
 // ---------- Sheets (forms, choices, confirmations) ----------
@@ -1388,7 +1617,7 @@ async function jobMenu(j) {
 
 // ---------- Backup and import ----------
 async function exportBackup() {
-  const data = { app: 'job-tracker-2', exportedAt: nowISO(), jobs: all('jobs'), events: all('events'), tasks: all('tasks'), contacts: S.meta.contacts || [] };
+  const data = { app: 'job-tracker-2', exportedAt: nowISO(), jobs: all('jobs'), events: all('events'), tasks: all('tasks'), pins: all('pins'), contacts: S.meta.contacts || [] };
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
   const name = `job-tracker-backup-${today()}.json`;
   try {
@@ -1415,10 +1644,10 @@ async function importFile(file) {
   const show = (p, m) => { if (box) { box.hidden = false; bar.style.width = Math.round(p * 100) + '%'; msg.textContent = m; } };
   let d;
   try { d = JSON.parse(await file.text()); } catch (e) { toast('That file isn’t a backup file.'); return; }
-  let jobs = [], events = [], tasks = [], contacts = [], fileData = {};
+  let jobs = [], events = [], tasks = [], contacts = [], pins = [], fileData = {};
   if (!S.user) { toast('Sign in first.'); return; }
   if (d && d.app === 'job-tracker-2') {
-    ({ jobs = [], events = [], tasks = [], contacts = [] } = d);
+    ({ jobs = [], events = [], tasks = [], contacts = [], pins = [] } = d);
   } else if (d && Array.isArray(d.projects) && Array.isArray(d.contacts)) {
     fileData = d.fileData || {};
     const cById = new Map(d.contacts.map((c) => [c.id, c]));
@@ -1457,6 +1686,7 @@ async function importFile(file) {
   jobs.forEach((j) => put('jobs', j));
   events.forEach((e) => put('events', e));
   tasks.forEach((t) => put('tasks', t));
+  pins.forEach((x) => put('pins', x));
   if (contacts.length) { S.meta.contacts = contacts; enqueue('meta', 'contacts', { list: contacts }); }
   await persistNow();
   show(1, `Brought in ${jobs.length} jobs, ${events.length} appointments and ${tasks.length} reminders.${failed ? ` ${failed} files couldn’t be read.` : ''} ${navigator.onLine ? 'Syncing now.' : 'They’ll sync when you’re back online.'}`);
@@ -1497,6 +1727,11 @@ document.addEventListener('click', (ev) => {
     case 'export': return exportBackup();
     case 'sync-now': S.syncError = ''; toast(navigator.onLine ? 'Syncing…' : 'You’re offline. It will sync when you’re back online.'); return sync();
     case 'signout': return signOut();
+    case 'pin-here': return dropPinHere();
+    case 'map-base': return toggleBase();
+    case 'map-locate': return locate(false);
+    case 'pin': return pinSheet(id);
+    case 'pin-filter': M.filter = el.dataset.f; return render();
     case 'cal-make': return makeCalendarLink(false);
     case 'cal-new': return makeCalendarLink(true);
     case 'cal-retry': S.cal = null; return render();
@@ -1555,6 +1790,7 @@ async function openUser(user) {
     S.jobs = new Map((st.jobs || []).map((x) => [x.id, x]));
     S.events = new Map((st.events || []).map((x) => [x.id, x]));
     S.tasks = new Map((st.tasks || []).map((x) => [x.id, x]));
+    S.pins = new Map((st.pins || []).map((x) => [x.id, x]));
     S.meta = st.meta || { contacts: [] };
     outbox = st.outbox || {};
     lastPull = st.lastPull || '';
@@ -1568,6 +1804,7 @@ async function openUser(user) {
       .subscribe();
   } catch (e) { console.error(e); }
   syncSoon(0);
+  setTimeout(fillMissingAddresses, 5000);
 }
 async function start() {
   parseHash();
@@ -1616,7 +1853,7 @@ async function signOut() {
   if (Object.keys(outbox).length && !(await ask('Sign out?', 'Some changes haven’t synced yet. They stay on this device and sync next time you sign in here.', 'Sign out'))) return;
   await persistNow();
   try { await S.sb.auth.signOut(); } catch (e) {}
-  S.user = null; S.jobs = new Map(); S.events = new Map(); S.tasks = new Map(); S.meta = { contacts: [] }; outbox = {}; lastPull = ''; S.loaded = false;
+  S.user = null; S.jobs = new Map(); S.events = new Map(); S.tasks = new Map(); S.pins = new Map(); M.fitted = false; S.meta = { contacts: [] }; outbox = {}; lastPull = ''; S.loaded = false;
   S.mode = 'signin';
   render();
 }

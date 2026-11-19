@@ -1,7 +1,7 @@
 // Lets Job Tracker open with no internet: the app's own files are saved on this device.
 // Your data never goes through here; it's kept in the app's own storage and synced to your database.
-const CACHE = 'job-tracker-app-v3';
-const SHELL = ['./', 'index.html', 'supabase.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'job-tracker-app-v4';
+const SHELL = ['./', 'index.html', 'supabase.js', 'leaflet.js', 'leaflet.css', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
