@@ -278,7 +278,7 @@ dialog#sheet::backdrop { background: rgba(10, 18, 15, .45); }
 'use strict';
 
 // ---------- Constants ----------
-const APP_VERSION = 'Nov 19 · map';
+const APP_VERSION = 'Nov 19 · pins';
 const STAGES = [
   { id: 'lead', label: 'New lead', short: 'Lead', sec: 'sales' },
   { id: 'consult', label: 'Sales calls', short: 'Sales', sec: 'sales' },
@@ -580,7 +580,7 @@ function syncBadge() {
 function parseHash() {
   const h = decodeURIComponent(location.hash.slice(1));
   if (h.startsWith('job-')) { V.route = 'job'; V.jobId = h.slice(4); }
-  else V.route = ['jobs', 'more', 'map'].includes(h) ? h : 'today';
+  else V.route = ['jobs', 'more', 'map', 'pins'].includes(h) ? h : 'today';
 }
 function go(h) { if (location.hash !== '#' + h) location.hash = h; else render(); }
 
@@ -599,6 +599,7 @@ function render() {
   else if (V.route === 'jobs') body = viewJobs();
   else if (V.route === 'more') body = viewMore();
   else if (V.route === 'map') body = viewMap();
+  else if (V.route === 'pins') body = viewPins();
   else body = viewToday();
   // Keep the search box (and what's typed in it) when the list re-renders.
   const search = $('#q');
@@ -606,7 +607,7 @@ function render() {
   const caret = search ? search.selectionStart : 0;
   app.innerHTML = head + body;
   if (hadFocus && $('#q')) { $('#q').focus(); try { $('#q').setSelectionRange(caret, caret); } catch (e) {} }
-  document.querySelectorAll('.tabbar a').forEach((a) => a.setAttribute('aria-current', a.dataset.tab === (V.route === 'job' ? 'jobs' : V.route) ? 'page' : 'false'));
+  document.querySelectorAll('.tabbar a').forEach((a) => a.setAttribute('aria-current', a.dataset.tab === ({ job: 'jobs', pins: 'more' }[V.route] || V.route) ? 'page' : 'false'));
   syncBadge();
   document.body.scrollTop = keepScroll ? y : 0;
   render.last = location.hash;
@@ -905,6 +906,12 @@ function viewMore() {
       <p class="small muted">${all('jobs').length} jobs · ${all('events').length} appointments · ${all('tasks').length} reminders${waiting ? ` · ${waiting} changes waiting` : ''}${S.lastSync ? ` · last synced ${esc(new Date(S.lastSync).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }))}` : ''}</p>
       <div class="btn-row"><button class="btn sm" data-act="sync-now">Sync now</button><button class="btn sm" data-act="signout">Sign out</button></div>
     </div></section>
+  <section class="section"><h2>Map pins</h2>
+    <div class="card next">
+      ${(() => { const ps = all('pins'); const cats = new Set(ps.map((p) => p.category).filter(Boolean)); const fu = ps.filter((p) => p.status === 'follow').length;
+        return `<p>${ps.length ? `${ps.length} pinned ${ps.length === 1 ? 'house' : 'houses'}${cats.size ? ` in ${cats.size} ${cats.size === 1 ? 'category' : 'categories'}` : ''}${fu ? ` · ${fu} to follow up` : ''}.` : 'Houses you pin on the Map tab show up here, grouped your way.'}</p>`; })()}
+      <a class="btn primary big" href="#pins">See all pins</a>
+    </div></section>
   <section class="section"><h2>iPhone Calendar</h2>
     <div class="card next">
       <p>See your appointments and reminders in Apple Calendar, then add Apple’s Calendar widget to your home screen. Calendar checks for changes every 15–60 minutes.</p>
@@ -1057,6 +1064,7 @@ async function pinForm(p, pos) {
     values: p || { status: 'spotted' },
     fields: [
       { name: 'title', label: 'What is it?', placeholder: 'e.g. Lot 14, Oak Ridge subdivision' },
+      { name: 'category', label: 'Category', list: [...new Set(all('pins').map((x) => x.category).filter(Boolean))].sort(), placeholder: 'e.g. Oak Ridge, North side, Hot leads', hint: 'Your own groups. Pick one you used before or type a new one.' },
       { name: 'status', label: 'Status', type: 'radios', options: PIN_STATUSES.filter((x) => x.id !== 'job' || (p && p.status === 'job')).map((x) => [x.id, x.label]) },
       [{ name: 'builder', label: 'Builder / company', list: builders, placeholder: 'From the sign' }, { name: 'contact', label: 'Contact name' }],
       { name: 'phone', label: 'Phone', type: 'tel', placeholder: 'Number on the sign' },
@@ -1068,7 +1076,7 @@ async function pinForm(p, pos) {
   });
   if (!d) return;
   const pin = p ? get('pins', p.id) : { lat: pos.lat, lng: pos.lng, acc: pos.acc || 0, address: '', files: [], jobId: '' };
-  Object.assign(pin, { title: d.title, status: d.status || 'spotted', builder: d.builder, contact: d.contact, phone: d.phone, notes: d.notes });
+  Object.assign(pin, { title: d.title, category: d.category, status: d.status || 'spotted', builder: d.builder, contact: d.contact, phone: d.phone, notes: d.notes });
   if (d.photo) { const rec = await uploadFile(d.photo, 'Photo', ''); if (rec) { pin.files = pin.files || []; pin.files.push(rec); } }
   put('pins', pin);
   if (d.remind) put('tasks', { title: `Follow up: ${pinName(pin)}`, due: addDays(today(), Number(d.remind)), jobId: pin.jobId || '', pinId: pin.id, done: false, notes: '' });
@@ -1087,6 +1095,7 @@ async function pinSheet(id) {
   const photos = (p.files || []).filter((f) => /^image\//.test(f.type || ''));
   const facts = [
     `<span class="tag" style="background:${st.color};color:#fff">${esc(st.label)}</span>`,
+    p.category ? `<span><strong>${esc(p.category)}</strong></span>` : '',
     p.address ? `<span>${esc(p.address)}</span>` : '<span class="muted">Address will fill in when you’re online.</span>',
     p.builder || p.contact ? `<span>${esc([p.builder, p.contact].filter(Boolean).join(' · '))}</span>` : '',
     p.phone ? `<span class="num">${esc(p.phone)} <button class="copy" data-act="copy" data-v="${esc(p.phone)}">Copy</button></span>` : '',
@@ -1155,6 +1164,45 @@ async function fillMissingAddresses() {
   }
 }
 
+// ----- All pins (from More): grouped, searchable, with your own categories -----
+const pinTown = (p) => { const parts = (p.address || '').split(',').map((x) => x.trim()); return parts.length > 1 ? parts[1] : ''; };
+const PIN_GROUPS = {
+  category: { label: 'Category', key: (p) => p.category || '', none: 'No category' },
+  status: { label: 'Status', key: (p) => pinStatus(p.status).label, none: '' },
+  builder: { label: 'Builder', key: (p) => p.builder || '', none: 'No builder yet' },
+  town: { label: 'Town', key: (p) => pinTown(p), none: 'Address not filled in yet' },
+};
+function pinRow(p) {
+  return `<button class="row" data-act="pin" data-id="${p.id}"><span class="pin-dot" style="background:${pinStatus(p.status).color}"></span><span class="body"><span class="t">${esc(pinName(p))}</span><span class="s">${esc([V.pgroup === 'category' ? '' : p.category, V.pgroup === 'status' ? '' : pinStatus(p.status).label, p.builder && V.pgroup !== 'builder' ? p.builder : '', p.address ? p.address.split(',')[0] : '', relDay((p.createdAt || nowISO()).slice(0, 10))].filter(Boolean).join(' · '))}</span></span><span class="end">${ICON.chev}</span></button>`;
+}
+function viewPins() {
+  V.pgroup = V.pgroup || 'category';
+  const q = (V.pq || '').trim().toLowerCase();
+  const pins = all('pins').filter((p) => !q || [p.title, p.category, p.builder, p.contact, p.phone, p.notes, p.address, pinStatus(p.status).label].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const g = PIN_GROUPS[V.pgroup];
+  const groups = new Map();
+  pins.forEach((p) => { const k = g.key(p); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+  const order = V.pgroup === 'status'
+    ? PIN_STATUSES.map((x) => x.label).filter((k) => groups.has(k))
+    : [...groups.keys()].sort((a, b) => (!a) - (!b) || a.localeCompare(b));
+  const chip = (id) => `<button class="chip" data-act="pin-group" data-g="${id}" aria-pressed="${V.pgroup === id}">${esc(PIN_GROUPS[id].label)}</button>`;
+  const body = order.map((k) => `<div class="stage-group"><h3><span>${esc(k || g.none)}</span><span class="btn-row" style="gap:10px;align-items:center">${V.pgroup === 'category' && k ? `<button class="link-btn" style="font-size:13px;padding:0" data-act="cat-rename" data-c="${esc(k)}">Rename</button>` : ''}<span>${groups.get(k).length}</span></span></h3><div class="list">${groups.get(k).map(pinRow).join('')}</div></div>`).join('');
+  return `${loadingNote()}
+  <a class="back" href="#more">${ICON.back}More</a>
+  <header class="section-head"><h1>Pins</h1><a class="btn sm" href="#map">Open map</a></header>
+  <div class="search">${ICON.search}<input id="q" type="search" placeholder="Search pins: builder, street, notes" value="${esc(V.pq || '')}" autocomplete="off" aria-label="Search pins"></div>
+  <div class="chips"><span class="small muted" style="align-self:center">Group by</span>${Object.keys(PIN_GROUPS).map(chip).join('')}</div>
+  ${pins.length ? body : `<div class="empty">${all('pins').length ? 'No pins match that search.' : 'No pins yet. Go to the <strong>Map</strong> tab and tap <strong>Drop pin here</strong> when you pass a new build.'}</div>`}
+  <p class="small muted">Tap a pin to change its category, status or notes, get directions, or make it a job.</p>`;
+}
+async function renameCategory(old) {
+  const d = await form({ title: 'Rename category', values: { name: old }, fields: [{ name: 'name', label: 'New name', required: true, hint: 'Use the name of another category to merge the two.' }], submit: 'Rename' });
+  if (!d || d.name === old) return;
+  all('pins').filter((p) => p.category === old).forEach((p) => put('pins', { ...clone(p), category: d.name }));
+  toast('Renamed');
+}
+
 function viewMap() {
   const pins = all('pins').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   const shown = pins.filter((p) => M.filter === 'all' || p.status === M.filter);
@@ -1166,7 +1214,7 @@ function viewMap() {
   <div id="map-slot" class="map-slot"></div>
   <p class="small muted">Press and hold anywhere on the map to pin that spot instead. Pins save with no signal; the map itself needs internet to show.</p>
   <div class="chips">${chip('all', 'All', pins.length)}${PIN_STATUSES.filter((x) => count(x.id)).map((x) => chip(x.id, x.label, count(x.id))).join('')}</div>
-  ${shown.length ? `<div class="list">${shown.map((p) => `<button class="row" data-act="pin" data-id="${p.id}"><span class="pin-dot" style="background:${pinStatus(p.status).color}"></span><span class="body"><span class="t">${esc(pinName(p))}</span><span class="s">${esc([pinStatus(p.status).label, p.address ? p.address.split(',').slice(0, 2).join(',') : '', relDay((p.createdAt || nowISO()).slice(0, 10))].filter(Boolean).join(' · '))}</span></span><span class="end">${ICON.chev}</span></button>`).join('')}</div>`
+  ${shown.length ? `<div class="list">${shown.map((p) => `<button class="row" data-act="pin" data-id="${p.id}"><span class="pin-dot" style="background:${pinStatus(p.status).color}"></span><span class="body"><span class="t">${esc(pinName(p))}</span><span class="s">${esc([p.category, pinStatus(p.status).label, p.address ? p.address.split(',').slice(0, 2).join(',') : '', relDay((p.createdAt || nowISO()).slice(0, 10))].filter(Boolean).join(' · '))}</span></span><span class="end">${ICON.chev}</span></button>`).join('')}</div>`
     : `<div class="empty">${pins.length ? 'No pins with this status.' : 'No pins yet. When you pass a new build, tap <strong>Drop pin here</strong>.'}</div>`}`;
 }
 
@@ -1734,6 +1782,8 @@ document.addEventListener('click', (ev) => {
     case 'map-locate': return locate(false);
     case 'pin': return pinSheet(id);
     case 'pin-filter': M.filter = el.dataset.f; return render();
+    case 'pin-group': V.pgroup = el.dataset.g; return render();
+    case 'cat-rename': return renameCategory(el.dataset.c);
     case 'cal-make': return makeCalendarLink(false);
     case 'cal-new': return makeCalendarLink(true);
     case 'cal-retry': S.cal = null; return render();
@@ -1762,7 +1812,7 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.row[role=button]')) { e.preventDefault(); e.target.click(); }
 });
 document.addEventListener('input', (e) => {
-  if (e.target.id === 'q') { V.q = e.target.value; render(); }
+  if (e.target.id === 'q') { if (V.route === 'pins') V.pq = e.target.value; else V.q = e.target.value; render(); }
 });
 document.addEventListener('change', (e) => {
   if (e.target.id === 'import-file' && e.target.files[0]) { importFile(e.target.files[0]); e.target.value = ''; }
