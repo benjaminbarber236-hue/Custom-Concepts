@@ -278,6 +278,7 @@ dialog#sheet::backdrop { background: rgba(10, 18, 15, .45); }
 'use strict';
 
 // ---------- Constants ----------
+const APP_VERSION = 'Nov 19 · map';
 const STAGES = [
   { id: 'lead', label: 'New lead', short: 'Lead', sec: 'sales' },
   { id: 'consult', label: 'Sales calls', short: 'Sales', sec: 'sales' },
@@ -922,6 +923,7 @@ function viewMore() {
       <button class="btn big" data-act="export">Save a backup file</button>
     </div></section>
   ${contacts.length ? `<section class="section"><div class="section-head"><h2>Contacts from the old app</h2><span class="count">${contacts.length}</span></div><p class="small muted">Search finds these too.</p><div class="list">${contacts.slice().sort((a, b) => a.name.localeCompare(b.name)).map(contactRow).join('')}</div></section>` : ''}
+  <p class="small muted">App version ${APP_VERSION}</p>
   ${S.jobs.size ? `<section class="section"><h2>Start over</h2><button class="btn danger" data-act="erase">Erase all jobs…</button></section>` : ''}`;
 }
 
@@ -1858,7 +1860,18 @@ async function signOut() {
   render();
 }
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  // When a newer version finishes downloading, switch to it (unless a form is open).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    if (sheetEl.open) { toast('Update ready. It loads next time you open the app.'); return; }
+    reloading = true;
+    persistNow().finally(() => location.reload());
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => r.update()).catch(() => {});
+}
 start();
 })();
 </script>
