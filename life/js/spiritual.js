@@ -106,6 +106,7 @@
           <div class="list-row"><span>Weekend</span><span class="muted">${mt('weekend')}</span></div>
           ${s.meetings.place ? `<div class="list-row"><span>Where</span><span class="muted">${esc(s.meetings.place)}</span></div>` : ''}
         </div>
+        <label class="toggle plain on-sched"><input type="checkbox" data-change="meetings-on-schedule" ${s.meetings.onSchedule ? 'checked' : ''}><span class="sw-track"></span><span>Show on my schedule <em>(calendar and Today)</em></span></label>
       </section>`;
   }
 
@@ -445,6 +446,7 @@
   // Remember which groups are open so tapping Call/Text or editing doesn't fold them back up.
   main.addEventListener('toggle', (e) => { const d = e.target; if (d.dataset && d.dataset.gid) { if (d.open) openGroups.add(d.dataset.gid); else openGroups.delete(d.dataset.gid); } }, true);
   main.addEventListener('change', (e) => {
+    if (e.target.dataset.change === 'meetings-on-schedule') { sp().meetings.onSchedule = e.target.checked; S.save(); u.toast(e.target.checked ? 'Meetings will show on your schedule.' : 'Meetings are off your schedule.'); return; }
     if (e.target.dataset.change === 'reading-at') { sp().readingAt = e.target.value.trim(); S.save(); u.toast('Saved'); }
   });
   main.addEventListener('click', (e) => {

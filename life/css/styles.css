@@ -493,3 +493,4 @@ button.list-row { width: 100%; text-align: left; gap: 10px; }
 .ag-row.is-done .ag-text b { text-decoration: line-through; }
 .ag-row.is-reminder .ag-text b .ic { color: var(--warm); }
 .page-head { flex-wrap: wrap; row-gap: 10px; } .head-acts .btn { white-space: nowrap; }
+.on-sched { margin-top: 10px; font-size: 15px; }
