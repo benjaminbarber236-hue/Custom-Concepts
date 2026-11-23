@@ -278,7 +278,7 @@ dialog#sheet::backdrop { background: rgba(10, 18, 15, .45); }
 'use strict';
 
 // ---------- Constants ----------
-const APP_VERSION = 'Nov 19 · pins';
+const APP_VERSION = 'Nov 23 · offline';
 const STAGES = [
   { id: 'lead', label: 'New lead', short: 'Lead', sec: 'sales' },
   { id: 'consult', label: 'Sales calls', short: 'Sales', sec: 'sales' },
@@ -375,12 +375,19 @@ const CFG_KEY = 'jt-config';
 // Tiny IndexedDB helper: 'kv' holds saved data, 'blobs' holds files kept on this device.
 const idb = (() => {
   let p;
+  // Opening on-device storage can stall when the app starts (a known iPhone/Safari issue), so ask again if it hangs.
   const open = () => p || (p = new Promise((res, rej) => {
-    const r = indexedDB.open('job-tracker', 1);
-    r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('blobs'); };
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  }));
+    let done = false, tries = 0;
+    const attempt = () => {
+      tries++;
+      const r = indexedDB.open('job-tracker', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('blobs'); };
+      r.onsuccess = () => { if (done) { r.result.close(); return; } done = true; res(r.result); };
+      r.onerror = () => { if (!done && tries >= 4) { done = true; rej(r.error); } };
+      setTimeout(() => { if (done) return; if (tries < 4) attempt(); else { done = true; rej(new Error('Storage on this device did not open')); } }, 1500);
+    };
+    attempt();
+  }).catch((e) => { p = null; throw e; }));
   const tx = (store, mode, fn) => open().then((db) => new Promise((res, rej) => {
     const t = db.transaction(store, mode);
     const q = fn(t.objectStore(store));
@@ -397,7 +404,8 @@ let outV = 0;
 let persistT = 0;
 function persistNow() {
   clearTimeout(persistT);
-  if (!S.user) return Promise.resolve();
+  // Never write before this device's saved data has been read, or unsent changes could be overwritten.
+  if (!S.user || !S.localReady) return Promise.resolve();
   return idb.set('kv', 'state:' + S.user.id, { jobs: all('jobs'), events: all('events'), tasks: all('tasks'), pins: all('pins'), meta: S.meta, outbox, lastPull })
     .catch((e) => { console.error(e); toast('Couldn’t save on this device. It may be out of space.'); });
 }
@@ -616,6 +624,7 @@ function render() {
 }
 
 function loadingNote() {
+  if (S.mode === 'live' && S.user && !S.localReady) return `<div class="banner warn"><strong>Couldn’t open the jobs saved on this device.</strong><span>Close the app fully (swipe it away) and open it again. ${navigator.onLine ? 'Anything you change now still syncs while you have service.' : 'Wait until you have service before making changes.'}</span></div>`;
   if (S.syncError && navigator.onLine) return `<div class="banner warn"><strong>Can’t sync right now.</strong><span>Your changes are safe on this device and will sync once this is fixed. (${esc(S.syncError)})</span></div>`;
   if (!S.loaded) return navigator.onLine ? `<div class="banner"><span>Loading your jobs…</span></div>` : `<div class="banner warn"><strong>You’re offline.</strong><span>Your jobs will appear once this device connects for the first time.</span></div>`;
   return '';
@@ -984,8 +993,8 @@ function ensureMap() {
   M.el.id = 'map';
   M.map = L.map(M.el, { zoomControl: true, tap: true }).setView([39.5, -98.35], 4);
   M.layers = {
-    map: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }),
-    sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imagery © Esri' }),
+    map: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }),
+    sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imagery © Esri', crossOrigin: true }),
   };
   M.layers[M.base].addTo(M.map);
   M.markers = L.layerGroup().addTo(M.map);
@@ -1212,7 +1221,7 @@ function viewMap() {
   <header class="section-head"><h1>Map</h1><div class="btn-row"><button class="btn sm" data-act="map-locate">Find me</button><button class="btn sm" data-act="map-base">${M.base === 'map' ? 'Satellite' : 'Map'}</button></div></header>
   <button class="btn primary big" data-act="pin-here"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/></svg>Drop pin here</button>
   <div id="map-slot" class="map-slot"></div>
-  <p class="small muted">Press and hold anywhere on the map to pin that spot instead. Pins save with no signal; the map itself needs internet to show.</p>
+  <p class="small muted">Press and hold anywhere on the map to pin that spot instead. Pins save with no signal. Areas you’ve already looked at on the map still show offline.</p>
   <div class="chips">${chip('all', 'All', pins.length)}${PIN_STATUSES.filter((x) => count(x.id)).map((x) => chip(x.id, x.label, count(x.id))).join('')}</div>
   ${shown.length ? `<div class="list">${shown.map((p) => `<button class="row" data-act="pin" data-id="${p.id}"><span class="pin-dot" style="background:${pinStatus(p.status).color}"></span><span class="body"><span class="t">${esc(pinName(p))}</span><span class="s">${esc([p.category, pinStatus(p.status).label, p.address ? p.address.split(',').slice(0, 2).join(',') : '', relDay((p.createdAt || nowISO()).slice(0, 10))].filter(Boolean).join(' · '))}</span></span><span class="end">${ICON.chev}</span></button>`).join('')}</div>`
     : `<div class="empty">${pins.length ? 'No pins with this status.' : 'No pins yet. When you pass a new build, tap <strong>Drop pin here</strong>.'}</div>`}`;
@@ -1837,7 +1846,9 @@ async function openUser(user) {
   S.user = user;
   S.mode = 'live';
   S.msg = '';
-  const st = await idb.get('kv', 'state:' + user.id).catch(() => null);
+  let st = null;
+  S.localReady = false;
+  try { st = await idb.get('kv', 'state:' + user.id); S.localReady = true; } catch (e) { console.error(e); }
   if (st) {
     S.jobs = new Map((st.jobs || []).map((x) => [x.id, x]));
     S.events = new Map((st.events || []).map((x) => [x.id, x]));
