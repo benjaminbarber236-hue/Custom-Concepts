@@ -300,10 +300,10 @@ Reply with only the cleaned-up text so I can copy it.`;
     const label = e.kind === 'dream' ? (fd.get('lucid') ? 'Lucid dream' : 'Dream') : 'Journal entry';
     return `${label}, ${when}${fd.get('time') ? ', ' + u.timeText(fd.get('time')) : ''}:\n\n${text}`;
   }
-  // A pre-filled link (?q=) makes the Claude app start a plain new chat and skip the project, so a
-  // linked project is opened as-is and the copied entry is pasted into a new chat there.
-  function claudeURL(message) {
-    return projectLink() || 'https://claude.ai/new?q=' + encodeURIComponent(message);
+  // Your words never go into the link (links can end up in browser history). Claude opens blank,
+  // and the entry travels only through the clipboard for you to paste.
+  function claudeURL() {
+    return projectLink() || 'https://claude.ai/new';
   }
   function claudePrompt(text, kind) {
     const what = kind === 'dream' ? 'a dream I dictated right after waking up (speech-to-text, often whispered, so words may be misheard)' : 'a journal entry I dictated (speech-to-text, so words may be misheard)';
@@ -399,13 +399,13 @@ ${text}`;
           // Copy and open Claude in the same tap (no share sheet, so it can't go to a contact by
           // mistake). The link also pre-fills the chat; if it doesn't, the copy is ready to paste.
           const copied = u.copyText(prompt);
-          window.open(claudeURL(prompt), '_blank', 'noopener');
+          window.open(claudeURL(), '_blank', 'noopener');
           const ok = await copied;
           if (projectLink()) return say(ok
             ? 'Copied. In your Claude project, start a new chat, paste and send. Then copy Claude’s reply, come back and tap “Paste Claude’s version”.'
             : 'Couldn’t copy here. Select the text and copy it, then paste it into a new chat in your Claude project.');
           say(ok
-            ? 'Copied and opening Claude. If the chat is empty, paste it there. Send, copy Claude’s reply, then come back and tap “Paste Claude’s version”.'
+            ? 'Copied and opening Claude. Paste it into the new chat and send. Then copy Claude’s reply, come back and tap “Paste Claude’s version”.'
             : 'Opening Claude. Send the message, copy Claude’s reply, then come back and tap “Paste Claude’s version”.');
         };
         pasteBtn.onclick = async () => {
@@ -451,6 +451,7 @@ ${text}`;
     return `
       <a href="#/today" class="back">${icon('left')} Today</a>
       <header class="page-head"><h1>Settings</h1></header>
+      ${L.lock ? L.lock.card() : ''}
       <section class="card">
         <div class="sec-head"><h2>Appearance</h2></div>
         <div class="seg">${[['', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" data-act="theme" ${st.theme === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
