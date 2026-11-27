@@ -1,10 +1,10 @@
 // Offline support: serve the app from cache, refresh it in the background.
 // Change CACHE with every release: phones see the new sw.js, download the new files,
 // and the app shows "Updated — tap to refresh".
-const CACHE = 'life-v25';
+const CACHE = 'life-v26';
 const SHELL = [
-  './', 'index.html', 'css/styles.css', 'js/util.js', 'js/store.js', 'js/sample.js', 'js/schedule.js', 'js/spiritual.js', 'js/goals.js', 'js/app.js',
-  'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  './', 'index.html', 'css/styles.css', 'js/util.js', 'js/store.js', 'js/sample.js', 'js/schedule.js', 'js/spiritual.js', 'js/goals.js', 'js/lock.js', 'js/app.js',
+  'manifest.webmanifest', 'fonts/figtree-latin-400-normal.woff2', 'fonts/figtree-latin-500-normal.woff2', 'fonts/figtree-latin-600-normal.woff2', 'fonts/figtree-latin-700-normal.woff2', 'fonts/fraunces-latin-500-normal.woff2', 'fonts/fraunces-latin-600-normal.woff2', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (e) => {

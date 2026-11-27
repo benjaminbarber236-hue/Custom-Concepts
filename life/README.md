@@ -41,8 +41,12 @@ The app is served by GitHub Pages at **https://benjaminbarber236-hue.github.io/C
 
 On a computer, run `python3 -m http.server` in this folder and go to http://localhost:8000.
 
-## Your data
-Everything is saved **on this device, in this browser only**. Nothing is uploaded. Use **Settings → Save backup** now and then. The Today screen reminds you after a month without one.
+## Your data and privacy
+- Everything is saved **on this phone only**, inside the app. There's no account and no server, and the app makes no outside requests on its own: its code, fonts and icons all come from the app's own site, and nothing you type is sent anywhere.
+- Something leaves only when you tap a button that sends it: **Copy & open Claude** (one entry, via the clipboard; Claude opens blank, so your words never go in a link), **Copy report**, a **Reminder** alert or **Add to phone calendar** (goes to Calendar), and **Save backup** (a file with everything; keep it private).
+- **App lock** (Settings): Face ID through the iPhone's passkeys, with a 4-digit PIN as backup. It locks when Life opens and when you come back (right away, or after 1 or 5 minutes), and hides it in the app switcher. It's a lock screen, not encryption; your iPhone's own passcode and encryption protect the stored data. The lock settings aren't in backups. Forgot the PIN and no Face ID: the only way back in is erasing Life's data on that phone.
+- Deleting Life from the home screen deletes its data, so save a backup first. If you use iCloud Backup, your phone's backup most likely includes it.
+- Fonts: Figtree and Fraunces, included under the SIL Open Font License (`fonts/LICENSE-*.txt`).
 
 ## Files
 ```
@@ -54,6 +58,8 @@ js/sample.js            sample data
 js/schedule.js          Schedule tab, plans, agenda rows
 js/spiritual.js         Spiritual tab: meetings, service, group, study
 js/goals.js             Goals (inside the Habits tab)
+js/lock.js              App lock (Face ID passkey + PIN)
+fonts/                  bundled fonts and their licenses
 js/app.js               screens and actions
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
 tools/build-demo.js     builds a single-file demo with sample data
